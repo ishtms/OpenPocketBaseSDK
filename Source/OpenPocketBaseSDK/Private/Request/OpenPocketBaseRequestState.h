@@ -1,0 +1,50 @@
+#pragma once
+
+#include "HAL/CriticalSection.h"
+#include "OpenPocketBaseRequestHandle.h"
+#include "Templates/Function.h"
+#include "Transport/OpenPocketBaseTransport.h"
+
+#include <atomic>
+
+enum class EOpenPocketBaseRequestState : uint8
+{
+    Pending,
+    WaitingForAuthRefresh,
+    Sending,
+    WaitingForRetry,
+    Succeeded,
+    Failed,
+    Cancelled
+};
+
+class FOpenPocketBaseRequestState final
+    : public TSharedFromThis<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>
+{
+public:
+    FOpenPocketBaseRequestState(
+        uint64 InRequestId,
+        TUniqueFunction<void()> InOnCancelled,
+        TUniqueFunction<void()> InOnTerminal);
+
+    uint64 GetRequestId() const;
+    EOpenPocketBaseRequestState GetState() const;
+    bool IsActive() const;
+
+    void MarkSending();
+    void AttachTransportHandle(FOpenPocketBaseTransportHandle&& InHandle);
+    bool TryComplete(EOpenPocketBaseRequestState TerminalState, TUniqueFunction<void()> Completion);
+    void Cancel();
+
+private:
+    static bool IsTerminal(EOpenPocketBaseRequestState State);
+    bool TrySetTerminal(EOpenPocketBaseRequestState TerminalState);
+    static void Dispatch(TUniqueFunction<void()> Completion);
+
+    uint64 RequestId;
+    std::atomic<EOpenPocketBaseRequestState> State = EOpenPocketBaseRequestState::Pending;
+    mutable FCriticalSection Mutex;
+    FOpenPocketBaseTransportHandle TransportHandle;
+    TUniqueFunction<void()> OnCancelled;
+    TUniqueFunction<void()> OnTerminal;
+};
