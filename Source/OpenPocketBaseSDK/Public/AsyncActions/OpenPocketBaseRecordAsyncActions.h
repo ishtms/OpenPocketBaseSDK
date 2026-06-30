@@ -1,0 +1,168 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/CancellableAsyncAction.h"
+#include "OpenPocketBaseBlueprintClient.h"
+
+#include "OpenPocketBaseRecordAsyncActions.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseRecordActionSuccess,
+    FOpenPocketBaseRecord,
+    Record);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseRecordPageActionSuccess,
+    FOpenPocketBaseRecordPage,
+    Page);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseAuthActionSuccess,
+    FOpenPocketBaseAuthResult,
+    AuthResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseActionFailed,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseActionCancelled);
+
+UCLASS(Abstract)
+class OPENPOCKETBASESDK_API UOpenPocketBaseAsyncActionBase : public UCancellableAsyncAction
+{
+    GENERATED_BODY()
+
+public:
+    virtual void Cancel() override;
+
+protected:
+    virtual void BroadcastCancelled() PURE_VIRTUAL(UOpenPocketBaseAsyncActionBase::BroadcastCancelled, );
+    bool TryBeginTerminal();
+    void Finish();
+
+    UPROPERTY(Transient)
+    TObjectPtr<UOpenPocketBaseClient> Client;
+
+    FOpenPocketBaseRequestHandle RequestHandle;
+    bool bTerminal = false;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseGetRecordAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Records",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Get Record"))
+    static UOpenPocketBaseGetRecordAsyncAction* GetRecord(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FString RecordId,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FString RecordId;
+    FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseListRecordsAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordPageActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Records",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "List Records"))
+    static UOpenPocketBaseListRecordsAsyncAction* ListRecords(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FOpenPocketBaseListOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FOpenPocketBaseListOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBasePasswordAuthAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseAuthActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Log In with Password"))
+    static UOpenPocketBasePasswordAuthAsyncAction* LogInWithPassword(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString Identity,
+        FString Password,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FString Identity;
+    FString Password;
+    FOpenPocketBaseRequestOptions Options;
+};
