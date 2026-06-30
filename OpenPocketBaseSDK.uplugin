@@ -1,0 +1,38 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "OpenPocketBase SDK",
+  "Description": "PocketBase v0.39.11 client for Unreal Engine C++ and Blueprint projects.",
+  "Category": "Online",
+  "CreatedBy": "Ishtmeet Singh",
+  "CanContainContent": true,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "OpenPocketBaseSDK",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    },
+    {
+      "Name": "OpenPocketBaseSDKOffline",
+      "Type": "Runtime",
+      "LoadingPhase": "None"
+    },
+    {
+      "Name": "OpenPocketBaseSDKAdmin",
+      "Type": "Runtime",
+      "LoadingPhase": "None"
+    },
+    {
+      "Name": "OpenPocketBaseSDKEditor",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit"
+    },
+    {
+      "Name": "OpenPocketBaseSDKTests",
+      "Type": "DeveloperTool",
+      "LoadingPhase": "PostDefault"
+    }
+  ]
+}
