@@ -2,6 +2,7 @@
 
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "OpenPocketBaseDate.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
@@ -133,11 +134,7 @@ bool UOpenPocketBaseRecordLibrary::TryGetDateField(
     {
         return false;
     }
-    if (DateString.Len() > 10 && DateString[10] == TEXT(' '))
-    {
-        DateString[10] = TEXT('T');
-    }
-    return FDateTime::ParseIso8601(*DateString, OutValue);
+    return OpenPocketBase::Date::TryParse(DateString, OutValue);
 }
 
 bool UOpenPocketBaseRecordLibrary::TryGetStringArrayField(
@@ -190,4 +187,16 @@ bool UOpenPocketBaseRecordLibrary::TryGetObjectField(
     const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutValue.JsonString);
     FJsonSerializer::Serialize(Object->ToSharedRef(), Writer);
     return true;
+}
+
+bool UOpenPocketBaseRecordLibrary::TryParsePocketBaseDate(
+    const FString& Value,
+    FDateTime& OutDateTime)
+{
+    return OpenPocketBase::Date::TryParse(Value, OutDateTime);
+}
+
+FString UOpenPocketBaseRecordLibrary::FormatPocketBaseDate(const FDateTime& Value)
+{
+    return OpenPocketBase::Date::Format(Value);
 }

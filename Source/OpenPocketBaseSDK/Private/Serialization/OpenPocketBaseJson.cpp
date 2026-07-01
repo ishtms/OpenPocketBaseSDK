@@ -2,6 +2,7 @@
 
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "OpenPocketBaseDate.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -112,19 +113,6 @@ FJsonObjectWrapper WrapObject(const TSharedRef<FJsonObject>& Object)
     return Wrapper;
 }
 
-FDateTime ParsePocketBaseDate(const FString& Value)
-{
-    FString IsoValue = Value;
-    if (IsoValue.Len() > 10 && IsoValue[10] == TEXT(' '))
-    {
-        IsoValue[10] = TEXT('T');
-    }
-
-    FDateTime Result;
-    FDateTime::ParseIso8601(*IsoValue, Result);
-    return Result;
-}
-
 bool ParseRecordObject(const TSharedRef<FJsonObject>& Object, FOpenPocketBaseRecord& OutRecord)
 {
     if (!Object->TryGetStringField(TEXT("id"), OutRecord.Id))
@@ -136,13 +124,15 @@ bool ParseRecordObject(const TSharedRef<FJsonObject>& Object, FOpenPocketBaseRec
     Object->TryGetStringField(TEXT("collectionName"), OutRecord.CollectionName);
 
     FString DateValue;
-    if (Object->TryGetStringField(TEXT("created"), DateValue))
+    if (Object->TryGetStringField(TEXT("created"), DateValue) &&
+        !OpenPocketBase::Date::TryParse(DateValue, OutRecord.Created))
     {
-        OutRecord.Created = ParsePocketBaseDate(DateValue);
+        return false;
     }
-    if (Object->TryGetStringField(TEXT("updated"), DateValue))
+    if (Object->TryGetStringField(TEXT("updated"), DateValue) &&
+        !OpenPocketBase::Date::TryParse(DateValue, OutRecord.Updated))
     {
-        OutRecord.Updated = ParsePocketBaseDate(DateValue);
+        return false;
     }
 
     OutRecord.Data = WrapObject(Object);

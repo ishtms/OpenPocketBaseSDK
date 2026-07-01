@@ -71,4 +71,10 @@ public:
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
         FJsonObjectWrapper& OutValue);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
+    static bool TryParsePocketBaseDate(const FString& Value, FDateTime& OutDateTime);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
+    static FString FormatPocketBaseDate(const FDateTime& Value);
 };
