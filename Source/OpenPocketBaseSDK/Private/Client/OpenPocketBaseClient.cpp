@@ -3,7 +3,9 @@
 #include "Async/Async.h"
 #include "Dom/JsonObject.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
+#include "Containers/Ticker.h"
 #include "HAL/CriticalSection.h"
+#include "Math/RandomStream.h"
 #include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
 #include "Request/OpenPocketBaseRequestState.h"
@@ -14,6 +16,10 @@
 
 namespace
 {
+using FOpenPocketBaseResponseHandler = TUniqueFunction<void(
+    FOpenPocketBaseHttpResponse&&,
+    const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>&)>;
+
 template <typename ValueType>
 class TCompletionState final
 {
@@ -164,14 +170,175 @@ EOpenPocketBaseRequestState TerminalStateFor(const bool bSucceeded)
         ? EOpenPocketBaseRequestState::Succeeded
         : EOpenPocketBaseRequestState::Failed;
 }
+
+bool ValidateRequestOptions(
+    const FOpenPocketBaseRequestOptions& Options,
+    FOpenPocketBaseError& OutError)
+{
+    if (Options.TotalTimeoutSeconds < 0 || Options.ActivityTimeoutSeconds < 0 ||
+        Options.MaxReadRetries < 0 || Options.MaxReadRetries > 5 ||
+        Options.RetryBaseDelaySeconds < 0 || Options.RetryBaseDelaySeconds > 30 ||
+        Options.RetryMaxDelaySeconds < 0 || Options.RetryMaxDelaySeconds > 60 ||
+        Options.RetryJitterFraction < 0 || Options.RetryJitterFraction > 1 ||
+        Options.MaxResponseBytes < 1024 || Options.MaxResponseBytes > 64 * 1024 * 1024)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Request options contain a value outside the supported bounds."));
+        return false;
+    }
+    return true;
+}
+
+bool IsRetryableReadResponse(const FOpenPocketBaseHttpResponse& Response)
+{
+    if (!Response.bTransportSucceeded)
+    {
+        return true;
+    }
+    return Response.HttpStatus == 502 || Response.HttpStatus == 503 || Response.HttpStatus == 504;
+}
+
+double GetRetryAfterSeconds(const FOpenPocketBaseHttpResponse& Response)
+{
+    for (const TPair<FString, FString>& Header : Response.Headers)
+    {
+        if (Header.Key.Equals(TEXT("Retry-After"), ESearchCase::IgnoreCase))
+        {
+            double Seconds = 0;
+            return LexTryParseString(Seconds, *Header.Value) && Seconds >= 0 ? Seconds : 0;
+        }
+    }
+    return 0;
+}
+
+class FOpenPocketBaseRequestAttempts final
+    : public TSharedFromThis<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe>
+{
+public:
+    FOpenPocketBaseRequestAttempts(
+        FOpenPocketBaseHttpRequest InRequest,
+        const FOpenPocketBaseRequestOptions& InOptions,
+        const bool bInEligibleRead,
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InTransport,
+        TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> InState,
+        FOpenPocketBaseResponseHandler InHandler)
+        : Request(MoveTemp(InRequest))
+        , Options(InOptions)
+        , bEligibleRead(bInEligibleRead)
+        , Transport(MoveTemp(InTransport))
+        , State(MoveTemp(InState))
+        , Handler(MoveTemp(InHandler))
+    {
+    }
+
+    void Start()
+    {
+        if (!State->TryMarkSending())
+        {
+            return;
+        }
+
+        const uint32 Generation = NextGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
+        const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Self = AsShared();
+        FOpenPocketBaseHttpRequest AttemptRequest = Request;
+        FOpenPocketBaseTransportHandle Handle = Transport->Send(
+            MoveTemp(AttemptRequest),
+            {},
+            [Self, Generation](FOpenPocketBaseHttpResponse&& Response)
+            {
+                Self->HandleResponse(MoveTemp(Response), Generation);
+            });
+        State->AttachTransportHandle(MoveTemp(Handle));
+    }
+
+private:
+    void HandleResponse(FOpenPocketBaseHttpResponse&& Response, const uint32 Generation)
+    {
+        if (Generation != NextGeneration.load(std::memory_order_acquire) ||
+            State->GetState() != EOpenPocketBaseRequestState::Sending)
+        {
+            return;
+        }
+
+        if (Response.RequestId.IsEmpty())
+        {
+            Response.RequestId = Request.RequestId;
+        }
+
+        const bool bExceededResponseLimit = Response.Body.Num() > Options.MaxResponseBytes;
+        if (bExceededResponseLimit)
+        {
+            Response = FOpenPocketBaseHttpResponse();
+            Response.RequestId = Request.RequestId;
+            Response.ErrorMessage = TEXT("The response exceeded the configured byte limit.");
+        }
+
+        if (!bExceededResponseLimit && bEligibleRead && Options.bRetryEligibleReads &&
+            RetryCount < Options.MaxReadRetries && IsRetryableReadResponse(Response))
+        {
+            if (State->TryMarkWaitingForRetry())
+            {
+                const double RetryAfterSeconds = GetRetryAfterSeconds(Response);
+                ScheduleRetry(RetryAfterSeconds);
+            }
+            return;
+        }
+
+        FOpenPocketBaseResponseHandler LocalHandler = MoveTemp(Handler);
+        Transport.Reset();
+        if (LocalHandler)
+        {
+            LocalHandler(MoveTemp(Response), State);
+        }
+    }
+
+    void ScheduleRetry(const double RetryAfterSeconds)
+    {
+        const int32 RetryIndex = RetryCount++;
+        const double ExponentialDelay = Options.RetryBaseDelaySeconds * FMath::Pow(2.0, RetryIndex);
+        double Delay = FMath::Min(
+            Options.RetryMaxDelaySeconds,
+            FMath::Max(ExponentialDelay, RetryAfterSeconds));
+        if (Delay > 0 && Options.RetryJitterFraction > 0)
+        {
+            FRandomStream RandomStream(GetTypeHash(Request.RequestId) + RetryIndex);
+            const double Jitter = Delay * Options.RetryJitterFraction;
+            Delay = FMath::Clamp(
+                Delay + RandomStream.FRandRange(-Jitter, Jitter),
+                0.0,
+                Options.RetryMaxDelaySeconds);
+        }
+
+        const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Self = AsShared();
+        const FTSTicker::FDelegateHandle TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+            TEXT("OpenPocketBase.ReadRetry"),
+            static_cast<float>(Delay),
+            [Self](float)
+            {
+                Self->Start();
+                return false;
+            });
+        State->AttachRetryHandle(FOpenPocketBaseTransportHandle(
+            [TickerHandle]()
+            {
+                FTSTicker::RemoveTicker(TickerHandle);
+            }));
+    }
+
+    FOpenPocketBaseHttpRequest Request;
+    FOpenPocketBaseRequestOptions Options;
+    bool bEligibleRead = false;
+    TSharedPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
+    TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State;
+    FOpenPocketBaseResponseHandler Handler;
+    std::atomic<uint32> NextGeneration = 0;
+    int32 RetryCount = 0;
+};
 }
 
 struct FOpenPocketBaseClient::FImpl
 {
-    using FResponseHandler = TUniqueFunction<void(
-        FOpenPocketBaseHttpResponse&&,
-        const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>&)>;
-
     FOpenPocketBaseClientConfig Config;
     FString BaseUrl;
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
@@ -232,7 +399,9 @@ struct FOpenPocketBaseClient::FImpl
 
     FOpenPocketBaseRequestHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
-        FResponseHandler Handler,
+        const FOpenPocketBaseRequestOptions& Options,
+        const bool bEligibleRead,
+        FOpenPocketBaseResponseHandler Handler,
         TUniqueFunction<void()> OnCancelled)
     {
         const uint64 RequestId = NextRequestId.fetch_add(1, std::memory_order_relaxed);
@@ -257,15 +426,15 @@ struct FOpenPocketBaseClient::FImpl
             return FOpenPocketBaseRequestHandle(State);
         }
 
-        State->MarkSending();
-        FOpenPocketBaseTransportHandle TransportHandle = Transport->Send(
-            MoveTemp(Request),
-            FOpenPocketBaseHttpChunkCallback(),
-            [State, Handler = MoveTemp(Handler)](FOpenPocketBaseHttpResponse&& Response) mutable
-            {
-                Handler(MoveTemp(Response), State);
-            });
-        State->AttachTransportHandle(MoveTemp(TransportHandle));
+        const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Attempts =
+            MakeShared<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe>(
+                MoveTemp(Request),
+                Options,
+                bEligibleRead,
+                Transport,
+                State,
+                MoveTemp(Handler));
+        Attempts->Start();
         return FOpenPocketBaseRequestHandle(State);
     }
 
@@ -408,6 +577,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
         return {};
     }
 
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
     const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
         MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
     const FString Path = FString::Printf(
@@ -419,6 +595,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
+        Options,
+        true,
         [Completion](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
@@ -452,6 +630,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
         return {};
     }
 
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseRecordPage>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
     const TSharedRef<TCompletionState<FOpenPocketBaseRecordPage>, ESPMode::ThreadSafe> Completion =
         MakeShared<TCompletionState<FOpenPocketBaseRecordPage>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
     const FString Path = FString::Printf(
@@ -463,6 +648,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
+        Options.RequestOptions,
+        true,
         [Completion](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
@@ -498,6 +685,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
         return {};
     }
 
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseAuthResult>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
     const TSharedRef<TCompletionState<FOpenPocketBaseAuthResult>, ESPMode::ThreadSafe> Completion =
         MakeShared<TCompletionState<FOpenPocketBaseAuthResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
     const TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
@@ -517,6 +711,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
+        Options,
+        false,
         [Completion, WeakClient](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)

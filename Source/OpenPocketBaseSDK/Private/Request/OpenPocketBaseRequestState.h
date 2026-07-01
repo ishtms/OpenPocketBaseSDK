@@ -31,14 +31,20 @@ public:
     EOpenPocketBaseRequestState GetState() const;
     bool IsActive() const;
 
-    void MarkSending();
+    bool TryMarkSending();
+    bool TryMarkWaitingForRetry();
     void AttachTransportHandle(FOpenPocketBaseTransportHandle&& InHandle);
+    void AttachRetryHandle(FOpenPocketBaseTransportHandle&& InHandle);
     bool TryComplete(EOpenPocketBaseRequestState TerminalState, TUniqueFunction<void()> Completion);
     void Cancel();
 
 private:
     static bool IsTerminal(EOpenPocketBaseRequestState State);
     bool TrySetTerminal(EOpenPocketBaseRequestState TerminalState);
+    void AttachStageHandle(
+        FOpenPocketBaseTransportHandle&& InHandle,
+        EOpenPocketBaseRequestState ExpectedState,
+        bool bCancelOnMismatch);
     static void Dispatch(TUniqueFunction<void()> Completion);
 
     uint64 RequestId;

@@ -95,6 +95,24 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRequestOptions
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay)
     FString RequestKey;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay)
+    bool bRetryEligibleReads = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay, meta = (ClampMin = "0", ClampMax = "5"))
+    int32 MaxReadRetries = 2;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay, meta = (ClampMin = "0.0", ClampMax = "30.0"))
+    double RetryBaseDelaySeconds = 0.25;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay, meta = (ClampMin = "0.0", ClampMax = "60.0"))
+    double RetryMaxDelaySeconds = 2.0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay, meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    double RetryJitterFraction = 0.2;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay, meta = (ClampMin = "1024", ClampMax = "67108864"))
+    int64 MaxResponseBytes = 8 * 1024 * 1024;
 };
 
 USTRUCT(BlueprintType)

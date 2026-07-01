@@ -28,23 +28,64 @@ bool FOpenPocketBaseRequestState::IsActive() const
     return !IsTerminal(GetState());
 }
 
-void FOpenPocketBaseRequestState::MarkSending()
+bool FOpenPocketBaseRequestState::TryMarkSending()
 {
     EOpenPocketBaseRequestState Expected = EOpenPocketBaseRequestState::Pending;
-    State.compare_exchange_strong(
+    if (State.compare_exchange_strong(
+        Expected,
+        EOpenPocketBaseRequestState::Sending,
+        std::memory_order_acq_rel))
+    {
+        return true;
+    }
+
+    Expected = EOpenPocketBaseRequestState::WaitingForRetry;
+    return State.compare_exchange_strong(
         Expected,
         EOpenPocketBaseRequestState::Sending,
         std::memory_order_acq_rel);
 }
 
+bool FOpenPocketBaseRequestState::TryMarkWaitingForRetry()
+{
+    EOpenPocketBaseRequestState Expected = EOpenPocketBaseRequestState::Sending;
+    return State.compare_exchange_strong(
+        Expected,
+        EOpenPocketBaseRequestState::WaitingForRetry,
+        std::memory_order_acq_rel);
+}
+
 void FOpenPocketBaseRequestState::AttachTransportHandle(FOpenPocketBaseTransportHandle&& InHandle)
+{
+    AttachStageHandle(
+        MoveTemp(InHandle),
+        EOpenPocketBaseRequestState::Sending,
+        false);
+}
+
+void FOpenPocketBaseRequestState::AttachRetryHandle(FOpenPocketBaseTransportHandle&& InHandle)
+{
+    AttachStageHandle(
+        MoveTemp(InHandle),
+        EOpenPocketBaseRequestState::WaitingForRetry,
+        true);
+}
+
+void FOpenPocketBaseRequestState::AttachStageHandle(
+    FOpenPocketBaseTransportHandle&& InHandle,
+    const EOpenPocketBaseRequestState ExpectedState,
+    const bool bCancelOnMismatch)
 {
     FOpenPocketBaseTransportHandle HandleToCancel;
     {
         FScopeLock Lock(&Mutex);
-        if (IsTerminal(GetState()))
+        const EOpenPocketBaseRequestState CurrentState = GetState();
+        if (CurrentState != ExpectedState)
         {
-            HandleToCancel = MoveTemp(InHandle);
+            if (bCancelOnMismatch || CurrentState == EOpenPocketBaseRequestState::Cancelled)
+            {
+                HandleToCancel = MoveTemp(InHandle);
+            }
         }
         else
         {
