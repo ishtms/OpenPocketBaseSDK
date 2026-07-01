@@ -116,6 +116,24 @@ FString EncodeSegment(const FString& Value)
     return FGenericPlatformHttp::UrlEncode(Value);
 }
 
+bool IsSafePathSegment(const FString& Value)
+{
+    if (Value.IsEmpty() || Value == TEXT(".") || Value == TEXT(".."))
+    {
+        return false;
+    }
+
+    for (const TCHAR Character : Value)
+    {
+        if (Character == TEXT('/') || Character == TEXT('\\') || Character == TEXT('%') ||
+            Character == TEXT('?') || Character == TEXT('#') || FChar::IsControl(Character))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void AddQueryValue(TArray<FString>& Parts, const TCHAR* Name, const FString& Value)
 {
     if (!Value.IsEmpty())
@@ -373,7 +391,7 @@ FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
 
 bool FOpenPocketBaseCollectionService::IsValid() const
 {
-    return !Collection.IsEmpty() && Client.IsValid();
+    return IsSafePathSegment(Collection) && Client.IsValid();
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
@@ -382,7 +400,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
     FOpenPocketBaseRequestOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || Collection.IsEmpty() || RecordId.IsEmpty())
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId))
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
@@ -426,7 +444,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
     FOpenPocketBaseRecordPageCallback OnComplete) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || Collection.IsEmpty() || Options.Page < 1 || Options.PerPage < 1)
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || Options.Page < 1 || Options.PerPage < 1)
     {
         DispatchFailure<FOpenPocketBaseRecordPage>(
             MoveTemp(OnComplete),
@@ -472,7 +490,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
     FOpenPocketBaseRequestOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || Collection.IsEmpty() || Identity.IsEmpty() || Password.IsEmpty())
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || Identity.IsEmpty() || Password.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseAuthResult>(
             MoveTemp(OnComplete),

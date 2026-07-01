@@ -23,6 +23,19 @@ bool FOpenPocketBaseClientConfigNormalizationTest::RunTest(const FString& Parame
     TestFalse(TEXT("Embedded credentials are rejected"), Config.TryGetNormalizedBaseUrl(NormalizedBaseUrl, Error));
     TestEqual(TEXT("Invalid origins use InvalidArgument"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
 
+    Config.BaseUrl = TEXT("https://pb.example.com:not-a-port");
+    TestFalse(TEXT("A non-numeric port is rejected"), Config.TryGetNormalizedBaseUrl(NormalizedBaseUrl, Error));
+
+    Config.BaseUrl = TEXT("https://pb%2eexample.com");
+    TestFalse(TEXT("A pre-encoded host is rejected"), Config.TryGetNormalizedBaseUrl(NormalizedBaseUrl, Error));
+
+    Config.BaseUrl = TEXT("http://localhost:8090");
+    Config.ProfileName = TEXT("local-dev");
+    TestTrue(TEXT("A named local profile is accepted"), Config.TryGetNormalizedBaseUrl(NormalizedBaseUrl, Error));
+
+    Config.ProfileName = TEXT("profile\nsecret");
+    TestFalse(TEXT("A profile with control characters is rejected"), Config.TryGetNormalizedBaseUrl(NormalizedBaseUrl, Error));
+
     return true;
 }
 

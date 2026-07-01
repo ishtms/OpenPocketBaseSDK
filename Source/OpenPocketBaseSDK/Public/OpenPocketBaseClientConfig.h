@@ -21,6 +21,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseClientConfig
     FString BaseUrl;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client")
+    FString ProfileName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client")
     FString AcceptLanguage;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client")

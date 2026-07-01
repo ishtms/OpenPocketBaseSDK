@@ -117,6 +117,46 @@ private:
     TSharedRef<FListClientTestState, ESPMode::ThreadSafe> State;
     FAutomationTestBase* Test;
 };
+
+struct FUnsafeSegmentTestState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FImmediateTransport, ESPMode::ThreadSafe> Transport;
+    bool bCompleted = false;
+    EOpenPocketBaseErrorKind ErrorKind = EOpenPocketBaseErrorKind::None;
+};
+
+class FVerifyUnsafeSegment final : public IAutomationLatentCommand
+{
+public:
+    FVerifyUnsafeSegment(
+        const TSharedRef<FUnsafeSegmentTestState, ESPMode::ThreadSafe>& InState,
+        FAutomationTestBase* InTest)
+        : State(InState)
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+
+        Test->TestEqual(
+            TEXT("A traversal-like record ID is rejected"),
+            State->ErrorKind,
+            EOpenPocketBaseErrorKind::InvalidArgument);
+        Test->TestTrue(TEXT("An unsafe request never reaches transport"), State->Transport->LastRequest.Url.IsEmpty());
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FUnsafeSegmentTestState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -206,6 +246,44 @@ bool FOpenPocketBaseNativeGetListTest::RunTest(const FString& Parameters)
         });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyListRequest(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseUnsafePathSegmentTest,
+    "OpenPocketBase.Client.Config.RejectsUnsafePathSegments",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseUnsafePathSegmentTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FUnsafeSegmentTestState, ESPMode::ThreadSafe> State =
+        MakeShared<FUnsafeSegmentTestState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FImmediateTransport, ESPMode::ThreadSafe>();
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError CreateError;
+    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), CreateError);
+    if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
+    {
+        return false;
+    }
+
+    TestFalse(TEXT("A traversal-like collection is invalid"), State->Client->Collection(TEXT("..")).IsValid());
+    TestFalse(TEXT("A pre-encoded collection is invalid"), State->Client->Collection(TEXT("tasks%2Fadmin")).IsValid());
+
+    State->Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("../secret"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            if (!Result.IsSuccess())
+            {
+                State->ErrorKind = Result.GetError().Kind;
+            }
+            State->bCompleted = true;
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyUnsafeSegment(State, this));
     return true;
 }
 
