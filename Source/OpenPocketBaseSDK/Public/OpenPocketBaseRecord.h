@@ -97,6 +97,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRequestOptions
     FString RequestKey;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay)
+    bool bCancelPreviousRequestWithSameKey = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay)
     bool bRetryEligibleReads = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay, meta = (ClampMin = "0", ClampMax = "5"))

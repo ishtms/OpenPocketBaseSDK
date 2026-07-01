@@ -45,6 +45,30 @@ public:
     }
 };
 
+class FRequestKeyTransport final : public IOpenPocketBaseTransport
+{
+public:
+    int32 SendCount = 0;
+    int32 CancelCount = 0;
+
+    virtual FOpenPocketBaseTransportHandle Send(
+        FOpenPocketBaseHttpRequest&& Request,
+        FOpenPocketBaseHttpChunkCallback OnChunk,
+        FOpenPocketBaseHttpCompleteCallback OnComplete) override
+    {
+        ++SendCount;
+        Completions.Add(MoveTemp(OnComplete));
+        return FOpenPocketBaseTransportHandle(
+            [this]()
+            {
+                ++CancelCount;
+            });
+    }
+
+private:
+    TArray<FOpenPocketBaseHttpCompleteCallback> Completions;
+};
+
 struct FRetryPolicyState
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
@@ -152,6 +176,50 @@ public:
 
 private:
     TSharedRef<FRetryPolicyState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
+struct FRequestKeyState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FRequestKeyTransport, ESPMode::ThreadSafe> Transport;
+    FOpenPocketBaseRequestHandle RemainingHandle;
+    bool bFirstCompleted = false;
+    EOpenPocketBaseErrorKind FirstErrorKind = EOpenPocketBaseErrorKind::None;
+};
+
+class FVerifyRequestKeyPolicy final : public IAutomationLatentCommand
+{
+public:
+    FVerifyRequestKeyPolicy(
+        const TSharedRef<FRequestKeyState, ESPMode::ThreadSafe>& InState,
+        FAutomationTestBase* InTest)
+        : State(InState)
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bFirstCompleted)
+        {
+            return false;
+        }
+
+        Test->TestEqual(TEXT("Both keyed requests reach transport"), State->Transport->SendCount, 2);
+        Test->TestEqual(TEXT("Only the previous keyed request is cancelled"), State->Transport->CancelCount, 1);
+        Test->TestEqual(
+            TEXT("The previous request reports cancellation"),
+            State->FirstErrorKind,
+            EOpenPocketBaseErrorKind::Cancelled);
+        Test->TestTrue(TEXT("The replacement request remains active"), State->RemainingHandle.IsActive());
+        State->RemainingHandle.Cancel();
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FRequestKeyState, ESPMode::ThreadSafe> State;
     FAutomationTestBase* Test;
 };
 }
@@ -329,6 +397,140 @@ bool FOpenPocketBaseRetryCancellationPolicyTest::RunTest(const FString& Paramete
     Handle.Cancel();
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyCancelledRetry(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseRequestKeyPolicyTest,
+    "OpenPocketBase.Client.RequestPolicy.OptsIntoRequestKeyCancellation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseRequestKeyPolicyTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FRequestKeyState, ESPMode::ThreadSafe> State =
+        MakeShared<FRequestKeyState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FRequestKeyTransport, ESPMode::ThreadSafe>();
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseRequestOptions Options;
+    Options.RequestKey = TEXT("loadout");
+    Options.bCancelPreviousRequestWithSameKey = true;
+    State->Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("first123"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            if (!Result.IsSuccess())
+            {
+                State->FirstErrorKind = Result.GetError().Kind;
+            }
+            State->bFirstCompleted = true;
+        },
+        Options);
+    State->RemainingHandle = State->Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("second123"),
+        [](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+        },
+        Options);
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyRequestKeyPolicy(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseRequestKeyDefaultPolicyTest,
+    "OpenPocketBase.Client.RequestPolicy.RequestKeysAreSafeByDefault",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseRequestKeyDefaultPolicyTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FRequestKeyTransport, ESPMode::ThreadSafe> Transport =
+        MakeShared<FRequestKeyTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError Error;
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
+        FOpenPocketBaseClient::Create(Config, Transport, Error);
+    if (!TestNotNull(TEXT("The client is created"), Client.Get()))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseRequestOptions Options;
+    Options.RequestKey = TEXT("shared-key");
+    const FOpenPocketBaseRequestHandle First = Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("first123"),
+        [](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+        },
+        Options);
+    const FOpenPocketBaseRequestHandle Second = Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("second123"),
+        [](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+        },
+        Options);
+
+    TestEqual(TEXT("A request key does nothing without opt-in"), Transport->CancelCount, 0);
+    TestTrue(TEXT("The first unkeyed request remains active"), First.IsActive());
+    TestTrue(TEXT("The second unkeyed request remains active"), Second.IsActive());
+    First.Cancel();
+    Second.Cancel();
+    Client->Shutdown();
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseMutationRequestKeyPolicyTest,
+    "OpenPocketBase.Client.RequestPolicy.RequestKeysDoNotCancelMutations",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseMutationRequestKeyPolicyTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FRequestKeyTransport, ESPMode::ThreadSafe> Transport =
+        MakeShared<FRequestKeyTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError Error;
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
+        FOpenPocketBaseClient::Create(Config, Transport, Error);
+    if (!TestNotNull(TEXT("The client is created"), Client.Get()))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseRequestOptions Options;
+    Options.RequestKey = TEXT("login");
+    Options.bCancelPreviousRequestWithSameKey = true;
+    const FOpenPocketBaseRequestHandle First = Client->Collection(TEXT("users")).AuthWithPassword(
+        TEXT("first@example.com"),
+        TEXT("private-password"),
+        [](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        {
+        },
+        Options);
+    const FOpenPocketBaseRequestHandle Second = Client->Collection(TEXT("users")).AuthWithPassword(
+        TEXT("second@example.com"),
+        TEXT("private-password"),
+        [](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        {
+        },
+        Options);
+
+    TestEqual(TEXT("A mutation request key never cancels implicitly"), Transport->CancelCount, 0);
+    TestTrue(TEXT("The first mutation remains active"), First.IsActive());
+    TestTrue(TEXT("The second mutation remains active"), Second.IsActive());
+    First.Cancel();
+    Second.Cancel();
+    Client->Shutdown();
     return true;
 }
 

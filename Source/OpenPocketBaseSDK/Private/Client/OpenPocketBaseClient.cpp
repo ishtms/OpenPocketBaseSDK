@@ -175,7 +175,13 @@ bool ValidateRequestOptions(
     const FOpenPocketBaseRequestOptions& Options,
     FOpenPocketBaseError& OutError)
 {
-    if (Options.TotalTimeoutSeconds < 0 || Options.ActivityTimeoutSeconds < 0 ||
+    bool bRequestKeyValid = Options.RequestKey.Len() <= 128;
+    for (const TCHAR Character : Options.RequestKey)
+    {
+        bRequestKeyValid = bRequestKeyValid && !FChar::IsControl(Character);
+    }
+
+    if (!bRequestKeyValid || Options.TotalTimeoutSeconds < 0 || Options.ActivityTimeoutSeconds < 0 ||
         Options.MaxReadRetries < 0 || Options.MaxReadRetries > 5 ||
         Options.RetryBaseDelaySeconds < 0 || Options.RetryBaseDelaySeconds > 30 ||
         Options.RetryMaxDelaySeconds < 0 || Options.RetryMaxDelaySeconds > 60 ||
@@ -226,7 +232,7 @@ public:
         : Request(MoveTemp(InRequest))
         , Options(InOptions)
         , bEligibleRead(bInEligibleRead)
-        , Transport(MoveTemp(InTransport))
+        , Transport(InTransport)
         , State(MoveTemp(InState))
         , Handler(MoveTemp(InHandler))
     {
@@ -241,8 +247,18 @@ public:
 
         const uint32 Generation = NextGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
         const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Self = AsShared();
+        const TSharedPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> PinnedTransport = Transport.Pin();
+        if (!PinnedTransport.IsValid())
+        {
+            FOpenPocketBaseHttpResponse Response;
+            Response.RequestId = Request.RequestId;
+            Response.ErrorMessage = TEXT("The transport became unavailable.");
+            HandleResponse(MoveTemp(Response), Generation);
+            return;
+        }
+
         FOpenPocketBaseHttpRequest AttemptRequest = Request;
-        FOpenPocketBaseTransportHandle Handle = Transport->Send(
+        FOpenPocketBaseTransportHandle Handle = PinnedTransport->Send(
             MoveTemp(AttemptRequest),
             {},
             [Self, Generation](FOpenPocketBaseHttpResponse&& Response)
@@ -286,7 +302,6 @@ private:
         }
 
         FOpenPocketBaseResponseHandler LocalHandler = MoveTemp(Handler);
-        Transport.Reset();
         if (LocalHandler)
         {
             LocalHandler(MoveTemp(Response), State);
@@ -329,7 +344,7 @@ private:
     FOpenPocketBaseHttpRequest Request;
     FOpenPocketBaseRequestOptions Options;
     bool bEligibleRead = false;
-    TSharedPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
+    TWeakPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
     TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State;
     FOpenPocketBaseResponseHandler Handler;
     std::atomic<uint32> NextGeneration = 0;
@@ -346,6 +361,7 @@ struct FOpenPocketBaseClient::FImpl
     std::atomic<uint64> NextRequestId = 1;
     mutable FCriticalSection RequestsMutex;
     TMap<uint64, TWeakPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>> Requests;
+    TMap<FString, TWeakPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>> RequestKeys;
     mutable FCriticalSection AuthMutex;
     FString AuthToken;
     FOpenPocketBaseRecord AuthRecord;
@@ -405,19 +421,48 @@ struct FOpenPocketBaseClient::FImpl
         TUniqueFunction<void()> OnCancelled)
     {
         const uint64 RequestId = NextRequestId.fetch_add(1, std::memory_order_relaxed);
+        const FString RequestKey = bEligibleRead && Options.bCancelPreviousRequestWithSameKey
+            ? Options.RequestKey
+            : FString();
         const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State =
             MakeShared<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>(
                 RequestId,
                 MoveTemp(OnCancelled),
-                [this, RequestId]()
+                [this, RequestId, RequestKey]()
                 {
                     FScopeLock Lock(&RequestsMutex);
                     Requests.Remove(RequestId);
+                    if (!RequestKey.IsEmpty())
+                    {
+                        const TWeakPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>* KeyState =
+                            RequestKeys.Find(RequestKey);
+                        const TSharedPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> PinnedKeyState =
+                            KeyState != nullptr ? KeyState->Pin() : nullptr;
+                        if (!PinnedKeyState.IsValid() || PinnedKeyState->GetRequestId() == RequestId)
+                        {
+                            RequestKeys.Remove(RequestKey);
+                        }
+                    }
                 });
 
+        TSharedPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> PreviousRequest;
         {
             FScopeLock Lock(&RequestsMutex);
             Requests.Add(RequestId, State);
+            if (!RequestKey.IsEmpty())
+            {
+                if (const TWeakPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>* Existing =
+                        RequestKeys.Find(RequestKey))
+                {
+                    PreviousRequest = Existing->Pin();
+                }
+                RequestKeys.Add(RequestKey, State);
+            }
+        }
+
+        if (PreviousRequest.IsValid())
+        {
+            PreviousRequest->Cancel();
         }
 
         if (bShutdown.load(std::memory_order_acquire))
