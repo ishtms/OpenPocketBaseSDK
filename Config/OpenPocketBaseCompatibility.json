@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "sdkVersion": "0.1.0",
+  "pocketBase": {
+    "version": "v0.39.11",
+    "commit": "5d217ddb50cb144d80a5d0b0bdf11b52b2c3e457",
+    "unknownResponseFields": "accepted-and-retained"
+  },
+  "javascriptVocabulary": {
+    "version": "v0.28.0",
+    "commit": "78b4828fc3187b978bcb505e25cbf67f1bf215aa"
+  },
+  "fixture": {
+    "migration": "Tests/Integration/pb_migrations/1787414400_openpocketbase_fixture.js",
+    "darwinArm64ArchiveSha256": "9da6fbe11e82c5b1704e56f7457b24682e01c510206c29b798a458119fa2be20"
+  },
+  "implementedRoutes": [
+    "GET /api/collections/{collection}/records",
+    "GET /api/collections/{collection}/records/{id}",
+    "POST /api/collections/{collection}/auth-with-password"
+  ]
+}
