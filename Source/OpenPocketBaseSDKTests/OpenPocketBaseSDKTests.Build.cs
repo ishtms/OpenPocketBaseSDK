@@ -15,5 +15,16 @@ public class OpenPocketBaseSDKTests : ModuleRules
                 "JsonUtilities",
                 "OpenPocketBaseSDK"
             });
+
+        if (Target.bBuildEditor)
+        {
+            PrivateDependencyModuleNames.AddRange(
+                new[]
+                {
+                    "BlueprintGraph",
+                    "KismetCompiler",
+                    "UnrealEd"
+                });
+        }
     }
 }

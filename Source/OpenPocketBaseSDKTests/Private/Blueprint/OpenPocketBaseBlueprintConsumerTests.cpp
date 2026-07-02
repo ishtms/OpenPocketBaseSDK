@@ -1,0 +1,98 @@
+#if WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
+
+#include "AsyncActions/OpenPocketBaseRecordAsyncActions.h"
+#include "EdGraphSchema_K2.h"
+#include "Engine/Blueprint.h"
+#include "K2Node_AsyncAction.h"
+#include "K2Node_CallFunction.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
+#include "Misc/AutomationTest.h"
+#include "OpenPocketBaseRecordLibrary.h"
+#include "UObject/Package.h"
+
+namespace
+{
+UK2Node_AsyncAction* AddAsyncConsumerNode(
+    UEdGraph* Graph,
+    UClass* FactoryClass,
+    const FName FactoryFunctionName)
+{
+    const UFunction* FactoryFunction = FactoryClass->FindFunctionByName(FactoryFunctionName);
+    if (FactoryFunction == nullptr)
+    {
+        return nullptr;
+    }
+
+    UK2Node_AsyncAction* Node = NewObject<UK2Node_AsyncAction>(Graph);
+    Node->InitializeProxyFromFunction(FactoryFunction);
+    Node->CreateNewGuid();
+    Node->PostPlacedNewNode();
+    Node->AllocateDefaultPins();
+    Graph->AddNode(Node, true, false);
+    return Node;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintConsumerTest,
+    "OpenPocketBase.Blueprint.Consumer.CompilesPublicNodes",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
+{
+    const FName BlueprintName = MakeUniqueObjectName(
+        GetTransientPackage(),
+        UBlueprint::StaticClass(),
+        TEXT("BP_OpenPocketBaseConsumer"));
+    UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprint(
+        UObject::StaticClass(),
+        GetTransientPackage(),
+        BlueprintName,
+        BPTYPE_Normal,
+        NAME_None);
+    if (!TestNotNull(TEXT("A Blueprint-only consumer is created"), Blueprint))
+    {
+        return false;
+    }
+
+    UEdGraph* Graph = FBlueprintEditorUtils::CreateNewGraph(
+        Blueprint,
+        TEXT("ExerciseOpenPocketBase"),
+        UEdGraph::StaticClass(),
+        UEdGraphSchema_K2::StaticClass());
+    FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
+
+    TestNotNull(
+        TEXT("Get Record is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseGetRecordAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetRecordAsyncAction, GetRecord)));
+    TestNotNull(
+        TEXT("List Records is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseListRecordsAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseListRecordsAsyncAction, ListRecords)));
+    TestNotNull(
+        TEXT("Log In with Password is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBasePasswordAuthAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBasePasswordAuthAsyncAction, LogInWithPassword)));
+
+    UK2Node_CallFunction* FieldNode = NewObject<UK2Node_CallFunction>(Graph);
+    FieldNode->SetFromFunction(UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, GetStringFieldState)));
+    FieldNode->CreateNewGuid();
+    FieldNode->PostPlacedNewNode();
+    FieldNode->AllocateDefaultPins();
+    Graph->AddNode(FieldNode, true, false);
+
+    FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
+    TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);
+    return true;
+}
+
+#endif
