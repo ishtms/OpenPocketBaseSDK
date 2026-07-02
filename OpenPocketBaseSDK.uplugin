@@ -33,6 +33,11 @@
       "Name": "OpenPocketBaseSDKTests",
       "Type": "DeveloperTool",
       "LoadingPhase": "PostDefault"
+    },
+    {
+      "Name": "OpenPocketBaseSDKPublicHeaders",
+      "Type": "DeveloperTool",
+      "LoadingPhase": "None"
     }
   ]
 }
