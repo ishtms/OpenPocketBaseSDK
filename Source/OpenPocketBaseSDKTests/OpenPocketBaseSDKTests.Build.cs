@@ -23,6 +23,7 @@ public class OpenPocketBaseSDKTests : ModuleRules
                 {
                     "BlueprintGraph",
                     "KismetCompiler",
+                    "OpenPocketBaseSDKEditor",
                     "UnrealEd"
                 });
         }
