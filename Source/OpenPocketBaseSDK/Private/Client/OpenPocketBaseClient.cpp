@@ -1,16 +1,19 @@
 #include "OpenPocketBaseClient.h"
 
 #include "Async/Async.h"
+#include "Clock/OpenPocketBaseClock.h"
 #include "Dom/JsonObject.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
-#include "Containers/Ticker.h"
 #include "HAL/CriticalSection.h"
 #include "Math/RandomStream.h"
+#include "Misc/Base64.h"
 #include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/SecureHash.h"
 #include "Request/OpenPocketBaseRequestState.h"
 #include "Serialization/OpenPocketBaseJson.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Session/OpenPocketBaseSessionEnvelope.h"
 #include "Transport/OpenPocketBaseHttpTransport.h"
 
@@ -274,6 +277,45 @@ bool HaveSameOrigin(const FString& FirstUrl, const FString& SecondUrl)
         FirstOrigin == SecondOrigin;
 }
 
+TOptional<int64> TryDecodeJwtExpiry(const FString& Token)
+{
+    TArray<FString> Segments;
+    Token.ParseIntoArray(Segments, TEXT("."), false);
+    if (Segments.Num() != 3 || Segments[1].IsEmpty() || Segments[1].Len() > 16384)
+    {
+        return {};
+    }
+
+    FString EncodedPayload = Segments[1].Replace(TEXT("-"), TEXT("+"));
+    EncodedPayload.ReplaceInline(TEXT("_"), TEXT("/"));
+    while (EncodedPayload.Len() % 4 != 0)
+    {
+        EncodedPayload.AppendChar(TEXT('='));
+    }
+
+    TArray<uint8> PayloadBytes;
+    if (!FBase64::Decode(EncodedPayload, PayloadBytes) || PayloadBytes.IsEmpty() ||
+        PayloadBytes.Num() > 8192)
+    {
+        return {};
+    }
+
+    const FUTF8ToTCHAR Converted(
+        reinterpret_cast<const ANSICHAR*>(PayloadBytes.GetData()),
+        PayloadBytes.Num());
+    const FString PayloadJson(Converted.Length(), Converted.Get());
+    TSharedPtr<FJsonObject> Payload;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(PayloadJson);
+    double Expiry = 0;
+    if (!FJsonSerializer::Deserialize(Reader, Payload) || !Payload.IsValid() ||
+        !Payload->TryGetNumberField(TEXT("exp"), Expiry) || !FMath::IsFinite(Expiry) ||
+        Expiry < 0 || Expiry > static_cast<double>(MAX_int64))
+    {
+        return {};
+    }
+    return static_cast<int64>(Expiry);
+}
+
 FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
 {
     TArray<FString> Parts;
@@ -488,20 +530,22 @@ public:
         const FOpenPocketBaseRequestOptions& InOptions,
         const bool bInEligibleRead,
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InTransport,
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> InClock,
         TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> InState,
         FOpenPocketBaseResponseHandler InHandler)
         : Request(MoveTemp(InRequest))
         , Options(InOptions)
         , bEligibleRead(bInEligibleRead)
         , Transport(InTransport)
+        , Clock(MoveTemp(InClock))
         , State(MoveTemp(InState))
         , Handler(MoveTemp(InHandler))
     {
     }
 
-    void Start()
+    void Start(const bool bStateAlreadySending = false)
     {
-        if (!State->TryMarkSending())
+        if (!bStateAlreadySending && !State->TryMarkSending())
         {
             return;
         }
@@ -600,18 +644,16 @@ private:
         }
 
         const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Self = AsShared();
-        const FTSTicker::FDelegateHandle TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
-            TEXT("OpenPocketBase.ReadRetry"),
-            static_cast<float>(Delay),
-            [Self](float)
+        FOpenPocketBaseClockHandle ClockHandle = Clock->Schedule(
+            Delay,
+            [Self]()
             {
                 Self->Start();
-                return false;
             });
         State->AttachRetryHandle(FOpenPocketBaseTransportHandle(
-            [TickerHandle]()
+            [ClockHandle = MoveTemp(ClockHandle)]() mutable
             {
-                FTSTicker::RemoveTicker(TickerHandle);
+                ClockHandle.Cancel();
             }));
     }
 
@@ -619,6 +661,7 @@ private:
     FOpenPocketBaseRequestOptions Options;
     bool bEligibleRead = false;
     TWeakPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
+    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock;
     TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State;
     FOpenPocketBaseResponseHandler Handler;
     std::atomic<uint32> NextGeneration = 0;
@@ -703,10 +746,180 @@ struct FOpenPocketBaseClient::FImpl
         FOpenPocketBaseRequestHandle ChildHandle;
     };
 
+    class FAuthorizedRequestOperation final
+        : public TSharedFromThis<FAuthorizedRequestOperation, ESPMode::ThreadSafe>
+    {
+    public:
+        FAuthorizedRequestOperation(
+            FImpl* InImpl,
+            TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+            FOpenPocketBaseHttpRequest InRequest,
+            FOpenPocketBaseRequestOptions InOptions,
+            const bool bInEligibleRead,
+            TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> InState,
+            FOpenPocketBaseResponseHandler InHandler)
+            : Impl(InImpl)
+            , Client(MoveTemp(InClient))
+            , Request(MoveTemp(InRequest))
+            , Options(MoveTemp(InOptions))
+            , bEligibleRead(bInEligibleRead)
+            , State(MoveTemp(InState))
+            , Handler(MoveTemp(InHandler))
+        {
+            Impl->GetCurrentAuthIdentity(InitialAuthGeneration, InitialAuthToken);
+            SentAuthGeneration = InitialAuthGeneration;
+            SentAuthToken = InitialAuthToken;
+        }
+
+        void Start()
+        {
+            if (Request.Headers.FindRef(TEXT("Authorization")) != InitialAuthToken ||
+                !Impl->IsAuthIdentityCurrent(InitialAuthGeneration, InitialAuthToken))
+            {
+                State->Cancel();
+                return;
+            }
+            if (Impl->ShouldProactivelyRefresh(Request.Headers.FindRef(TEXT("Authorization"))))
+            {
+                if (State->TryMarkWaitingForAuthRefresh())
+                {
+                    BeginRefresh(true);
+                }
+                return;
+            }
+            StartRequest(false);
+        }
+
+    private:
+        void BeginRefresh(const bool bInProactive)
+        {
+            bProactiveRefresh = bInProactive;
+            const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+            if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+            {
+                State->Cancel();
+                return;
+            }
+
+            const TSharedRef<FAuthorizedRequestOperation, ESPMode::ThreadSafe> Self = AsShared();
+            const FOpenPocketBaseRequestHandle RefreshHandle = PinnedClient->RefreshAuth(
+                [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+                {
+                    Self->HandleRefresh(MoveTemp(Result));
+                },
+                Options);
+            State->AttachAuthRefreshHandle(FOpenPocketBaseTransportHandle(
+                [RefreshHandle]()
+                {
+                    RefreshHandle.Cancel();
+                }));
+        }
+
+        void HandleRefresh(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        {
+            if (State->GetState() != EOpenPocketBaseRequestState::WaitingForAuthRefresh)
+            {
+                return;
+            }
+
+            if (bProactiveRefresh)
+            {
+                if (!Result.IsSuccess() &&
+                    !Impl->IsAuthIdentityCurrent(InitialAuthGeneration, InitialAuthToken))
+                {
+                    State->Cancel();
+                    return;
+                }
+
+                if (!State->TryMarkSending())
+                {
+                    return;
+                }
+                Impl->ApplyCurrentAuthorization(Request, SentAuthGeneration, SentAuthToken);
+                StartRequest(true);
+                return;
+            }
+
+            if (!State->TryMarkSending())
+            {
+                return;
+            }
+            if (Result.IsSuccess())
+            {
+                Impl->ApplyCurrentAuthorization(Request, SentAuthGeneration, SentAuthToken);
+                StartRequest(true);
+                return;
+            }
+            FinishWithResponse(MoveTemp(AuthRejectedResponse));
+        }
+
+        void StartRequest(const bool bStateAlreadySending)
+        {
+            const TSharedRef<FAuthorizedRequestOperation, ESPMode::ThreadSafe> Self = AsShared();
+            Impl->StartAttempts(
+                Request,
+                Options,
+                bEligibleRead,
+                State,
+                [Self](
+                    FOpenPocketBaseHttpResponse&& Response,
+                    const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>&)
+                {
+                    Self->HandleResponse(MoveTemp(Response));
+                },
+                bStateAlreadySending);
+        }
+
+        void HandleResponse(FOpenPocketBaseHttpResponse&& Response)
+        {
+            const bool bAuthRejected = Response.bTransportSucceeded &&
+                (Response.HttpStatus == 401 || Response.HttpStatus == 403);
+            if (bEligibleRead && !bDidAuthReplay &&
+                Impl->Config.bRetryEligibleReadsAfterAuthRefresh && bAuthRejected &&
+                Impl->IsAuthIdentityCurrent(SentAuthGeneration, SentAuthToken))
+            {
+                bDidAuthReplay = true;
+                AuthRejectedResponse = MoveTemp(Response);
+                if (State->TryMarkWaitingForAuthRefresh())
+                {
+                    BeginRefresh(false);
+                }
+                return;
+            }
+            FinishWithResponse(MoveTemp(Response));
+        }
+
+        void FinishWithResponse(FOpenPocketBaseHttpResponse&& Response)
+        {
+            FOpenPocketBaseResponseHandler LocalHandler = MoveTemp(Handler);
+            if (LocalHandler)
+            {
+                LocalHandler(MoveTemp(Response), State);
+            }
+        }
+
+        FImpl* Impl;
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+        FOpenPocketBaseHttpRequest Request;
+        FOpenPocketBaseRequestOptions Options;
+        bool bEligibleRead = false;
+        TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State;
+        FOpenPocketBaseResponseHandler Handler;
+        FOpenPocketBaseHttpResponse AuthRejectedResponse;
+        FString InitialAuthToken;
+        FString SentAuthToken;
+        int64 InitialAuthGeneration = 0;
+        int64 SentAuthGeneration = 0;
+        bool bProactiveRefresh = false;
+        bool bDidAuthReplay = false;
+    };
+
     FOpenPocketBaseClientConfig Config;
     FString BaseUrl;
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
     TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore;
+    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock;
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Owner;
     FString SecureStorageKey;
     std::atomic<bool> bShutdown = false;
     std::atomic<uint64> NextRequestId = 1;
@@ -717,6 +930,7 @@ struct FOpenPocketBaseClient::FImpl
     FString AuthToken;
     FOpenPocketBaseRecord AuthRecord;
     FString AuthCollection;
+    TOptional<int64> AuthExpiryUnixSeconds;
     int64 AuthGeneration = 0;
     bool bHasAuthRecord = false;
     EOpenPocketBaseSessionPersistenceState PersistenceState =
@@ -730,14 +944,83 @@ struct FOpenPocketBaseClient::FImpl
         FOpenPocketBaseClientConfig InConfig,
         FString InBaseUrl,
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InTransport,
-        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> InSecureStore)
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> InSecureStore,
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> InClock)
         : Config(MoveTemp(InConfig))
         , BaseUrl(MoveTemp(InBaseUrl))
         , Transport(MoveTemp(InTransport))
         , SecureStore(MoveTemp(InSecureStore))
+        , Clock(MoveTemp(InClock))
     {
         const FString Binding = BaseUrl + TEXT("|") + Config.ProfileName;
         SecureStorageKey = TEXT("openpocketbase.session.") + FMD5::HashAnsiString(*Binding);
+    }
+
+    void GetCurrentAuthIdentity(int64& OutGeneration, FString& OutToken) const
+    {
+        FScopeLock Lock(&AuthMutex);
+        OutGeneration = AuthGeneration;
+        OutToken = AuthToken;
+    }
+
+    bool IsAuthIdentityCurrent(
+        const int64 ExpectedGeneration,
+        const FString& ExpectedToken) const
+    {
+        FScopeLock Lock(&AuthMutex);
+        return bHasAuthRecord && AuthGeneration == ExpectedGeneration &&
+            !ExpectedToken.IsEmpty() && AuthToken == ExpectedToken;
+    }
+
+    bool ShouldProactivelyRefresh(const FString& RequestToken) const
+    {
+        if (!Config.bProactiveAuthRefresh || RequestToken.IsEmpty())
+        {
+            return false;
+        }
+
+        FScopeLock Lock(&AuthMutex);
+        return bHasAuthRecord && RequestToken == AuthToken && AuthExpiryUnixSeconds.IsSet() &&
+            Clock->UtcNow().ToUnixTimestamp() + Config.AuthRefreshLeadTimeSeconds >=
+                static_cast<double>(AuthExpiryUnixSeconds.GetValue());
+    }
+
+    void ApplyCurrentAuthorization(
+        FOpenPocketBaseHttpRequest& Request,
+        int64& OutGeneration,
+        FString& OutToken) const
+    {
+        FScopeLock Lock(&AuthMutex);
+        OutGeneration = AuthGeneration;
+        OutToken = AuthToken;
+        if (bHasAuthRecord && !AuthToken.IsEmpty())
+        {
+            Request.Headers.Add(TEXT("Authorization"), AuthToken);
+        }
+        else
+        {
+            Request.Headers.Remove(TEXT("Authorization"));
+        }
+    }
+
+    void StartAttempts(
+        const FOpenPocketBaseHttpRequest& Request,
+        const FOpenPocketBaseRequestOptions& Options,
+        const bool bEligibleRead,
+        const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State,
+        FOpenPocketBaseResponseHandler Handler,
+        const bool bStateAlreadySending = false)
+    {
+        const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Attempts =
+            MakeShared<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe>(
+                Request,
+                Options,
+                bEligibleRead,
+                Transport,
+                Clock,
+                State,
+                MoveTemp(Handler));
+        Attempts->Start(bStateAlreadySending);
     }
 
     FOpenPocketBaseHttpRequest MakeRequest(
@@ -782,7 +1065,8 @@ struct FOpenPocketBaseClient::FImpl
         const FOpenPocketBaseRequestOptions& Options,
         const bool bEligibleRead,
         FOpenPocketBaseResponseHandler Handler,
-        TUniqueFunction<void()> OnCancelled)
+        TUniqueFunction<void()> OnCancelled,
+        const bool bCoordinateAuth = true)
     {
         const uint64 RequestId = NextRequestId.fetch_add(1, std::memory_order_relaxed);
         const FString RequestKey = bEligibleRead && Options.bCancelPreviousRequestWithSameKey
@@ -835,15 +1119,28 @@ struct FOpenPocketBaseClient::FImpl
             return FOpenPocketBaseRequestHandle(State);
         }
 
-        const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Attempts =
-            MakeShared<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe>(
-                MoveTemp(Request),
+        if (bCoordinateAuth && Request.Headers.Contains(TEXT("Authorization")))
+        {
+            const TSharedRef<FAuthorizedRequestOperation, ESPMode::ThreadSafe> Operation =
+                MakeShared<FAuthorizedRequestOperation, ESPMode::ThreadSafe>(
+                    this,
+                    Owner,
+                    MoveTemp(Request),
+                    Options,
+                    bEligibleRead,
+                    State,
+                    MoveTemp(Handler));
+            Operation->Start();
+        }
+        else
+        {
+            StartAttempts(
+                Request,
                 Options,
                 bEligibleRead,
-                Transport,
                 State,
                 MoveTemp(Handler));
-        Attempts->Start();
+        }
         return FOpenPocketBaseRequestHandle(State);
     }
 
@@ -939,6 +1236,7 @@ struct FOpenPocketBaseClient::FImpl
                 (!AuthCollection.Equals(Collection, ESearchCase::CaseSensitive) ||
                     AuthRecord.Id != Record.Id);
             AuthToken = MoveTemp(Token);
+            AuthExpiryUnixSeconds = TryDecodeJwtExpiry(AuthToken);
             AuthRecord = Record;
             AuthCollection = MoveTemp(Collection);
             bHasAuthRecord = true;
@@ -970,6 +1268,7 @@ struct FOpenPocketBaseClient::FImpl
                     : EOpenPocketBaseSessionPersistenceState::Failed;
             }
             AuthToken.Reset();
+            AuthExpiryUnixSeconds.Reset();
             AuthRecord = FOpenPocketBaseRecord();
             AuthCollection.Reset();
             bHasAuthRecord = false;
@@ -1008,6 +1307,7 @@ struct FOpenPocketBaseClient::FImpl
             }
 
             AuthToken = MoveTemp(NewToken);
+            AuthExpiryUnixSeconds = TryDecodeJwtExpiry(AuthToken);
             AuthRecord = Record;
             ++AuthGeneration;
 
@@ -1099,6 +1399,7 @@ struct FOpenPocketBaseClient::FImpl
                 return false;
             }
             AuthToken = MoveTemp(Token);
+            AuthExpiryUnixSeconds = TryDecodeJwtExpiry(AuthToken);
             AuthRecord = MoveTemp(Record);
             AuthCollection = MoveTemp(Collection);
             bHasAuthRecord = true;
@@ -1335,7 +1636,12 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
     FOpenPocketBaseError& OutError)
 {
-    return Create(Config, MoveTemp(Transport), CreateOpenPocketBaseSecureStore(), OutError);
+    return Create(
+        Config,
+        MoveTemp(Transport),
+        CreateOpenPocketBaseSecureStore(),
+        CreateOpenPocketBaseClock(),
+        OutError);
 }
 
 TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
@@ -1344,9 +1650,33 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
     TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
     FOpenPocketBaseError& OutError)
 {
+    return Create(
+        Config,
+        MoveTemp(Transport),
+        MoveTemp(SecureStore),
+        CreateOpenPocketBaseClock(),
+        OutError);
+}
+
+TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
+    const FOpenPocketBaseClientConfig& Config,
+    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
+    FOpenPocketBaseError& OutError)
+{
     FString BaseUrl;
-    if (!Config.TryGetNormalizedBaseUrl(BaseUrl, OutError) || !ValidateDefaultHeaders(Config, OutError))
+    if (!Config.TryGetNormalizedBaseUrl(BaseUrl, OutError) ||
+        !ValidateDefaultHeaders(Config, OutError))
     {
+        return nullptr;
+    }
+    if (!FMath::IsFinite(Config.AuthRefreshLeadTimeSeconds) ||
+        Config.AuthRefreshLeadTimeSeconds < 0 || Config.AuthRefreshLeadTimeSeconds > 3600)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Auth Refresh lead time must be between zero and 3600 seconds."));
         return nullptr;
     }
 
@@ -1372,7 +1702,9 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
             Config,
             MoveTemp(BaseUrl),
             MoveTemp(Transport),
-            MoveTemp(SecureStore)));
+            MoveTemp(SecureStore),
+            MoveTemp(Clock)));
+    Client->Impl->Owner = Client;
     return Client;
 }
 
@@ -1380,12 +1712,14 @@ FOpenPocketBaseClient::FOpenPocketBaseClient(
     FOpenPocketBaseClientConfig Config,
     FString NormalizedBaseUrl,
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore)
+    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock)
     : Impl(MakeUnique<FImpl>(
         MoveTemp(Config),
         MoveTemp(NormalizedBaseUrl),
         MoveTemp(Transport),
-        MoveTemp(SecureStore)))
+        MoveTemp(SecureStore),
+        MoveTemp(Clock)))
 {
 }
 
@@ -1578,7 +1912,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RefreshAuth(
                     Flight,
                     TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(MakeCancelledError()));
             }
-        });
+        },
+        false);
     {
         FScopeLock Lock(&Impl->RefreshMutex);
         Flight->ChildHandle = MoveTemp(ChildHandle);

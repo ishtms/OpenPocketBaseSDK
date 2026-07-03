@@ -83,4 +83,28 @@ bool FOpenPocketBaseOwnedHeadersTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseAuthRefreshPolicyBoundsTest,
+    "OpenPocketBase.Client.Config.BoundsAuthRefreshPolicy",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseAuthRefreshPolicyBoundsTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    Config.AuthRefreshLeadTimeSeconds = -1;
+    FOpenPocketBaseError Error;
+    TestFalse(
+        TEXT("A negative Auth Refresh lead time is rejected"),
+        FOpenPocketBaseClient::Create(Config, Error).IsValid());
+    TestEqual(TEXT("The lower bound uses InvalidArgument"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
+
+    Config.AuthRefreshLeadTimeSeconds = 3601;
+    TestFalse(
+        TEXT("An excessive Auth Refresh lead time is rejected"),
+        FOpenPocketBaseClient::Create(Config, Error).IsValid());
+    TestEqual(TEXT("The upper bound uses InvalidArgument"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
+    return true;
+}
+
 #endif

@@ -32,8 +32,10 @@ public:
     bool IsActive() const;
 
     bool TryMarkSending();
+    bool TryMarkWaitingForAuthRefresh();
     bool TryMarkWaitingForRetry();
     void AttachTransportHandle(FOpenPocketBaseTransportHandle&& InHandle);
+    void AttachAuthRefreshHandle(FOpenPocketBaseTransportHandle&& InHandle);
     void AttachRetryHandle(FOpenPocketBaseTransportHandle&& InHandle);
     bool TryComplete(EOpenPocketBaseRequestState TerminalState, TUniqueFunction<void()> Completion);
     void Cancel();

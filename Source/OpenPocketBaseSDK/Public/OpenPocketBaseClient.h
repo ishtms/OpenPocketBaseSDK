@@ -6,6 +6,7 @@
 #include "OpenPocketBaseRequestHandle.h"
 #include "OpenPocketBaseResult.h"
 #include "OpenPocketBaseSession.h"
+#include "Clock/OpenPocketBaseClock.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Function.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
@@ -103,6 +104,13 @@ public:
         TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
         FOpenPocketBaseError& OutError);
 
+    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
+        const FOpenPocketBaseClientConfig& Config,
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
+        FOpenPocketBaseError& OutError);
+
     ~FOpenPocketBaseClient();
 
     FOpenPocketBaseCollectionService Collection(FString CollectionName);
@@ -133,7 +141,8 @@ private:
         FOpenPocketBaseClientConfig Config,
         FString NormalizedBaseUrl,
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore);
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock);
 
     TUniquePtr<FImpl> Impl;
 

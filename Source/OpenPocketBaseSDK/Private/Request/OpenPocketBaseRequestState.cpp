@@ -40,9 +40,36 @@ bool FOpenPocketBaseRequestState::TryMarkSending()
     }
 
     Expected = EOpenPocketBaseRequestState::WaitingForRetry;
+    if (State.compare_exchange_strong(
+        Expected,
+        EOpenPocketBaseRequestState::Sending,
+        std::memory_order_acq_rel))
+    {
+        return true;
+    }
+
+    Expected = EOpenPocketBaseRequestState::WaitingForAuthRefresh;
     return State.compare_exchange_strong(
         Expected,
         EOpenPocketBaseRequestState::Sending,
+        std::memory_order_acq_rel);
+}
+
+bool FOpenPocketBaseRequestState::TryMarkWaitingForAuthRefresh()
+{
+    EOpenPocketBaseRequestState Expected = EOpenPocketBaseRequestState::Pending;
+    if (State.compare_exchange_strong(
+        Expected,
+        EOpenPocketBaseRequestState::WaitingForAuthRefresh,
+        std::memory_order_acq_rel))
+    {
+        return true;
+    }
+
+    Expected = EOpenPocketBaseRequestState::Sending;
+    return State.compare_exchange_strong(
+        Expected,
+        EOpenPocketBaseRequestState::WaitingForAuthRefresh,
         std::memory_order_acq_rel);
 }
 
@@ -61,6 +88,15 @@ void FOpenPocketBaseRequestState::AttachTransportHandle(FOpenPocketBaseTransport
         MoveTemp(InHandle),
         EOpenPocketBaseRequestState::Sending,
         false);
+}
+
+void FOpenPocketBaseRequestState::AttachAuthRefreshHandle(
+    FOpenPocketBaseTransportHandle&& InHandle)
+{
+    AttachStageHandle(
+        MoveTemp(InHandle),
+        EOpenPocketBaseRequestState::WaitingForAuthRefresh,
+        true);
 }
 
 void FOpenPocketBaseRequestState::AttachRetryHandle(FOpenPocketBaseTransportHandle&& InHandle)
