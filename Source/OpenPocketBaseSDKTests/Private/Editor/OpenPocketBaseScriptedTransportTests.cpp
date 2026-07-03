@@ -90,7 +90,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CallbackCount < 4)
+        if (State->CallbackCount < 2)
         {
             return false;
         }
@@ -160,7 +160,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CallbackCount < 2)
+        if (State->CallbackCount < 4)
         {
             return false;
         }
