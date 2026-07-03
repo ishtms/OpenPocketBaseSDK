@@ -1,5 +1,6 @@
 #include "Transport/OpenPocketBaseHttpTransport.h"
 
+#include "Compatibility/OpenPocketBaseUECompat.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
@@ -89,6 +90,7 @@ public:
         }
 
         const FString RequestId = Request.RequestId;
+        const FString RequestUrl = Request.Url;
         HttpRequest->OnProcessRequestComplete().BindLambda(
             [Callbacks, RequestId](
                 FHttpRequestPtr CompletedRequest,
@@ -97,6 +99,9 @@ public:
             {
                 FOpenPocketBaseHttpResponse Result;
                 Result.RequestId = RequestId;
+                Result.EffectiveUrl = UE::OpenPocketBase::Compatibility::GetEffectiveUrl(
+                    CompletedRequest,
+                    Response);
                 Result.bTransportSucceeded = bSucceeded && Response.IsValid();
 
                 if (Response.IsValid())
@@ -132,6 +137,7 @@ public:
         {
             FOpenPocketBaseHttpResponse Result;
             Result.RequestId = RequestId;
+            Result.EffectiveUrl = RequestUrl;
             Result.ErrorMessage = TEXT("Unreal HTTP could not start the request.");
             Callbacks->Complete(MoveTemp(Result));
         }

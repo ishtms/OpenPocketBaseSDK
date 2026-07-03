@@ -215,6 +215,10 @@ FOpenPocketBaseTransportHandle FOpenPocketBaseScriptedTransport::Send(
     {
         Script.Response.RequestId = Request.RequestId;
     }
+    if (Script.Response.EffectiveUrl.IsEmpty())
+    {
+        Script.Response.EffectiveUrl = Request.Url;
+    }
 
     if (OnChunk)
     {

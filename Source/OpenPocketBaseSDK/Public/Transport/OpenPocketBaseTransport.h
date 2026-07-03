@@ -28,6 +28,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpResponse
     TArray<uint8> Body;
     FString ErrorMessage;
     FString RequestId;
+    FString EffectiveUrl;
 };
 
 using FOpenPocketBaseHttpChunkCallback = TUniqueFunction<void(TArrayView<const uint8>)>;

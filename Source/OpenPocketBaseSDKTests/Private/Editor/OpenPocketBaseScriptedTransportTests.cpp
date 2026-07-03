@@ -32,6 +32,18 @@ struct FScriptedErrorState
     bool bRanOnGameThread = true;
 };
 
+struct FScriptedRedirectState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe> Transport;
+    int32 CallbackCount = 0;
+    bool bSameOriginSucceeded = false;
+    EOpenPocketBaseErrorKind CrossOriginErrorKind = EOpenPocketBaseErrorKind::None;
+    FString CrossOriginErrorMessage;
+    EOpenPocketBaseErrorKind DowngradeErrorKind = EOpenPocketBaseErrorKind::None;
+    EOpenPocketBaseErrorKind MalformedOriginErrorKind = EOpenPocketBaseErrorKind::None;
+};
+
 class FVerifyScriptedLifecycle final : public IAutomationLatentCommand
 {
 public:
@@ -78,7 +90,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CallbackCount < 2)
+        if (State->CallbackCount < 4)
         {
             return false;
         }
@@ -132,6 +144,49 @@ public:
 
 private:
     TSharedRef<FScriptedLifecycleState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
+class FVerifyScriptedRedirects final : public IAutomationLatentCommand
+{
+public:
+    FVerifyScriptedRedirects(
+        const TSharedRef<FScriptedRedirectState, ESPMode::ThreadSafe>& InState,
+        FAutomationTestBase* InTest)
+        : State(InState)
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (State->CallbackCount < 2)
+        {
+            return false;
+        }
+
+        Test->TestTrue(TEXT("A same-origin redirect is accepted"), State->bSameOriginSucceeded);
+        Test->TestEqual(
+            TEXT("A cross-origin redirect is rejected"),
+            State->CrossOriginErrorKind,
+            EOpenPocketBaseErrorKind::Transport);
+        Test->TestFalse(
+            TEXT("The rejected redirect target is not exposed"),
+            State->CrossOriginErrorMessage.Contains(TEXT("other.example.com")));
+        Test->TestEqual(
+            TEXT("An HTTPS downgrade is rejected"),
+            State->DowngradeErrorKind,
+            EOpenPocketBaseErrorKind::Transport);
+        Test->TestEqual(
+            TEXT("A malformed redirect origin is rejected"),
+            State->MalformedOriginErrorKind,
+            EOpenPocketBaseErrorKind::Transport);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FScriptedRedirectState, ESPMode::ThreadSafe> State;
     FAutomationTestBase* Test;
 };
 }
@@ -239,6 +294,103 @@ bool FOpenPocketBaseScriptedErrorsTest::RunTest(const FString& Parameters)
         Options);
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyScriptedErrors(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseScriptedRedirectsTest,
+    "OpenPocketBase.Editor.Mock.EnforcesRedirectOrigin",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseScriptedRedirectsTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FScriptedRedirectState, ESPMode::ThreadSafe> State =
+        MakeShared<FScriptedRedirectState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe>();
+
+    FOpenPocketBaseTransportScript SameOrigin;
+    SameOrigin.Response.bTransportSucceeded = true;
+    SameOrigin.Response.HttpStatus = 200;
+    SameOrigin.Response.EffectiveUrl = TEXT("https://pb.example.com/redirected/task123");
+    SameOrigin.Response.Body = ScriptedToUtf8(
+        TEXT("{\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\"}"));
+    State->Transport->Enqueue(MoveTemp(SameOrigin));
+
+    FOpenPocketBaseTransportScript CrossOrigin;
+    CrossOrigin.Response.bTransportSucceeded = true;
+    CrossOrigin.Response.HttpStatus = 200;
+    CrossOrigin.Response.EffectiveUrl = TEXT("https://other.example.com/private/task456?token=secret");
+    CrossOrigin.Response.Body = ScriptedToUtf8(
+        TEXT("{\"id\":\"task456\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\"}"));
+    State->Transport->Enqueue(MoveTemp(CrossOrigin));
+
+    FOpenPocketBaseTransportScript Downgrade;
+    Downgrade.Response.bTransportSucceeded = true;
+    Downgrade.Response.HttpStatus = 200;
+    Downgrade.Response.EffectiveUrl = TEXT("http://pb.example.com/task789");
+    State->Transport->Enqueue(MoveTemp(Downgrade));
+
+    FOpenPocketBaseTransportScript MalformedOrigin;
+    MalformedOrigin.Response.bTransportSucceeded = true;
+    MalformedOrigin.Response.HttpStatus = 200;
+    MalformedOrigin.Response.EffectiveUrl = TEXT("https://user:secret@pb.example.com/task999");
+    State->Transport->Enqueue(MoveTemp(MalformedOrigin));
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseRequestOptions Options;
+    Options.bRetryEligibleReads = false;
+    State->Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("task123"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            ++State->CallbackCount;
+            State->bSameOriginSucceeded = Result.IsSuccess();
+        },
+        Options);
+    State->Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("task456"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            ++State->CallbackCount;
+            if (!Result.IsSuccess())
+            {
+                State->CrossOriginErrorKind = Result.GetError().Kind;
+                State->CrossOriginErrorMessage = Result.GetError().ServerMessage;
+            }
+        },
+        Options);
+    State->Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("task789"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            ++State->CallbackCount;
+            if (!Result.IsSuccess())
+            {
+                State->DowngradeErrorKind = Result.GetError().Kind;
+            }
+        },
+        Options);
+    State->Client->Collection(TEXT("tasks")).GetOne(
+        TEXT("task999"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            ++State->CallbackCount;
+            if (!Result.IsSuccess())
+            {
+                State->MalformedOriginErrorKind = Result.GetError().Kind;
+            }
+        },
+        Options);
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyScriptedRedirects(State, this));
     return true;
 }
 

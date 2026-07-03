@@ -206,6 +206,54 @@ void AddQueryValue(TArray<FString>& Parts, const TCHAR* Name, const FString& Val
     }
 }
 
+bool TryGetNormalizedOrigin(const FString& Url, FString& OutOrigin)
+{
+    const int32 SchemeSeparator = Url.Find(TEXT("://"), ESearchCase::CaseSensitive);
+    if (SchemeSeparator <= 0)
+    {
+        return false;
+    }
+
+    const int32 AuthorityStart = SchemeSeparator + 3;
+    int32 OriginEnd = Url.Len();
+    for (int32 Index = AuthorityStart; Index < Url.Len(); ++Index)
+    {
+        const TCHAR Character = Url[Index];
+        if (Character == TEXT('/') || Character == TEXT('?') || Character == TEXT('#'))
+        {
+            OriginEnd = Index;
+            break;
+        }
+    }
+
+    FOpenPocketBaseClientConfig OriginConfig;
+    OriginConfig.BaseUrl = Url.Left(OriginEnd);
+    FOpenPocketBaseError Error;
+    if (!OriginConfig.TryGetNormalizedBaseUrl(OutOrigin, Error))
+    {
+        return false;
+    }
+
+    if (OutOrigin.StartsWith(TEXT("https://")) && OutOrigin.EndsWith(TEXT(":443")))
+    {
+        OutOrigin.LeftChopInline(4, EAllowShrinking::No);
+    }
+    else if (OutOrigin.StartsWith(TEXT("http://")) && OutOrigin.EndsWith(TEXT(":80")))
+    {
+        OutOrigin.LeftChopInline(3, EAllowShrinking::No);
+    }
+    return true;
+}
+
+bool HaveSameOrigin(const FString& FirstUrl, const FString& SecondUrl)
+{
+    FString FirstOrigin;
+    FString SecondOrigin;
+    return TryGetNormalizedOrigin(FirstUrl, FirstOrigin) &&
+        TryGetNormalizedOrigin(SecondUrl, SecondOrigin) &&
+        FirstOrigin == SecondOrigin;
+}
+
 FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
 {
     TArray<FString> Parts;
@@ -340,6 +388,19 @@ private:
             Response.RequestId = Request.RequestId;
         }
 
+        if (Response.EffectiveUrl.IsEmpty())
+        {
+            Response.EffectiveUrl = Request.Url;
+        }
+
+        const bool bRejectedRedirect = !HaveSameOrigin(Request.Url, Response.EffectiveUrl);
+        if (bRejectedRedirect)
+        {
+            Response = FOpenPocketBaseHttpResponse();
+            Response.RequestId = Request.RequestId;
+            Response.ErrorMessage = TEXT("The HTTP response used a disallowed redirect origin.");
+        }
+
         const bool bExceededResponseLimit = Response.Body.Num() > Options.MaxResponseBytes;
         if (bExceededResponseLimit)
         {
@@ -348,7 +409,7 @@ private:
             Response.ErrorMessage = TEXT("The response exceeded the configured byte limit.");
         }
 
-        if (!bExceededResponseLimit && bEligibleRead && Options.bRetryEligibleReads &&
+        if (!bRejectedRedirect && !bExceededResponseLimit && bEligibleRead && Options.bRetryEligibleReads &&
             RetryCount < Options.MaxReadRetries && IsRetryableReadResponse(Response))
         {
             if (State->TryMarkWaitingForRetry())
