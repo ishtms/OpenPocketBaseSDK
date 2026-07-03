@@ -608,6 +608,81 @@ private:
 
 struct FOpenPocketBaseClient::FImpl
 {
+    class FSessionEventQueue final
+        : public TSharedFromThis<FSessionEventQueue, ESPMode::ThreadSafe>
+    {
+    public:
+        void Enqueue(FOpenPocketBaseSessionSnapshot Snapshot)
+        {
+            bool bScheduleDrain = false;
+            {
+                FScopeLock Lock(&Mutex);
+                Pending.Add(MoveTemp(Snapshot));
+                if (!bDrainScheduled)
+                {
+                    bDrainScheduled = true;
+                    bScheduleDrain = true;
+                }
+            }
+
+            if (bScheduleDrain)
+            {
+                const TSharedRef<FSessionEventQueue, ESPMode::ThreadSafe> Self = AsShared();
+                AsyncTask(
+                    ENamedThreads::GameThread,
+                    [Self]()
+                    {
+                        Self->Drain();
+                    });
+            }
+        }
+
+        FOpenPocketBaseSessionChanged Changed;
+
+    private:
+        void Drain()
+        {
+            while (true)
+            {
+                TArray<FOpenPocketBaseSessionSnapshot> LocalEvents;
+                {
+                    FScopeLock Lock(&Mutex);
+                    if (Pending.IsEmpty())
+                    {
+                        bDrainScheduled = false;
+                        return;
+                    }
+                    LocalEvents = MoveTemp(Pending);
+                    Pending.Reset();
+                }
+
+                for (const FOpenPocketBaseSessionSnapshot& Event : LocalEvents)
+                {
+                    Changed.Broadcast(Event);
+                }
+            }
+        }
+
+        FCriticalSection Mutex;
+        TArray<FOpenPocketBaseSessionSnapshot> Pending;
+        bool bDrainScheduled = false;
+    };
+
+    struct FRefreshWaiter
+    {
+        TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State;
+        TSharedRef<TCompletionState<FOpenPocketBaseAuthResult>, ESPMode::ThreadSafe> Completion;
+    };
+
+    struct FRefreshFlight
+    {
+        int64 CapturedGeneration = 0;
+        FString CapturedToken;
+        FString AuthCollection;
+        TArray<FRefreshWaiter> Waiters;
+        FOpenPocketBaseRequestHandle ChildHandle;
+    };
+
     FOpenPocketBaseClientConfig Config;
     FString BaseUrl;
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
@@ -619,7 +694,15 @@ struct FOpenPocketBaseClient::FImpl
     mutable FCriticalSection AuthMutex;
     FString AuthToken;
     FOpenPocketBaseRecord AuthRecord;
+    FString AuthCollection;
+    int64 AuthGeneration = 0;
     bool bHasAuthRecord = false;
+    EOpenPocketBaseSessionPersistenceState PersistenceState =
+        EOpenPocketBaseSessionPersistenceState::MemoryOnly;
+    TSharedRef<FSessionEventQueue, ESPMode::ThreadSafe> SessionEvents =
+        MakeShared<FSessionEventQueue, ESPMode::ThreadSafe>();
+    mutable FCriticalSection RefreshMutex;
+    TSharedPtr<FRefreshFlight, ESPMode::ThreadSafe> ActiveRefresh;
 
     FImpl(
         FOpenPocketBaseClientConfig InConfig,
@@ -773,12 +856,129 @@ struct FOpenPocketBaseClient::FImpl
         return FOpenPocketBaseRequestHandle(State);
     }
 
-    void StoreAuth(FString Token, const FOpenPocketBaseRecord& Record)
+    void StoreAuth(
+        FString Token,
+        const FOpenPocketBaseRecord& Record,
+        FString Collection,
+        const EOpenPocketBaseSessionChangeReason RequestedReason)
     {
-        FScopeLock Lock(&AuthMutex);
-        AuthToken = MoveTemp(Token);
-        AuthRecord = Record;
-        bHasAuthRecord = true;
+        FOpenPocketBaseSessionSnapshot Snapshot;
+        {
+            FScopeLock Lock(&AuthMutex);
+            const bool bUserSwitched = bHasAuthRecord &&
+                (!AuthCollection.Equals(Collection, ESearchCase::CaseSensitive) ||
+                    AuthRecord.Id != Record.Id);
+            AuthToken = MoveTemp(Token);
+            AuthRecord = Record;
+            AuthCollection = MoveTemp(Collection);
+            bHasAuthRecord = true;
+            ++AuthGeneration;
+
+            Snapshot.bAuthenticated = true;
+            Snapshot.AuthCollection = AuthCollection;
+            Snapshot.AuthGeneration = AuthGeneration;
+            Snapshot.PersistenceState = PersistenceState;
+            Snapshot.Reason = bUserSwitched
+                ? EOpenPocketBaseSessionChangeReason::UserSwitched
+                : RequestedReason;
+            Snapshot.AuthRecord = AuthRecord;
+        }
+        SessionEvents->Enqueue(MoveTemp(Snapshot));
+    }
+
+    void ClearAuth()
+    {
+        FOpenPocketBaseSessionSnapshot Snapshot;
+        {
+            FScopeLock Lock(&AuthMutex);
+            AuthToken.Reset();
+            AuthRecord = FOpenPocketBaseRecord();
+            AuthCollection.Reset();
+            bHasAuthRecord = false;
+            ++AuthGeneration;
+
+            Snapshot.AuthGeneration = AuthGeneration;
+            Snapshot.PersistenceState = PersistenceState;
+            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::LoggedOut;
+        }
+        SessionEvents->Enqueue(MoveTemp(Snapshot));
+    }
+
+    bool TryStoreRefreshedAuth(
+        const int64 CapturedGeneration,
+        const FString& CapturedToken,
+        const FString& Collection,
+        FString NewToken,
+        const FOpenPocketBaseRecord& Record)
+    {
+        FOpenPocketBaseSessionSnapshot Snapshot;
+        {
+            FScopeLock Lock(&AuthMutex);
+            if (AuthGeneration != CapturedGeneration || AuthToken != CapturedToken ||
+                AuthCollection != Collection || !bHasAuthRecord)
+            {
+                return false;
+            }
+
+            AuthToken = MoveTemp(NewToken);
+            AuthRecord = Record;
+            ++AuthGeneration;
+
+            Snapshot.bAuthenticated = true;
+            Snapshot.AuthCollection = AuthCollection;
+            Snapshot.AuthGeneration = AuthGeneration;
+            Snapshot.PersistenceState = PersistenceState;
+            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::Refreshed;
+            Snapshot.AuthRecord = AuthRecord;
+        }
+        SessionEvents->Enqueue(MoveTemp(Snapshot));
+        return true;
+    }
+
+    void FinishRefresh(
+        const TSharedRef<FRefreshFlight, ESPMode::ThreadSafe>& Flight,
+        TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+    {
+        TArray<FRefreshWaiter> Waiters;
+        {
+            FScopeLock Lock(&RefreshMutex);
+            if (ActiveRefresh == Flight)
+            {
+                ActiveRefresh.Reset();
+            }
+            Waiters = MoveTemp(Flight->Waiters);
+        }
+
+        if (Result.IsSuccess())
+        {
+            const FOpenPocketBaseAuthResult Value = Result.GetValue();
+            for (FRefreshWaiter& Waiter : Waiters)
+            {
+                Waiter.State->TryComplete(
+                    EOpenPocketBaseRequestState::Succeeded,
+                    [Completion = Waiter.Completion, Value]() mutable
+                    {
+                        Completion->Invoke(
+                            TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Success(Value));
+                    });
+            }
+            return;
+        }
+
+        const FOpenPocketBaseError Error = Result.GetError();
+        const EOpenPocketBaseRequestState Terminal = Error.Kind == EOpenPocketBaseErrorKind::Cancelled
+            ? EOpenPocketBaseRequestState::Cancelled
+            : EOpenPocketBaseRequestState::Failed;
+        for (FRefreshWaiter& Waiter : Waiters)
+        {
+            Waiter.State->TryComplete(
+                Terminal,
+                [Completion = Waiter.Completion, Error]() mutable
+                {
+                    Completion->Invoke(
+                        TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(Error));
+                });
+        }
     }
 
     void Shutdown()
@@ -1002,6 +1202,162 @@ bool FOpenPocketBaseClient::GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecor
     }
     OutRecord = Impl->AuthRecord;
     return true;
+}
+
+bool FOpenPocketBaseClient::GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const
+{
+    FScopeLock Lock(&Impl->AuthMutex);
+    OutSession = FOpenPocketBaseSessionSnapshot();
+    OutSession.bAuthenticated = !Impl->AuthToken.IsEmpty() && Impl->bHasAuthRecord;
+    OutSession.AuthCollection = Impl->AuthCollection;
+    OutSession.AuthGeneration = Impl->AuthGeneration;
+    OutSession.PersistenceState = Impl->PersistenceState;
+    if (Impl->bHasAuthRecord)
+    {
+        OutSession.AuthRecord = Impl->AuthRecord;
+    }
+    return OutSession.bAuthenticated;
+}
+
+FOpenPocketBaseSessionChanged& FOpenPocketBaseClient::OnSessionChanged()
+{
+    return Impl->SessionEvents->Changed;
+}
+
+void FOpenPocketBaseClient::Logout()
+{
+    Impl->ClearAuth();
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RefreshAuth(
+    FOpenPocketBaseAuthCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options)
+{
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseAuthResult>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    FString CapturedToken;
+    FString AuthCollection;
+    int64 CapturedGeneration = 0;
+    {
+        FScopeLock Lock(&Impl->AuthMutex);
+        if (Impl->AuthToken.IsEmpty() || Impl->AuthCollection.IsEmpty() || !Impl->bHasAuthRecord)
+        {
+            DispatchFailure<FOpenPocketBaseAuthResult>(
+                MoveTemp(OnComplete),
+                MakeLocalError(
+                    EOpenPocketBaseErrorKind::Authentication,
+                    TEXT("An authenticated session is required for Auth Refresh.")));
+            return {};
+        }
+        CapturedToken = Impl->AuthToken;
+        AuthCollection = Impl->AuthCollection;
+        CapturedGeneration = Impl->AuthGeneration;
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseAuthResult>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseAuthResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> RequestState =
+        Impl->CreateCompositeState(
+            [Completion]()
+            {
+                Completion->Invoke(
+                    TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(MakeCancelledError()));
+            });
+
+    TSharedRef<FImpl::FRefreshFlight, ESPMode::ThreadSafe> Flight =
+        MakeShared<FImpl::FRefreshFlight, ESPMode::ThreadSafe>();
+    bool bStartsFlight = false;
+    {
+        FScopeLock Lock(&Impl->RefreshMutex);
+        if (Impl->ActiveRefresh.IsValid() &&
+            Impl->ActiveRefresh->CapturedGeneration == CapturedGeneration &&
+            Impl->ActiveRefresh->CapturedToken == CapturedToken &&
+            Impl->ActiveRefresh->AuthCollection == AuthCollection)
+        {
+            Flight = Impl->ActiveRefresh.ToSharedRef();
+        }
+        else
+        {
+            Flight->CapturedGeneration = CapturedGeneration;
+            Flight->CapturedToken = CapturedToken;
+            Flight->AuthCollection = AuthCollection;
+            Impl->ActiveRefresh = Flight;
+            bStartsFlight = true;
+        }
+        Flight->Waiters.Add({RequestState, Completion});
+    }
+
+    if (!bStartsFlight)
+    {
+        return Impl->MakeRequestHandle(RequestState);
+    }
+
+    const FString Path = FString::Printf(
+        TEXT("/api/collections/%s/auth-refresh"),
+        *EncodeSegment(AuthCollection));
+    FOpenPocketBaseHttpRequest Request = Impl->MakeRequest(
+        TEXT("POST"), Path, {}, Options, false);
+    Request.Headers.Add(TEXT("Authorization"), CapturedToken);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = AsShared();
+    FOpenPocketBaseRequestHandle ChildHandle = Impl->Send(
+        MoveTemp(Request),
+        Options,
+        false,
+        [WeakClient, Flight](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            FString Token;
+            TOpenPocketBaseResult<FOpenPocketBaseAuthResult> Result =
+                OpenPocketBase::Json::ParseAuthResponse(Response, Token);
+            if (Result.IsSuccess())
+            {
+                const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin();
+                if (!Client.IsValid() || Client->IsShutdown() ||
+                    !Client->Impl->TryStoreRefreshedAuth(
+                        Flight->CapturedGeneration,
+                        Flight->CapturedToken,
+                        Flight->AuthCollection,
+                        MoveTemp(Token),
+                        Result.GetValue().Record))
+                {
+                    Result = TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
+                        MakeLocalError(
+                            EOpenPocketBaseErrorKind::Authentication,
+                            TEXT("The session changed while Auth Refresh was in flight.")));
+                }
+            }
+
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [WeakClient, Flight, Result = MoveTemp(Result)]() mutable
+                {
+                    if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin())
+                    {
+                        Client->Impl->FinishRefresh(Flight, MoveTemp(Result));
+                    }
+                });
+        },
+        [WeakClient, Flight]()
+        {
+            if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin())
+            {
+                Client->Impl->FinishRefresh(
+                    Flight,
+                    TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(MakeCancelledError()));
+            }
+        });
+    {
+        FScopeLock Lock(&Impl->RefreshMutex);
+        Flight->ChildHandle = MoveTemp(ChildHandle);
+    }
+    return Impl->MakeRequestHandle(RequestState);
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
@@ -1504,7 +1860,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
         MoveTemp(Request),
         Options,
         false,
-        [Completion, WeakClient](
+        [Completion, WeakClient, AuthCollection = Collection](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
@@ -1517,7 +1873,11 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
                 {
                     if (!ClientToUpdate->IsShutdown())
                     {
-                        ClientToUpdate->Impl->StoreAuth(MoveTemp(Token), Result.GetValue().Record);
+                        ClientToUpdate->Impl->StoreAuth(
+                            MoveTemp(Token),
+                            Result.GetValue().Record,
+                            AuthCollection,
+                            EOpenPocketBaseSessionChangeReason::LoggedIn);
                     }
                 }
             }

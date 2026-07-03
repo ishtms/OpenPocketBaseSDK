@@ -5,6 +5,7 @@
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseRequestHandle.h"
 #include "OpenPocketBaseResult.h"
+#include "OpenPocketBaseSession.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Function.h"
 #include "Transport/OpenPocketBaseTransport.h"
@@ -99,6 +100,12 @@ public:
     FString GetBaseUrl() const;
     bool IsAuthenticated() const;
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
+    bool GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
+    FOpenPocketBaseSessionChanged& OnSessionChanged();
+    FOpenPocketBaseRequestHandle RefreshAuth(
+        FOpenPocketBaseAuthCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {});
+    void Logout();
     FOpenPocketBaseRequestHandle SendBatch(
         FOpenPocketBaseBatchRequest Batch,
         FOpenPocketBaseBatchCallback OnComplete,

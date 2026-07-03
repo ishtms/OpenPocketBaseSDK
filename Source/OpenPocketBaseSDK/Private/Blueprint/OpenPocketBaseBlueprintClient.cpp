@@ -17,6 +17,7 @@ UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
     UOpenPocketBaseClient* Wrapper = NewObject<UOpenPocketBaseClient>(
         Outer != nullptr ? Outer : GetTransientPackage());
     Wrapper->NativeClient = Client;
+    Wrapper->BindNativeSessionEvents();
     return Wrapper;
 }
 
@@ -36,6 +37,7 @@ UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
     UOpenPocketBaseClient* Wrapper = NewObject<UOpenPocketBaseClient>(
         Outer != nullptr ? Outer : GetTransientPackage());
     Wrapper->NativeClient = Client;
+    Wrapper->BindNativeSessionEvents();
     return Wrapper;
 }
 
@@ -64,6 +66,19 @@ bool UOpenPocketBaseClient::GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecor
     return NativeClient.IsValid() && NativeClient->GetCurrentAuthRecord(OutRecord);
 }
 
+bool UOpenPocketBaseClient::GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const
+{
+    return NativeClient.IsValid() && NativeClient->GetCurrentSession(OutSession);
+}
+
+void UOpenPocketBaseClient::Logout()
+{
+    if (NativeClient.IsValid())
+    {
+        NativeClient->Logout();
+    }
+}
+
 void UOpenPocketBaseClient::Shutdown()
 {
     if (NativeClient.IsValid())
@@ -74,7 +89,29 @@ void UOpenPocketBaseClient::Shutdown()
 
 void UOpenPocketBaseClient::BeginDestroy()
 {
+    if (NativeClient.IsValid() && SessionChangedHandle.IsValid())
+    {
+        NativeClient->OnSessionChanged().Remove(SessionChangedHandle);
+        SessionChangedHandle.Reset();
+    }
     Shutdown();
     NativeClient.Reset();
     Super::BeginDestroy();
+}
+
+void UOpenPocketBaseClient::BindNativeSessionEvents()
+{
+    if (!NativeClient.IsValid())
+    {
+        return;
+    }
+    SessionChangedHandle = NativeClient->OnSessionChanged().AddUObject(
+        this,
+        &UOpenPocketBaseClient::HandleNativeSessionChanged);
+}
+
+void UOpenPocketBaseClient::HandleNativeSessionChanged(
+    const FOpenPocketBaseSessionSnapshot& Session)
+{
+    SessionChanged.Broadcast(Session);
 }

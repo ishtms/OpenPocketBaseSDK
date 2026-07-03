@@ -5,12 +5,20 @@
 
 #include "OpenPocketBaseBlueprintClient.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseBlueprintSessionChanged,
+    FOpenPocketBaseSessionSnapshot,
+    Session);
+
 UCLASS(BlueprintType)
 class OPENPOCKETBASESDK_API UOpenPocketBaseClient final : public UObject
 {
     GENERATED_BODY()
 
 public:
+    UPROPERTY(BlueprintAssignable, Category = "Open PocketBase|Session")
+    FOpenPocketBaseBlueprintSessionChanged SessionChanged;
+
     static UOpenPocketBaseClient* Create(
         UObject* Outer,
         const FOpenPocketBaseClientConfig& Config,
@@ -36,11 +44,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Authentication")
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
 
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Session")
+    bool GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Session")
+    void Logout();
+
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Client")
     void Shutdown();
 
     virtual void BeginDestroy() override;
 
 private:
+    void BindNativeSessionEvents();
+    void HandleNativeSessionChanged(const FOpenPocketBaseSessionSnapshot& Session);
+
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient;
+    FDelegateHandle SessionChangedHandle;
 };

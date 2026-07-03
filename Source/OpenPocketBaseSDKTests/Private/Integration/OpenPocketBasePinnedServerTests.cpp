@@ -22,6 +22,7 @@ struct FPinnedServerState
     bool bDeleteSucceeded = false;
     bool bBatchSucceeded = false;
     bool bBatchRollbackSucceeded = false;
+    bool bRefreshSucceeded = false;
     FString AuthRecordId;
     FString RecordTitle;
     FString CreatedRecordId;
@@ -43,7 +44,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CompletionCount != 6)
+        if (State->CompletionCount != 7)
         {
             return false;
         }
@@ -62,6 +63,7 @@ public:
         Test->TestTrue(TEXT("Delete succeeds against v0.39.11"), State->bDeleteSucceeded);
         Test->TestTrue(TEXT("Transactional batch succeeds against v0.39.11"), State->bBatchSucceeded);
         Test->TestTrue(TEXT("Failed transactional batch rolls back against v0.39.11"), State->bBatchRollbackSucceeded);
+        Test->TestTrue(TEXT("Auth Refresh succeeds against v0.39.11"), State->bRefreshSucceeded);
         Test->TestEqual(
             TEXT("The seeded auth record is returned"),
             State->AuthRecordId,
@@ -322,6 +324,18 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
                 State->AuthRecordId = Result.GetValue().Record.Id;
                 CreateIntegrationRecord(State);
                 RunSuccessfulIntegrationBatch(State);
+                State->Client->RefreshAuth(
+                    [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& RefreshResult)
+                    {
+                        State->bRefreshSucceeded = RefreshResult.IsSuccess();
+                        if (!RefreshResult.IsSuccess())
+                        {
+                            State->Errors.Add(DescribeIntegrationError(
+                                TEXT("Auth Refresh"),
+                                RefreshResult.GetError()));
+                        }
+                        ++State->CompletionCount;
+                    });
             }
             else
             {

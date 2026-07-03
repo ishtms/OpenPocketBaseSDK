@@ -115,6 +115,12 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             UOpenPocketBaseSendBatchAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseSendBatchAsyncAction, SendBatch)));
     TestNotNull(
+        TEXT("Refresh Auth is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseRefreshAuthAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRefreshAuthAsyncAction, RefreshAuth)));
+    TestNotNull(
         TEXT("Log In with Password is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,
@@ -152,6 +158,18 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     BatchNode->PostPlacedNewNode();
     BatchNode->AllocateDefaultPins();
     Graph->AddNode(BatchNode, true, false);
+
+    UK2Node_CallFunction* LogoutNode = NewObject<UK2Node_CallFunction>(Graph);
+    LogoutNode->SetFromFunction(UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, Logout)));
+    LogoutNode->CreateNewGuid();
+    LogoutNode->PostPlacedNewNode();
+    LogoutNode->AllocateDefaultPins();
+    Graph->AddNode(LogoutNode, true, false);
+
+    TestNotNull(
+        TEXT("Blueprint clients publish session changes"),
+        UOpenPocketBaseClient::StaticClass()->FindPropertyByName(TEXT("SessionChanged")));
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);
