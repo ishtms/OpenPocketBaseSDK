@@ -3,8 +3,12 @@
   "EngineAssociation": "5.8",
   "Category": "",
   "Description": "OpenPocketBase SDK automation test host.",
-  "AdditionalPluginDirectories": [
-    "../.."
+  "Modules": [
+    {
+      "Name": "OpenPocketBaseSDKPackageHost",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
   ],
   "Plugins": [
     {

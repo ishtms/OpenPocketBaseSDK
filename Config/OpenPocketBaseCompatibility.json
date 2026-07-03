@@ -14,6 +14,14 @@
     "migration": "Tests/Integration/pb_migrations/1787414400_openpocketbase_fixture.js",
     "darwinArm64ArchiveSha256": "9da6fbe11e82c5b1704e56f7457b24682e01c510206c29b798a458119fa2be20"
   },
+  "packagedValidation": {
+    "macArm64": {
+      "engine": "5.8",
+      "configuration": "Development",
+      "ordinaryHttps": "verified",
+      "verifiedOn": "2026-08-22"
+    }
+  },
   "implementedRoutes": [
     "GET /api/collections/{collection}/records",
     "GET /api/collections/{collection}/records/{id}",
