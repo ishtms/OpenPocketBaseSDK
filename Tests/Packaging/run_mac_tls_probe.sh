@@ -37,6 +37,15 @@ rsync -a \
     "$sdk_root/" \
     "$probe_root/Plugins/OpenPocketBaseSDK/"
 
+"$UE_ROOT/Engine/Binaries/ThirdParty/DotNet/10.0/mac-arm64/dotnet" \
+    "$UE_ROOT/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll" \
+    OpenPocketBaseSDKTestsEditor Mac Development \
+    -Project="$probe_root/OpenPocketBaseSDKTests.uproject" \
+    -NoUBA \
+    -WaitMutex \
+    -NoHotReload \
+    > "$probe_root/package.log" 2>&1
+
 "$UE_ROOT/Engine/Build/BatchFiles/RunUAT.sh" BuildCookRun \
     -WaitForUATMutex \
     -project="$probe_root/OpenPocketBaseSDKTests.uproject" \
@@ -50,8 +59,10 @@ rsync -a \
     -unattended \
     -utf8output \
     -NoDebugInfo \
+    -NoCompileEditor \
+    -UbtArgs="-NoUBA -WaitMutex" \
     -AdditionalCookerOptions=-SkipZenStore \
-    > "$probe_root/package.log" 2>&1
+    >> "$probe_root/package.log" 2>&1
 
 probe_binary="$probe_root/Saved/StagedBuilds/Mac/OpenPocketBaseSDKTests.app/Contents/MacOS/OpenPocketBaseSDKTests"
 OPENPOCKETBASE_PACKAGE_TLS_ORIGIN=${OPENPOCKETBASE_PACKAGE_TLS_ORIGIN:-https://api.github.com} \
@@ -68,5 +79,10 @@ if ! grep -q 'OPENPOCKETBASE_PACKAGED_TLS_SUCCESS' "$probe_root/tls_probe.log"; 
     exit 3
 fi
 
+if ! grep -q 'OPENPOCKETBASE_PACKAGED_SECURE_STORAGE_SUCCESS' "$probe_root/tls_probe.log"; then
+    print -u2 "The packaged process did not report secure-storage success."
+    exit 4
+fi
+
 probe_succeeded=1
-print "Packaged Mac HTTPS probe passed."
+print "Packaged Mac HTTPS and secure-storage probes passed."

@@ -238,6 +238,13 @@ TOptional<TOpenPocketBaseResult<ValueType>> ValidateResponse(
 
 namespace OpenPocketBase::Json
 {
+bool TryParseRecordObject(
+    const TSharedRef<FJsonObject>& Object,
+    FOpenPocketBaseRecord& OutRecord)
+{
+    return ParseRecordObject(Object, OutRecord);
+}
+
 TOpenPocketBaseResult<FOpenPocketBaseRecord> ParseRecordResponse(
     const FOpenPocketBaseHttpResponse& Response)
 {

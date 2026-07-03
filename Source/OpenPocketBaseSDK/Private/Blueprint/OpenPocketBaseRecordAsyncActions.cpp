@@ -575,6 +575,74 @@ void UOpenPocketBaseRefreshAuthAsyncAction::BroadcastCancelled()
     Cancelled.Broadcast();
 }
 
+UOpenPocketBaseRestoreSessionAsyncAction* UOpenPocketBaseRestoreSessionAsyncAction::RestoreSession(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    const bool bInVerifyWithServer,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseRestoreSessionAsyncAction* Action =
+        NewObject<UOpenPocketBaseRestoreSessionAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->bVerifyWithServer = bInVerifyWithServer;
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseRestoreSessionAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseRestoreSessionAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->RestoreSession(
+        bVerifyWithServer,
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>&& Result)
+        {
+            UOpenPocketBaseRestoreSessionAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast(Result.GetValue());
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        },
+        MoveTemp(Options));
+}
+
+void UOpenPocketBaseRestoreSessionAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
 UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::LogInWithPassword(
     const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,

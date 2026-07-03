@@ -8,6 +8,7 @@
 #include "OpenPocketBaseSession.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Function.h"
+#include "SecureStorage/OpenPocketBaseSecureStore.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
 class FOpenPocketBaseClient;
@@ -24,6 +25,8 @@ using FOpenPocketBaseBoolCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<bool>&&)>;
 using FOpenPocketBaseBatchCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&&)>;
+using FOpenPocketBaseSessionRestoreCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>&&)>;
 
 class OPENPOCKETBASESDK_API FOpenPocketBaseCollectionService
 {
@@ -94,6 +97,12 @@ public:
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
         FOpenPocketBaseError& OutError);
 
+    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
+        const FOpenPocketBaseClientConfig& Config,
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+        FOpenPocketBaseError& OutError);
+
     ~FOpenPocketBaseClient();
 
     FOpenPocketBaseCollectionService Collection(FString CollectionName);
@@ -104,6 +113,10 @@ public:
     FOpenPocketBaseSessionChanged& OnSessionChanged();
     FOpenPocketBaseRequestHandle RefreshAuth(
         FOpenPocketBaseAuthCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {});
+    FOpenPocketBaseRequestHandle RestoreSession(
+        bool bVerifyWithServer,
+        FOpenPocketBaseSessionRestoreCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
     void Logout();
     FOpenPocketBaseRequestHandle SendBatch(
@@ -119,7 +132,8 @@ private:
     FOpenPocketBaseClient(
         FOpenPocketBaseClientConfig Config,
         FString NormalizedBaseUrl,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport);
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore);
 
     TUniquePtr<FImpl> Impl;
 

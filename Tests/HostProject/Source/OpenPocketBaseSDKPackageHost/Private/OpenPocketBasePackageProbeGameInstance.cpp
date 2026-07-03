@@ -1,6 +1,8 @@
 #include "OpenPocketBasePackageProbeGameInstance.h"
 
 #include "HAL/PlatformMisc.h"
+#include "HAL/PlatformProcess.h"
+#include "SecureStorage/OpenPocketBaseSecureStore.h"
 
 void UOpenPocketBasePackageProbeGameInstance::Init()
 {
@@ -11,6 +13,38 @@ void UOpenPocketBasePackageProbeGameInstance::Init()
     {
         return;
     }
+
+    const TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore =
+        CreateOpenPocketBaseSecureStore();
+    FString UnavailableReason;
+    FOpenPocketBaseError SecureError;
+    const FString SecureKey = FString::Printf(
+        TEXT("openpocketbase.packaged-probe.%u"),
+        FPlatformProcess::GetCurrentProcessId());
+    const FTCHARToUTF8 SecureValue(TEXT("ephemeral-packaged-keychain-probe"));
+    const TConstArrayView<uint8> Expected(
+        reinterpret_cast<const uint8*>(SecureValue.Get()),
+        SecureValue.Length());
+    TArray<uint8> Loaded;
+    bool bFound = false;
+    const bool bSecureRoundTrip = SecureStore->IsAvailable(UnavailableReason) &&
+        SecureStore->Save(SecureKey, Expected, SecureError) &&
+        SecureStore->Load(SecureKey, Loaded, bFound, SecureError) &&
+        bFound && Loaded.Num() == Expected.Num() &&
+        FMemory::Memcmp(Loaded.GetData(), Expected.GetData(), Expected.Num()) == 0 &&
+        SecureStore->Delete(SecureKey, SecureError);
+    if (!bSecureRoundTrip)
+    {
+        SecureStore->Delete(SecureKey, SecureError);
+        if (!UnavailableReason.IsEmpty() && SecureError.ServerMessage.IsEmpty())
+        {
+            SecureError.Kind = EOpenPocketBaseErrorKind::SecureStorage;
+            SecureError.ServerMessage = UnavailableReason;
+        }
+        FinishProbe(false, SecureError);
+        return;
+    }
+    UE_LOG(LogTemp, Display, TEXT("OPENPOCKETBASE_PACKAGED_SECURE_STORAGE_SUCCESS"));
 
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = Origin;

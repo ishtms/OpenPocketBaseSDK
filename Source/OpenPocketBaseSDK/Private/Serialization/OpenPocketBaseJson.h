@@ -7,6 +7,10 @@
 
 namespace OpenPocketBase::Json
 {
+bool TryParseRecordObject(
+    const TSharedRef<FJsonObject>& Object,
+    FOpenPocketBaseRecord& OutRecord);
+
 TOpenPocketBaseResult<FOpenPocketBaseRecord> ParseRecordResponse(
     const FOpenPocketBaseHttpResponse& Response);
 

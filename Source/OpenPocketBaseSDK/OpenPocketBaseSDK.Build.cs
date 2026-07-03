@@ -18,5 +18,10 @@ public class OpenPocketBaseSDK : ModuleRules
             });
 
         PrivateDependencyModuleNames.Add("Projects");
+
+        if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.IOS)
+        {
+            PublicFrameworks.Add("Security");
+        }
     }
 }

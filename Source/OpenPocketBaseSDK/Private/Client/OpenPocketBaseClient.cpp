@@ -8,8 +8,10 @@
 #include "Math/RandomStream.h"
 #include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
+#include "Misc/SecureHash.h"
 #include "Request/OpenPocketBaseRequestState.h"
 #include "Serialization/OpenPocketBaseJson.h"
+#include "Session/OpenPocketBaseSessionEnvelope.h"
 #include "Transport/OpenPocketBaseHttpTransport.h"
 
 #include <atomic>
@@ -72,6 +74,24 @@ void DispatchFailure(
         [Callback = MoveTemp(Callback), Error = MoveTemp(Error)]() mutable
         {
             Callback(TOpenPocketBaseResult<ValueType>::Failure(MoveTemp(Error)));
+        });
+}
+
+template <typename ValueType>
+void DispatchSuccess(
+    TUniqueFunction<void(TOpenPocketBaseResult<ValueType>&&)> Callback,
+    ValueType Value)
+{
+    if (!Callback)
+    {
+        return;
+    }
+
+    AsyncTask(
+        ENamedThreads::GameThread,
+        [Callback = MoveTemp(Callback), Value = MoveTemp(Value)]() mutable
+        {
+            Callback(TOpenPocketBaseResult<ValueType>::Success(MoveTemp(Value)));
         });
 }
 
@@ -686,6 +706,8 @@ struct FOpenPocketBaseClient::FImpl
     FOpenPocketBaseClientConfig Config;
     FString BaseUrl;
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
+    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore;
+    FString SecureStorageKey;
     std::atomic<bool> bShutdown = false;
     std::atomic<uint64> NextRequestId = 1;
     mutable FCriticalSection RequestsMutex;
@@ -707,11 +729,15 @@ struct FOpenPocketBaseClient::FImpl
     FImpl(
         FOpenPocketBaseClientConfig InConfig,
         FString InBaseUrl,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InTransport)
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InTransport,
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> InSecureStore)
         : Config(MoveTemp(InConfig))
         , BaseUrl(MoveTemp(InBaseUrl))
         , Transport(MoveTemp(InTransport))
+        , SecureStore(MoveTemp(InSecureStore))
     {
+        const FString Binding = BaseUrl + TEXT("|") + Config.ProfileName;
+        SecureStorageKey = TEXT("openpocketbase.session.") + FMD5::HashAnsiString(*Binding);
     }
 
     FOpenPocketBaseHttpRequest MakeRequest(
@@ -856,15 +882,59 @@ struct FOpenPocketBaseClient::FImpl
         return FOpenPocketBaseRequestHandle(State);
     }
 
-    void StoreAuth(
+    bool TryPersistSessionLocked(
+        const FString& Collection,
+        const FString& Token,
+        const FOpenPocketBaseRecord& Record,
+        FOpenPocketBaseError& OutError)
+    {
+        if (Config.SessionPersistence == EOpenPocketBaseSessionPersistence::MemoryOnly)
+        {
+            PersistenceState = EOpenPocketBaseSessionPersistenceState::MemoryOnly;
+            OutError = FOpenPocketBaseError();
+            return true;
+        }
+
+        TArray<uint8> Envelope;
+        if (!OpenPocketBase::SessionEnvelope::Serialize(
+                BaseUrl,
+                Config.ProfileName,
+                Collection,
+                Token,
+                Record,
+                Envelope,
+                OutError) ||
+            !SecureStore->Save(SecureStorageKey, Envelope, OutError))
+        {
+            PersistenceState = EOpenPocketBaseSessionPersistenceState::Failed;
+            if (!OutError.IsSet())
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::SecureStorage,
+                    TEXT("The secure session could not be saved."));
+            }
+            return false;
+        }
+
+        PersistenceState = EOpenPocketBaseSessionPersistenceState::Persisted;
+        OutError = FOpenPocketBaseError();
+        return true;
+    }
+
+    bool StoreAuth(
         FString Token,
         const FOpenPocketBaseRecord& Record,
         FString Collection,
-        const EOpenPocketBaseSessionChangeReason RequestedReason)
+        const EOpenPocketBaseSessionChangeReason RequestedReason,
+        FOpenPocketBaseError& OutError)
     {
         FOpenPocketBaseSessionSnapshot Snapshot;
         {
             FScopeLock Lock(&AuthMutex);
+            if (!TryPersistSessionLocked(Collection, Token, Record, OutError))
+            {
+                return false;
+            }
             const bool bUserSwitched = bHasAuthRecord &&
                 (!AuthCollection.Equals(Collection, ESearchCase::CaseSensitive) ||
                     AuthRecord.Id != Record.Id);
@@ -884,6 +954,7 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
+        return true;
     }
 
     void ClearAuth()
@@ -891,6 +962,13 @@ struct FOpenPocketBaseClient::FImpl
         FOpenPocketBaseSessionSnapshot Snapshot;
         {
             FScopeLock Lock(&AuthMutex);
+            if (Config.SessionPersistence == EOpenPocketBaseSessionPersistence::RequireSecureStorage)
+            {
+                FOpenPocketBaseError DeleteError;
+                PersistenceState = SecureStore->Delete(SecureStorageKey, DeleteError)
+                    ? EOpenPocketBaseSessionPersistenceState::MemoryOnly
+                    : EOpenPocketBaseSessionPersistenceState::Failed;
+            }
             AuthToken.Reset();
             AuthRecord = FOpenPocketBaseRecord();
             AuthCollection.Reset();
@@ -909,13 +987,22 @@ struct FOpenPocketBaseClient::FImpl
         const FString& CapturedToken,
         const FString& Collection,
         FString NewToken,
-        const FOpenPocketBaseRecord& Record)
+        const FOpenPocketBaseRecord& Record,
+        FOpenPocketBaseError& OutError)
     {
         FOpenPocketBaseSessionSnapshot Snapshot;
         {
             FScopeLock Lock(&AuthMutex);
             if (AuthGeneration != CapturedGeneration || AuthToken != CapturedToken ||
                 AuthCollection != Collection || !bHasAuthRecord)
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::Authentication,
+                    TEXT("The session changed while Auth Refresh was in flight."));
+                return false;
+            }
+
+            if (!TryPersistSessionLocked(Collection, NewToken, Record, OutError))
             {
                 return false;
             }
@@ -932,6 +1019,102 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
+        OutError = FOpenPocketBaseError();
+        return true;
+    }
+
+    bool RestorePersistedSession(
+        FOpenPocketBaseSessionRestoreResult& OutResult,
+        FOpenPocketBaseError& OutError)
+    {
+        OutResult = FOpenPocketBaseSessionRestoreResult();
+        OutError = FOpenPocketBaseError();
+        int64 CapturedGeneration = 0;
+        {
+            FScopeLock Lock(&AuthMutex);
+            CapturedGeneration = AuthGeneration;
+        }
+        if (Config.SessionPersistence != EOpenPocketBaseSessionPersistence::RequireSecureStorage)
+        {
+            OutResult.Status = EOpenPocketBaseSessionRestoreStatus::PolicyRejected;
+            return true;
+        }
+
+        FString UnavailableReason;
+        if (!SecureStore->IsAvailable(UnavailableReason))
+        {
+            FScopeLock Lock(&AuthMutex);
+            PersistenceState = EOpenPocketBaseSessionPersistenceState::Unavailable;
+            OutResult.Status = EOpenPocketBaseSessionRestoreStatus::Unavailable;
+            return true;
+        }
+
+        TArray<uint8> Envelope;
+        bool bFound = false;
+        if (!SecureStore->Load(SecureStorageKey, Envelope, bFound, OutError))
+        {
+            FScopeLock Lock(&AuthMutex);
+            PersistenceState = EOpenPocketBaseSessionPersistenceState::Failed;
+            return false;
+        }
+        if (!bFound)
+        {
+            OutResult.Status = EOpenPocketBaseSessionRestoreStatus::NotFound;
+            return true;
+        }
+
+        FString Collection;
+        FString Token;
+        FOpenPocketBaseRecord Record;
+        const OpenPocketBase::SessionEnvelope::EReadResult ReadResult =
+            OpenPocketBase::SessionEnvelope::Deserialize(
+                Envelope,
+                BaseUrl,
+                Config.ProfileName,
+                Collection,
+                Token,
+                Record);
+        if (ReadResult != OpenPocketBase::SessionEnvelope::EReadResult::Valid)
+        {
+            FOpenPocketBaseError DeleteError;
+            if (!SecureStore->Delete(SecureStorageKey, DeleteError))
+            {
+                FScopeLock Lock(&AuthMutex);
+                PersistenceState = EOpenPocketBaseSessionPersistenceState::Failed;
+            }
+            OutResult.Status = ReadResult == OpenPocketBase::SessionEnvelope::EReadResult::PolicyRejected
+                ? EOpenPocketBaseSessionRestoreStatus::PolicyRejected
+                : EOpenPocketBaseSessionRestoreStatus::Corrupt;
+            return true;
+        }
+
+        FOpenPocketBaseSessionSnapshot Snapshot;
+        {
+            FScopeLock Lock(&AuthMutex);
+            if (AuthGeneration != CapturedGeneration)
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::Authentication,
+                    TEXT("The session changed while secure restore was in flight."));
+                return false;
+            }
+            AuthToken = MoveTemp(Token);
+            AuthRecord = MoveTemp(Record);
+            AuthCollection = MoveTemp(Collection);
+            bHasAuthRecord = true;
+            ++AuthGeneration;
+            PersistenceState = EOpenPocketBaseSessionPersistenceState::Persisted;
+
+            Snapshot.bAuthenticated = true;
+            Snapshot.AuthCollection = AuthCollection;
+            Snapshot.AuthGeneration = AuthGeneration;
+            Snapshot.PersistenceState = PersistenceState;
+            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::Restored;
+            Snapshot.AuthRecord = AuthRecord;
+        }
+        SessionEvents->Enqueue(Snapshot);
+        OutResult.Status = EOpenPocketBaseSessionRestoreStatus::Restored;
+        OutResult.Session = MoveTemp(Snapshot);
         return true;
     }
 
@@ -1152,23 +1335,57 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
     FOpenPocketBaseError& OutError)
 {
+    return Create(Config, MoveTemp(Transport), CreateOpenPocketBaseSecureStore(), OutError);
+}
+
+TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
+    const FOpenPocketBaseClientConfig& Config,
+    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+    FOpenPocketBaseError& OutError)
+{
     FString BaseUrl;
     if (!Config.TryGetNormalizedBaseUrl(BaseUrl, OutError) || !ValidateDefaultHeaders(Config, OutError))
     {
         return nullptr;
     }
 
+    if (Config.SessionPersistence == EOpenPocketBaseSessionPersistence::RequireSecureStorage)
+    {
+        FString UnavailableReason;
+        if (!SecureStore->IsAvailable(UnavailableReason))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::SecureStorage,
+                TEXT("Required secure session storage is unavailable."));
+            if (!UnavailableReason.IsEmpty())
+            {
+                OutError.ServerMessage += TEXT(" ") + UnavailableReason;
+            }
+            return nullptr;
+        }
+    }
+
     OutError = FOpenPocketBaseError();
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        MakeShareable(new FOpenPocketBaseClient(Config, MoveTemp(BaseUrl), MoveTemp(Transport)));
+        MakeShareable(new FOpenPocketBaseClient(
+            Config,
+            MoveTemp(BaseUrl),
+            MoveTemp(Transport),
+            MoveTemp(SecureStore)));
     return Client;
 }
 
 FOpenPocketBaseClient::FOpenPocketBaseClient(
     FOpenPocketBaseClientConfig Config,
     FString NormalizedBaseUrl,
-    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport)
-    : Impl(MakeUnique<FImpl>(MoveTemp(Config), MoveTemp(NormalizedBaseUrl), MoveTemp(Transport)))
+    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore)
+    : Impl(MakeUnique<FImpl>(
+        MoveTemp(Config),
+        MoveTemp(NormalizedBaseUrl),
+        MoveTemp(Transport),
+        MoveTemp(SecureStore)))
 {
 }
 
@@ -1318,18 +1535,27 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RefreshAuth(
             if (Result.IsSuccess())
             {
                 const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin();
-                if (!Client.IsValid() || Client->IsShutdown() ||
-                    !Client->Impl->TryStoreRefreshedAuth(
+                FOpenPocketBaseError StoreError;
+                if (!Client.IsValid() || Client->IsShutdown())
+                {
+                    StoreError = MakeLocalError(
+                        EOpenPocketBaseErrorKind::Authentication,
+                        TEXT("The session changed while Auth Refresh was in flight."));
+                }
+                else
+                {
+                    Client->Impl->TryStoreRefreshedAuth(
                         Flight->CapturedGeneration,
                         Flight->CapturedToken,
                         Flight->AuthCollection,
                         MoveTemp(Token),
-                        Result.GetValue().Record))
+                        Result.GetValue().Record,
+                        StoreError);
+                }
+                if (StoreError.IsSet())
                 {
                     Result = TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
-                        MakeLocalError(
-                            EOpenPocketBaseErrorKind::Authentication,
-                            TEXT("The session changed while Auth Refresh was in flight.")));
+                        MoveTemp(StoreError));
                 }
             }
 
@@ -1358,6 +1584,78 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RefreshAuth(
         Flight->ChildHandle = MoveTemp(ChildHandle);
     }
     return Impl->MakeRequestHandle(RequestState);
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RestoreSession(
+    const bool bVerifyWithServer,
+    FOpenPocketBaseSessionRestoreCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options)
+{
+    FOpenPocketBaseSessionRestoreResult RestoreResult;
+    FOpenPocketBaseError RestoreError;
+    if (!Impl->RestorePersistedSession(RestoreResult, RestoreError))
+    {
+        DispatchFailure<FOpenPocketBaseSessionRestoreResult>(
+            MoveTemp(OnComplete),
+            MoveTemp(RestoreError));
+        return {};
+    }
+
+    if (!bVerifyWithServer || RestoreResult.Status != EOpenPocketBaseSessionRestoreStatus::Restored)
+    {
+        DispatchSuccess<FOpenPocketBaseSessionRestoreResult>(
+            MoveTemp(OnComplete),
+            MoveTemp(RestoreResult));
+        return {};
+    }
+
+    return RefreshAuth(
+        [WeakClient = TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>(AsShared()),
+         OnComplete = MoveTemp(OnComplete)](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result) mutable
+        {
+            const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin();
+            if (!Client.IsValid())
+            {
+                if (OnComplete)
+                {
+                    OnComplete(TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>::Failure(
+                        MakeCancelledError()));
+                }
+                return;
+            }
+
+            if (!Result.IsSuccess())
+            {
+                const FOpenPocketBaseError Error = Result.GetError();
+                if (Error.HttpStatus == 401 || Error.HttpStatus == 403)
+                {
+                    Client->Logout();
+                    FOpenPocketBaseSessionRestoreResult Expired;
+                    Expired.Status = EOpenPocketBaseSessionRestoreStatus::Expired;
+                    Client->GetCurrentSession(Expired.Session);
+                    if (OnComplete)
+                    {
+                        OnComplete(TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>::Success(
+                            MoveTemp(Expired)));
+                    }
+                }
+                else if (OnComplete)
+                {
+                    OnComplete(TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>::Failure(Error));
+                }
+                return;
+            }
+
+            FOpenPocketBaseSessionRestoreResult Verified;
+            Verified.Status = EOpenPocketBaseSessionRestoreStatus::Verified;
+            Client->GetCurrentSession(Verified.Session);
+            if (OnComplete)
+            {
+                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>::Success(
+                    MoveTemp(Verified)));
+            }
+        },
+        MoveTemp(Options));
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
@@ -1873,11 +2171,17 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
                 {
                     if (!ClientToUpdate->IsShutdown())
                     {
-                        ClientToUpdate->Impl->StoreAuth(
+                        FOpenPocketBaseError StoreError;
+                        if (!ClientToUpdate->Impl->StoreAuth(
                             MoveTemp(Token),
                             Result.GetValue().Record,
                             AuthCollection,
-                            EOpenPocketBaseSessionChangeReason::LoggedIn);
+                            EOpenPocketBaseSessionChangeReason::LoggedIn,
+                            StoreError))
+                        {
+                            Result = TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
+                                MoveTemp(StoreError));
+                        }
                     }
                 }
             }

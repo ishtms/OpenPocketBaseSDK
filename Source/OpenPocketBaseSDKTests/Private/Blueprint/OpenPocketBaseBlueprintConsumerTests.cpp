@@ -121,6 +121,12 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             UOpenPocketBaseRefreshAuthAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRefreshAuthAsyncAction, RefreshAuth)));
     TestNotNull(
+        TEXT("Restore Session is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseRestoreSessionAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRestoreSessionAsyncAction, RestoreSession)));
+    TestNotNull(
         TEXT("Log In with Password is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,

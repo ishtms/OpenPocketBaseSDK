@@ -25,6 +25,18 @@ enum class EOpenPocketBaseSessionPersistenceState : uint8
     Failed
 };
 
+UENUM(BlueprintType)
+enum class EOpenPocketBaseSessionRestoreStatus : uint8
+{
+    Restored,
+    Verified,
+    NotFound,
+    Expired,
+    Corrupt,
+    Unavailable,
+    PolicyRejected
+};
+
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseSessionSnapshot
 {
@@ -48,6 +60,18 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseSessionSnapshot
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Session")
     FOpenPocketBaseRecord AuthRecord;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseSessionRestoreResult
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Session")
+    EOpenPocketBaseSessionRestoreStatus Status = EOpenPocketBaseSessionRestoreStatus::NotFound;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Session")
+    FOpenPocketBaseSessionSnapshot Session;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(

@@ -22,6 +22,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseAuthActionSuccess,
     FOpenPocketBaseAuthResult,
     AuthResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseSessionRestoreActionSuccess,
+    FOpenPocketBaseSessionRestoreResult,
+    RestoreResult);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseActionSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseActionFailed,
@@ -368,6 +372,45 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
+    FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseRestoreSessionAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseSessionRestoreActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Session",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Restore Session"))
+    static UOpenPocketBaseRestoreSessionAsyncAction* RestoreSession(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        bool bVerifyWithServer,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    bool bVerifyWithServer = true;
     FOpenPocketBaseRequestOptions Options;
 };
 
