@@ -16,13 +16,52 @@ enum class EOpenPocketBaseFieldState : uint8
     WrongType
 };
 
+UENUM(BlueprintType)
+enum class EOpenPocketBaseFieldModifier : uint8
+{
+    Replace,
+    Append,
+    Prepend,
+    Remove
+};
+
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
 {
     GENERATED_BODY()
 
+    FOpenPocketBaseRecordBody();
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
     FJsonObjectWrapper Data;
+
+    void SetStringField(
+        const FString& FieldName,
+        const FString& Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    void SetNumberField(
+        const FString& FieldName,
+        double Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    void SetBooleanField(
+        const FString& FieldName,
+        bool bValue,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    void SetNullField(
+        const FString& FieldName,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    void SetStringArrayField(
+        const FString& FieldName,
+        const TArray<FString>& Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    static FString MakeModifiedFieldName(
+        const FString& FieldName,
+        EOpenPocketBaseFieldModifier Modifier);
 };
 
 USTRUCT(BlueprintType)
@@ -116,6 +155,28 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRequestOptions
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Client", AdvancedDisplay, meta = (ClampMin = "1024", ClampMax = "67108864"))
     int64 MaxResponseBytes = 8 * 1024 * 1024;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordOptions
+{
+    GENERATED_BODY()
+
+    FOpenPocketBaseRecordOptions() = default;
+
+    FOpenPocketBaseRecordOptions(FOpenPocketBaseRequestOptions InRequestOptions)
+        : RequestOptions(MoveTemp(InRequestOptions))
+    {
+    }
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
+    TArray<FString> Expand;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
+    TArray<FString> Fields;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", AdvancedDisplay)
+    FOpenPocketBaseRequestOptions RequestOptions;
 };
 
 USTRUCT(BlueprintType)

@@ -30,9 +30,9 @@ migrate((app) => {
     name: "sdk_tasks",
     listRule: "",
     viewRule: "",
-    createRule: null,
-    updateRule: null,
-    deleteRule: null,
+    createRule: "@request.auth.id != ''",
+    updateRule: "@request.auth.id != ''",
+    deleteRule: "@request.auth.id != ''",
     fields: [
       {
         name: "created",
@@ -54,6 +54,10 @@ migrate((app) => {
       {
         name: "done",
         type: "bool",
+      },
+      {
+        name: "score",
+        type: "number",
       },
     ],
   });

@@ -267,6 +267,15 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthResult> ParseAuthResponse(
     return TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Success(MoveTemp(Result));
 }
 
+TOpenPocketBaseResult<bool> ParseEmptyResponse(const FOpenPocketBaseHttpResponse& Response)
+{
+    if (TOptional<TOpenPocketBaseResult<bool>> Failure = ValidateResponse<bool>(Response))
+    {
+        return MoveTemp(Failure.GetValue());
+    }
+    return TOpenPocketBaseResult<bool>::Success(true);
+}
+
 TArray<uint8> SerializeObject(const TSharedRef<FJsonObject>& Object)
 {
     FString Json;

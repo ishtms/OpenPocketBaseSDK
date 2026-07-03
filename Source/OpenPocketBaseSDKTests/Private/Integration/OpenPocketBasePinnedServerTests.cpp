@@ -14,8 +14,14 @@ struct FPinnedServerState
     bool bAuthSucceeded = false;
     bool bGetOneSucceeded = false;
     bool bGetListSucceeded = false;
+    bool bCreateSucceeded = false;
+    bool bUpdateSucceeded = false;
+    bool bFirstSucceeded = false;
+    bool bDeleteSucceeded = false;
     FString AuthRecordId;
     FString RecordTitle;
+    FString CreatedRecordId;
+    FString FirstRecordId;
     int32 ListItems = 0;
     TArray<FString> Errors;
 };
@@ -33,7 +39,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CompletionCount != 3)
+        if (State->CompletionCount != 4)
         {
             return false;
         }
@@ -45,6 +51,10 @@ public:
         Test->TestTrue(TEXT("Password login succeeds against v0.39.11"), State->bAuthSucceeded);
         Test->TestTrue(TEXT("Get One succeeds against v0.39.11"), State->bGetOneSucceeded);
         Test->TestTrue(TEXT("Get List succeeds against v0.39.11"), State->bGetListSucceeded);
+        Test->TestTrue(TEXT("Create succeeds against v0.39.11"), State->bCreateSucceeded);
+        Test->TestTrue(TEXT("Update succeeds against v0.39.11"), State->bUpdateSucceeded);
+        Test->TestTrue(TEXT("First match succeeds against v0.39.11"), State->bFirstSucceeded);
+        Test->TestTrue(TEXT("Delete succeeds against v0.39.11"), State->bDeleteSucceeded);
         Test->TestEqual(
             TEXT("The seeded auth record is returned"),
             State->AuthRecordId,
@@ -54,6 +64,14 @@ public:
             State->RecordTitle,
             FString(TEXT("Ship the Unreal SDK")));
         Test->TestEqual(TEXT("The seeded list has one item"), State->ListItems, 1);
+        Test->TestEqual(
+            TEXT("Create accepts a deterministic record ID"),
+            State->CreatedRecordId,
+            FString(TEXT("task00000000002")));
+        Test->TestEqual(
+            TEXT("First match returns the updated record"),
+            State->FirstRecordId,
+            FString(TEXT("task00000000002")));
         State->Client->Shutdown();
         return true;
     }
@@ -73,6 +91,95 @@ FString DescribeIntegrationError(const TCHAR* Operation, const FOpenPocketBaseEr
         *Error.ServerCode,
         *Error.ServerMessage,
         *Error.RequestId);
+}
+
+void CompleteCrudFailure(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State,
+    const TCHAR* Operation,
+    const FOpenPocketBaseError& Error)
+{
+    State->Errors.Add(DescribeIntegrationError(Operation, Error));
+    ++State->CompletionCount;
+}
+
+void DeleteIntegrationRecord(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
+{
+    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+        TEXT("task00000000002"),
+        [State](TOpenPocketBaseResult<bool>&& Result)
+        {
+            State->bDeleteSucceeded = Result.IsSuccess() && Result.GetValue();
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(TEXT("Delete"), Result.GetError()));
+            }
+            ++State->CompletionCount;
+        });
+}
+
+void GetFirstIntegrationRecord(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
+{
+    FOpenPocketBaseRecordOptions Options;
+    Options.Fields = {TEXT("id"), TEXT("title:excerpt(12,true)"), TEXT("score")};
+    State->Client->Collection(TEXT("sdk_tasks")).GetFirstListItem(
+        TEXT("id = 'task00000000002'"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bFirstSucceeded = Result.IsSuccess();
+            if (!Result.IsSuccess())
+            {
+                CompleteCrudFailure(State, TEXT("Get First"), Result.GetError());
+                return;
+            }
+            State->FirstRecordId = Result.GetValue().Id;
+            DeleteIntegrationRecord(State);
+        },
+        MoveTemp(Options));
+}
+
+void UpdateIntegrationRecord(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
+{
+    FOpenPocketBaseRecordBody Body;
+    Body.SetStringField(TEXT("title"), TEXT("Updated integration task"));
+    Body.SetNumberField(TEXT("score"), 2.0, EOpenPocketBaseFieldModifier::Append);
+    State->Client->Collection(TEXT("sdk_tasks")).Update(
+        TEXT("task00000000002"),
+        MoveTemp(Body),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bUpdateSucceeded = Result.IsSuccess();
+            if (!Result.IsSuccess())
+            {
+                CompleteCrudFailure(State, TEXT("Update"), Result.GetError());
+                return;
+            }
+            GetFirstIntegrationRecord(State);
+        });
+}
+
+void CreateIntegrationRecord(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
+{
+    FOpenPocketBaseRecordBody Body;
+    Body.SetStringField(TEXT("id"), TEXT("task00000000002"));
+    Body.SetStringField(TEXT("title"), TEXT("Created integration task"));
+    Body.SetNumberField(TEXT("score"), 3.0);
+    State->Client->Collection(TEXT("sdk_tasks")).Create(
+        MoveTemp(Body),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bCreateSucceeded = Result.IsSuccess();
+            if (!Result.IsSuccess())
+            {
+                CompleteCrudFailure(State, TEXT("Create"), Result.GetError());
+                return;
+            }
+            State->CreatedRecordId = Result.GetValue().Id;
+            UpdateIntegrationRecord(State);
+        });
 }
 }
 
@@ -112,10 +219,12 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
             if (Result.IsSuccess())
             {
                 State->AuthRecordId = Result.GetValue().Record.Id;
+                CreateIntegrationRecord(State);
             }
             else
             {
                 State->Errors.Add(DescribeIntegrationError(TEXT("Password login"), Result.GetError()));
+                ++State->CompletionCount;
             }
             ++State->CompletionCount;
         });

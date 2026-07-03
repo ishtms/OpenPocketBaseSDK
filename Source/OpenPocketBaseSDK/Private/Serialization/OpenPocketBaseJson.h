@@ -16,5 +16,8 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthResult> ParseAuthResponse(
     const FOpenPocketBaseHttpResponse& Response,
     FString& OutToken);
 
+TOpenPocketBaseResult<bool> ParseEmptyResponse(
+    const FOpenPocketBaseHttpResponse& Response);
+
 TArray<uint8> SerializeObject(const TSharedRef<FJsonObject>& Object);
 }

@@ -32,6 +32,66 @@ EOpenPocketBaseFieldState GetBaseState(const TSharedPtr<FJsonValue>& Value)
 }
 }
 
+FString UOpenPocketBaseRecordLibrary::MakeExcerptField(
+    const FString& FieldName,
+    const int32 MaxLength,
+    const bool bWithEllipsis)
+{
+    if (FieldName.IsEmpty() || MaxLength < 0)
+    {
+        return {};
+    }
+    return FString::Printf(
+        TEXT("%s:excerpt(%d,%s)"),
+        *FieldName,
+        MaxLength,
+        bWithEllipsis ? TEXT("true") : TEXT("false"));
+}
+
+void UOpenPocketBaseRecordLibrary::SetRecordBodyStringField(
+    FOpenPocketBaseRecordBody& Body,
+    const FString& FieldName,
+    const FString& Value,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    Body.SetStringField(FieldName, Value, Modifier);
+}
+
+void UOpenPocketBaseRecordLibrary::SetRecordBodyNumberField(
+    FOpenPocketBaseRecordBody& Body,
+    const FString& FieldName,
+    const double Value,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    Body.SetNumberField(FieldName, Value, Modifier);
+}
+
+void UOpenPocketBaseRecordLibrary::SetRecordBodyBooleanField(
+    FOpenPocketBaseRecordBody& Body,
+    const FString& FieldName,
+    const bool bValue,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    Body.SetBooleanField(FieldName, bValue, Modifier);
+}
+
+void UOpenPocketBaseRecordLibrary::SetRecordBodyNullField(
+    FOpenPocketBaseRecordBody& Body,
+    const FString& FieldName,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    Body.SetNullField(FieldName, Modifier);
+}
+
+void UOpenPocketBaseRecordLibrary::SetRecordBodyStringArrayField(
+    FOpenPocketBaseRecordBody& Body,
+    const FString& FieldName,
+    const TArray<FString>& Value,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    Body.SetStringArrayField(FieldName, Value, Modifier);
+}
+
 bool UOpenPocketBaseRecordLibrary::HasField(
     const FOpenPocketBaseRecord& Record,
     const FString& FieldName)

@@ -270,6 +270,23 @@ FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
     return FString::Join(Parts, TEXT("&"));
 }
 
+FString MakeRecordQuery(const FOpenPocketBaseRecordOptions& Options)
+{
+    TArray<FString> Parts;
+    AddQueryValue(Parts, TEXT("expand"), FString::Join(Options.Expand, TEXT(",")));
+    AddQueryValue(Parts, TEXT("fields"), FString::Join(Options.Fields, TEXT(",")));
+    return FString::Join(Parts, TEXT("&"));
+}
+
+FString AddQuery(FString Path, const FString& Query)
+{
+    if (!Query.IsEmpty())
+    {
+        Path += TEXT("?") + Query;
+    }
+    return Path;
+}
+
 EOpenPocketBaseRequestState TerminalStateFor(const bool bSucceeded)
 {
     return bSucceeded
@@ -731,7 +748,7 @@ bool FOpenPocketBaseCollectionService::IsValid() const
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
     FString RecordId,
     FOpenPocketBaseRecordCallback OnComplete,
-    FOpenPocketBaseRequestOptions Options) const
+    FOpenPocketBaseRecordOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId))
@@ -743,7 +760,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options, OptionsError))
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -751,16 +768,18 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
 
     const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
         MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
-    const FString Path = FString::Printf(
-        TEXT("/api/collections/%s/records/%s"),
-        *EncodeSegment(Collection),
-        *EncodeSegment(RecordId));
+    const FString Path = AddQuery(
+        FString::Printf(
+            TEXT("/api/collections/%s/records/%s"),
+            *EncodeSegment(Collection),
+            *EncodeSegment(RecordId)),
+        MakeRecordQuery(Options));
     FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
-        TEXT("GET"), Path, {}, Options, true);
+        TEXT("GET"), Path, {}, Options.RequestOptions, true);
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
-        Options,
+        Options.RequestOptions,
         true,
         [Completion](
             FOpenPocketBaseHttpResponse&& Response,
@@ -832,6 +851,228 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
         [Completion]()
         {
             Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFirstListItem(
+    FString Filter,
+    FOpenPocketBaseRecordCallback OnComplete,
+    FOpenPocketBaseRecordOptions Options) const
+{
+    FOpenPocketBaseListOptions ListOptions;
+    ListOptions.Page = 1;
+    ListOptions.PerPage = 1;
+    ListOptions.Filter = MoveTemp(Filter);
+    ListOptions.Expand = MoveTemp(Options.Expand);
+    ListOptions.Fields = MoveTemp(Options.Fields);
+    ListOptions.bSkipTotal = true;
+    ListOptions.RequestOptions = MoveTemp(Options.RequestOptions);
+
+    return GetList(
+        MoveTemp(ListOptions),
+        [OnComplete = MoveTemp(OnComplete)](
+            TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result) mutable
+        {
+            if (!OnComplete)
+            {
+                return;
+            }
+            if (!Result.IsSuccess())
+            {
+                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(Result.GetError()));
+                return;
+            }
+            if (Result.GetValue().Items.IsEmpty())
+            {
+                FOpenPocketBaseError Error;
+                Error.Kind = EOpenPocketBaseErrorKind::PocketBase;
+                Error.HttpStatus = 404;
+                Error.ServerCode = TEXT("404");
+                Error.ServerMessage = TEXT("The requested record wasn't found.");
+                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MoveTemp(Error)));
+                return;
+            }
+            OnComplete(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Success(Result.GetValue().Items[0]));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Create(
+    FOpenPocketBaseRecordBody Body,
+    FOpenPocketBaseRecordCallback OnComplete,
+    FOpenPocketBaseRecordOptions Options) const
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !Body.Data.JsonObject.IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Client, collection, and a JSON record body are required.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const FString Path = AddQuery(
+        FString::Printf(
+            TEXT("/api/collections/%s/records"),
+            *EncodeSegment(Collection)),
+        MakeRecordQuery(Options));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("POST"),
+        Path,
+        OpenPocketBase::Json::SerializeObject(Body.Data.JsonObject.ToSharedRef()),
+        Options.RequestOptions,
+        true);
+
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options.RequestOptions,
+        false,
+        [Completion](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseRecord> Result =
+                OpenPocketBase::Json::ParseRecordResponse(Response);
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Update(
+    FString RecordId,
+    FOpenPocketBaseRecordBody Body,
+    FOpenPocketBaseRecordCallback OnComplete,
+    FOpenPocketBaseRecordOptions Options) const
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId) ||
+        !Body.Data.JsonObject.IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Client, collection, record ID, and a JSON record body are required.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const FString Path = AddQuery(
+        FString::Printf(
+            TEXT("/api/collections/%s/records/%s"),
+            *EncodeSegment(Collection),
+            *EncodeSegment(RecordId)),
+        MakeRecordQuery(Options));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("PATCH"),
+        Path,
+        OpenPocketBase::Json::SerializeObject(Body.Data.JsonObject.ToSharedRef()),
+        Options.RequestOptions,
+        true);
+
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options.RequestOptions,
+        false,
+        [Completion](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseRecord> Result =
+                OpenPocketBase::Json::ParseRecordResponse(Response);
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Delete(
+    FString RecordId,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Client, collection, and record ID are required.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<bool>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<bool>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<bool>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const FString Path = FString::Printf(
+        TEXT("/api/collections/%s/records/%s"),
+        *EncodeSegment(Collection),
+        *EncodeSegment(RecordId));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("DELETE"), Path, {}, Options, true);
+
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options,
+        false,
+        [Completion](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<bool> Result = OpenPocketBase::Json::ParseEmptyResponse(Response);
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<bool>::Failure(MakeCancelledError()));
         });
 }
 

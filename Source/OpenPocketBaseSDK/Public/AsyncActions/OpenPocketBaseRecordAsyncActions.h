@@ -18,6 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseAuthActionSuccess,
     FOpenPocketBaseAuthResult,
     AuthResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseActionSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseActionFailed,
     FOpenPocketBaseError,
@@ -68,6 +69,172 @@ public:
             WorldContext = "WorldContextObject",
             DisplayName = "Get Record"))
     static UOpenPocketBaseGetRecordAsyncAction* GetRecord(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FString RecordId,
+        FOpenPocketBaseRecordOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FString RecordId;
+    FOpenPocketBaseRecordOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseGetFirstRecordAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Records",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Get First Record"))
+    static UOpenPocketBaseGetFirstRecordAsyncAction* GetFirstRecord(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FString Filter,
+        FOpenPocketBaseRecordOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FString Filter;
+    FOpenPocketBaseRecordOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseCreateRecordAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Records",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Create Record"))
+    static UOpenPocketBaseCreateRecordAsyncAction* CreateRecord(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FOpenPocketBaseRecordBody Body;
+    FOpenPocketBaseRecordOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseUpdateRecordAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Records",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Update Record"))
+    static UOpenPocketBaseUpdateRecordAsyncAction* UpdateRecord(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FString RecordId,
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FString RecordId;
+    FOpenPocketBaseRecordBody Body;
+    FOpenPocketBaseRecordOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseDeleteRecordAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Records",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Delete Record"))
+    static UOpenPocketBaseDeleteRecordAsyncAction* DeleteRecord(
         const UObject* WorldContextObject,
         UOpenPocketBaseClient* PocketBaseClient,
         FString Collection,

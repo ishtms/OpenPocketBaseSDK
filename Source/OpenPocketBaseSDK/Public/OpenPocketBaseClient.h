@@ -16,6 +16,8 @@ using FOpenPocketBaseRecordPageCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&&)>;
 using FOpenPocketBaseAuthCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&&)>;
+using FOpenPocketBaseBoolCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<bool>&&)>;
 
 class OPENPOCKETBASESDK_API FOpenPocketBaseCollectionService
 {
@@ -23,11 +25,32 @@ public:
     FOpenPocketBaseRequestHandle GetOne(
         FString RecordId,
         FOpenPocketBaseRecordCallback OnComplete,
-        FOpenPocketBaseRequestOptions Options = {}) const;
+        FOpenPocketBaseRecordOptions Options = {}) const;
 
     FOpenPocketBaseRequestHandle GetList(
         FOpenPocketBaseListOptions Options,
         FOpenPocketBaseRecordPageCallback OnComplete) const;
+
+    FOpenPocketBaseRequestHandle GetFirstListItem(
+        FString Filter,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle Create(
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle Update(
+        FString RecordId,
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle Delete(
+        FString RecordId,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
 
     FOpenPocketBaseRequestHandle AuthWithPassword(
         FString Identity,

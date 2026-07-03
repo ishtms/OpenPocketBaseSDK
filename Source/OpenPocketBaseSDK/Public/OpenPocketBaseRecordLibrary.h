@@ -13,6 +13,46 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseRecordLibrary final : public UBluepri
 
 public:
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    static FString MakeExcerptField(
+        const FString& FieldName,
+        int32 MaxLength,
+        bool bWithEllipsis = false);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
+    static void SetRecordBodyStringField(
+        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+        const FString& FieldName,
+        const FString& Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
+    static void SetRecordBodyNumberField(
+        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+        const FString& FieldName,
+        double Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
+    static void SetRecordBodyBooleanField(
+        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+        const FString& FieldName,
+        bool bValue,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
+    static void SetRecordBodyNullField(
+        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+        const FString& FieldName,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
+    static void SetRecordBodyStringArrayField(
+        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+        const FString& FieldName,
+        const TArray<FString>& Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
     static bool HasField(const FOpenPocketBaseRecord& Record, const FString& FieldName);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")

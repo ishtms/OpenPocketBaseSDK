@@ -76,6 +76,30 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             UOpenPocketBaseListRecordsAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseListRecordsAsyncAction, ListRecords)));
     TestNotNull(
+        TEXT("Get First Record is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseGetFirstRecordAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetFirstRecordAsyncAction, GetFirstRecord)));
+    TestNotNull(
+        TEXT("Create Record is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseCreateRecordAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord)));
+    TestNotNull(
+        TEXT("Update Record is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseUpdateRecordAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseUpdateRecordAsyncAction, UpdateRecord)));
+    TestNotNull(
+        TEXT("Delete Record is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseDeleteRecordAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseDeleteRecordAsyncAction, DeleteRecord)));
+    TestNotNull(
         TEXT("Log In with Password is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,
@@ -89,6 +113,14 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     FieldNode->PostPlacedNewNode();
     FieldNode->AllocateDefaultPins();
     Graph->AddNode(FieldNode, true, false);
+
+    UK2Node_CallFunction* BodyNode = NewObject<UK2Node_CallFunction>(Graph);
+    BodyNode->SetFromFunction(UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, SetRecordBodyStringField)));
+    BodyNode->CreateNewGuid();
+    BodyNode->PostPlacedNewNode();
+    BodyNode->AllocateDefaultPins();
+    Graph->AddNode(BodyNode, true, false);
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);
