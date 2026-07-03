@@ -80,6 +80,67 @@ bool IsHeaderName(const FString& Header, const TCHAR* Expected)
     return Header.Equals(Expected, ESearchCase::IgnoreCase);
 }
 
+bool IsValidHeaderName(const FString& Header)
+{
+    if (Header.IsEmpty())
+    {
+        return false;
+    }
+
+    for (const TCHAR Character : Header)
+    {
+        const bool bTokenPunctuation = Character == TEXT('!') || Character == TEXT('#') ||
+            Character == TEXT('$') || Character == TEXT('%') || Character == TEXT('&') ||
+            Character == TEXT('\'') || Character == TEXT('*') || Character == TEXT('+') ||
+            Character == TEXT('-') || Character == TEXT('.') || Character == TEXT('^') ||
+            Character == TEXT('_') || Character == TEXT('`') || Character == TEXT('|') ||
+            Character == TEXT('~');
+        if (!FChar::IsAlnum(Character) && !bTokenPunctuation)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool IsValidHeaderValue(const FString& Value)
+{
+    for (const TCHAR Character : Value)
+    {
+        if (FChar::IsControl(Character))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool IsProtectedDefaultHeader(const FString& Header)
+{
+    static const TCHAR* ProtectedHeaders[] = {
+        TEXT("Accept"),
+        TEXT("Accept-Language"),
+        TEXT("Authorization"),
+        TEXT("Content-Length"),
+        TEXT("Content-Type"),
+        TEXT("Cookie"),
+        TEXT("Host"),
+        TEXT("Proxy-Authorization"),
+        TEXT("Set-Cookie"),
+        TEXT("X-Api-Key"),
+        TEXT("X-Request-Id")
+    };
+
+    for (const TCHAR* ProtectedHeader : ProtectedHeaders)
+    {
+        if (IsHeaderName(Header, ProtectedHeader))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ValidateDefaultHeaders(
     const FOpenPocketBaseClientConfig& Config,
     FOpenPocketBaseError& OutError)
@@ -94,8 +155,7 @@ bool ValidateDefaultHeaders(
 
     for (const TPair<FString, FString>& Header : Config.DefaultHeaders)
     {
-        if (Header.Key.IsEmpty() || Header.Key.Contains(TEXT("\r")) || Header.Key.Contains(TEXT("\n")) ||
-            Header.Value.Contains(TEXT("\r")) || Header.Value.Contains(TEXT("\n")))
+        if (!IsValidHeaderName(Header.Key) || !IsValidHeaderValue(Header.Value))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
@@ -103,9 +163,7 @@ bool ValidateDefaultHeaders(
             return false;
         }
 
-        if (IsHeaderName(Header.Key, TEXT("Authorization")) ||
-            IsHeaderName(Header.Key, TEXT("Host")) ||
-            IsHeaderName(Header.Key, TEXT("Content-Length")))
+        if (IsProtectedDefaultHeader(Header.Key))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
@@ -392,6 +450,7 @@ struct FOpenPocketBaseClient::FImpl
         Request.TotalTimeoutSeconds = Options.TotalTimeoutSeconds;
         Request.ActivityTimeoutSeconds = Options.ActivityTimeoutSeconds;
         Request.Headers = Config.DefaultHeaders;
+        Request.Headers.Add(TEXT("X-Request-Id"), Request.RequestId);
         Request.Headers.Add(TEXT("Accept"), TEXT("application/json"));
         if (!Config.AcceptLanguage.IsEmpty())
         {

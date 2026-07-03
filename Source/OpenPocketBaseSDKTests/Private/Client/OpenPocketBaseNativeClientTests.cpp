@@ -66,6 +66,19 @@ public:
             TEXT("Path segments are encoded"),
             State->Transport->LastRequest.Url,
             FString(TEXT("https://pb.example.com/api/collections/tasks/records/record%20id")));
+        const FString* CorrelationHeader = State->Transport->LastRequest.Headers.Find(TEXT("X-Request-Id"));
+        Test->TestNotNull(TEXT("Every request has a correlation header"), CorrelationHeader);
+        if (CorrelationHeader != nullptr)
+        {
+            Test->TestEqual(
+                TEXT("The correlation header matches the transport request ID"),
+                *CorrelationHeader,
+                State->Transport->LastRequest.RequestId);
+            FGuid ParsedRequestId;
+            Test->TestTrue(
+                TEXT("The correlation ID uses a sanitized GUID"),
+                FGuid::ParseExact(*CorrelationHeader, EGuidFormats::DigitsWithHyphensLower, ParsedRequestId));
+        }
         State->Client->Shutdown();
         return true;
     }

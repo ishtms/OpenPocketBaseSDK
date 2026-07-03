@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "OpenPocketBaseClient.h"
 #include "OpenPocketBaseClientConfig.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -36,6 +37,49 @@ bool FOpenPocketBaseClientConfigNormalizationTest::RunTest(const FString& Parame
     Config.ProfileName = TEXT("profile\nsecret");
     TestFalse(TEXT("A profile with control characters is rejected"), Config.TryGetNormalizedBaseUrl(NormalizedBaseUrl, Error));
 
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseOwnedHeadersTest,
+    "OpenPocketBase.Client.Config.RejectsOwnedAndCredentialHeaders",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseOwnedHeadersTest::RunTest(const FString& Parameters)
+{
+    const TArray<FString> ProtectedHeaders = {
+        TEXT("Accept"),
+        TEXT("Accept-Language"),
+        TEXT("Authorization"),
+        TEXT("Content-Length"),
+        TEXT("Content-Type"),
+        TEXT("Cookie"),
+        TEXT("Host"),
+        TEXT("Proxy-Authorization"),
+        TEXT("Set-Cookie"),
+        TEXT("X-Api-Key"),
+        TEXT("X-Request-Id")
+    };
+
+    for (const FString& Header : ProtectedHeaders)
+    {
+        FOpenPocketBaseClientConfig Config;
+        Config.BaseUrl = TEXT("https://pb.example.com");
+        Config.DefaultHeaders.Add(Header, TEXT("caller-value"));
+        FOpenPocketBaseError Error;
+        const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
+            FOpenPocketBaseClient::Create(Config, Error);
+        TestFalse(*FString::Printf(TEXT("%s is SDK or security owned"), *Header), Client.IsValid());
+        TestEqual(TEXT("Protected headers fail as invalid arguments"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
+    }
+
+    FOpenPocketBaseClientConfig InvalidNameConfig;
+    InvalidNameConfig.BaseUrl = TEXT("https://pb.example.com");
+    InvalidNameConfig.DefaultHeaders.Add(TEXT("Bad Header"), TEXT("value"));
+    FOpenPocketBaseError Error;
+    TestFalse(
+        TEXT("Invalid HTTP field names are rejected"),
+        FOpenPocketBaseClient::Create(InvalidNameConfig, Error).IsValid());
     return true;
 }
 
