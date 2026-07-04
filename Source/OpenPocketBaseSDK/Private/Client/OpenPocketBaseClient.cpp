@@ -3,6 +3,7 @@
 #include "Async/Async.h"
 #include "Clock/OpenPocketBaseClock.h"
 #include "Dom/JsonObject.h"
+#include "Files/OpenPocketBaseMultipart.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "HAL/CriticalSection.h"
 #include "Math/RandomStream.h"
@@ -2469,6 +2470,90 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Create(
         });
 }
 
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
+    FOpenPocketBaseRecordBody Body,
+    TArray<FOpenPocketBaseFileInput> Files,
+    FOpenPocketBaseRecordCallback OnComplete,
+    FOpenPocketBaseRecordOptions Options,
+    FOpenPocketBaseUploadLimits Limits) const
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !Body.Data.JsonObject.IsValid() ||
+        Files.IsEmpty())
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Client, collection, JSON record body, and at least one file are required.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    OpenPocketBase::Multipart::FBuildResult Multipart;
+    FOpenPocketBaseError MultipartError;
+    const FString Boundary = TEXT("openpocketbase-") +
+        FGuid::NewGuid().ToString(EGuidFormats::DigitsLower);
+    if (!OpenPocketBase::Multipart::Build(
+            Body,
+            Files,
+            Limits,
+            Boundary,
+            Multipart,
+            MultipartError))
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(MultipartError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const FString Path = AddQuery(
+        FString::Printf(
+            TEXT("/api/collections/%s/records"),
+            *EncodeSegment(Collection)),
+        MakeRecordQuery(Options));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("POST"),
+        Path,
+        {},
+        Options.RequestOptions,
+        true);
+    Request.BodyStream = MoveTemp(Multipart.Stream);
+    Request.BodyLength = Multipart.ContentLength;
+    Request.Headers.Add(TEXT("Content-Type"), MoveTemp(Multipart.ContentType));
+    Request.Headers.Add(TEXT("Content-Length"), LexToString(Request.BodyLength));
+
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options.RequestOptions,
+        false,
+        [Completion](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseRecord> Result =
+                OpenPocketBase::Json::ParseRecordResponse(Response);
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MakeCancelledError()));
+        });
+}
+
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Update(
     FString RecordId,
     FOpenPocketBaseRecordBody Body,
@@ -2508,6 +2593,110 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Update(
         OpenPocketBase::Json::SerializeObject(Body.Data.JsonObject.ToSharedRef()),
         Options.RequestOptions,
         true);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
+
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options.RequestOptions,
+        false,
+        [Completion, WeakClient, AuthCollection = Collection](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseRecord> Result =
+                OpenPocketBase::Json::ParseRecordResponse(Response);
+            if (Result.IsSuccess())
+            {
+                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin())
+                {
+                    bool bUpdated = false;
+                    FOpenPocketBaseError StoreError;
+                    if (!Client->Impl->TryStoreCurrentAuthRecord(
+                            AuthCollection,
+                            Result.GetValue(),
+                            bUpdated,
+                            StoreError))
+                    {
+                        Result = TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(
+                            MoveTemp(StoreError));
+                    }
+                }
+            }
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
+    FString RecordId,
+    FOpenPocketBaseRecordBody Body,
+    TArray<FOpenPocketBaseFileInput> Files,
+    FOpenPocketBaseRecordCallback OnComplete,
+    FOpenPocketBaseRecordOptions Options,
+    FOpenPocketBaseUploadLimits Limits) const
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId) ||
+        !Body.Data.JsonObject.IsValid() || Files.IsEmpty())
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Client, collection, record ID, JSON record body, and at least one file are required.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    OpenPocketBase::Multipart::FBuildResult Multipart;
+    FOpenPocketBaseError MultipartError;
+    const FString Boundary = TEXT("openpocketbase-") +
+        FGuid::NewGuid().ToString(EGuidFormats::DigitsLower);
+    if (!OpenPocketBase::Multipart::Build(
+            Body,
+            Files,
+            Limits,
+            Boundary,
+            Multipart,
+            MultipartError))
+    {
+        DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(MultipartError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const FString Path = AddQuery(
+        FString::Printf(
+            TEXT("/api/collections/%s/records/%s"),
+            *EncodeSegment(Collection),
+            *EncodeSegment(RecordId)),
+        MakeRecordQuery(Options));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("PATCH"),
+        Path,
+        {},
+        Options.RequestOptions,
+        true);
+    Request.BodyStream = MoveTemp(Multipart.Stream);
+    Request.BodyLength = Multipart.ContentLength;
+    Request.Headers.Add(TEXT("Content-Type"), MoveTemp(Multipart.ContentType));
+    Request.Headers.Add(TEXT("Content-Length"), LexToString(Request.BodyLength));
     const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
 
     return PinnedClient->Impl->Send(

@@ -65,6 +65,14 @@ migrate((app) => {
         name: "score",
         type: "number",
       },
+      {
+        name: "attachments",
+        type: "file",
+        maxSelect: 3,
+        maxSize: 5 * 1024 * 1024,
+        mimeTypes: ["text/plain"],
+        protected: false,
+      },
     ],
   });
   app.save(tasks);

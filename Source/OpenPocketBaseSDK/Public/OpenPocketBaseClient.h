@@ -2,6 +2,7 @@
 
 #include "OpenPocketBaseBatch.h"
 #include "OpenPocketBaseClientConfig.h"
+#include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseRequestHandle.h"
 #include "OpenPocketBaseResult.h"
@@ -55,11 +56,26 @@ public:
         FOpenPocketBaseRecordCallback OnComplete,
         FOpenPocketBaseRecordOptions Options = {}) const;
 
+    FOpenPocketBaseRequestHandle CreateWithFiles(
+        FOpenPocketBaseRecordBody Body,
+        TArray<FOpenPocketBaseFileInput> Files,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {},
+        FOpenPocketBaseUploadLimits Limits = {}) const;
+
     FOpenPocketBaseRequestHandle Update(
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordCallback OnComplete,
         FOpenPocketBaseRecordOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle UpdateWithFiles(
+        FString RecordId,
+        FOpenPocketBaseRecordBody Body,
+        TArray<FOpenPocketBaseFileInput> Files,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {},
+        FOpenPocketBaseUploadLimits Limits = {}) const;
 
     FOpenPocketBaseRequestHandle Delete(
         FString RecordId,

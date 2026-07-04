@@ -5,7 +5,9 @@
 #include "Containers/StringFwd.h"
 #include "Containers/UnrealString.h"
 #include "Containers/ArrayView.h"
+#include "Serialization/Archive.h"
 #include "Templates/Function.h"
+#include "Templates/SharedPointer.h"
 
 struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpRequest
 {
@@ -13,6 +15,8 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpRequest
     FString Url;
     TMap<FString, FString> Headers;
     TArray<uint8> Body;
+    TSharedPtr<FArchive, ESPMode::ThreadSafe> BodyStream;
+    int64 BodyLength = 0;
     FString RequestId;
     double TotalTimeoutSeconds = 30.0;
     double ActivityTimeoutSeconds = 15.0;

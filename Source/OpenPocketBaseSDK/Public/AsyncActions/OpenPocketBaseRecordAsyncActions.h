@@ -177,6 +177,53 @@ private:
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseCreateRecordWithFilesAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Files",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Create Record with Files",
+            AutoCreateRefTerm = "Files",
+            AdvancedDisplay = "Options,Limits"))
+    static UOpenPocketBaseCreateRecordWithFilesAsyncAction* CreateRecordWithFiles(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FOpenPocketBaseRecordBody Body,
+        TArray<FOpenPocketBaseFileInput> Files,
+        FOpenPocketBaseRecordOptions Options,
+        FOpenPocketBaseUploadLimits Limits);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FOpenPocketBaseRecordBody Body;
+    TArray<FOpenPocketBaseFileInput> Files;
+    FOpenPocketBaseRecordOptions Options;
+    FOpenPocketBaseUploadLimits Limits;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
 class OPENPOCKETBASESDK_API UOpenPocketBaseUpdateRecordAsyncAction final
     : public UOpenPocketBaseAsyncActionBase
 {
@@ -217,6 +264,55 @@ private:
     FString RecordId;
     FOpenPocketBaseRecordBody Body;
     FOpenPocketBaseRecordOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseUpdateRecordWithFilesAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Files",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Update Record with Files",
+            AutoCreateRefTerm = "Files",
+            AdvancedDisplay = "Options,Limits"))
+    static UOpenPocketBaseUpdateRecordWithFilesAsyncAction* UpdateRecordWithFiles(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FString RecordId,
+        FOpenPocketBaseRecordBody Body,
+        TArray<FOpenPocketBaseFileInput> Files,
+        FOpenPocketBaseRecordOptions Options,
+        FOpenPocketBaseUploadLimits Limits);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FString RecordId;
+    FOpenPocketBaseRecordBody Body;
+    TArray<FOpenPocketBaseFileInput> Files;
+    FOpenPocketBaseRecordOptions Options;
+    FOpenPocketBaseUploadLimits Limits;
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))

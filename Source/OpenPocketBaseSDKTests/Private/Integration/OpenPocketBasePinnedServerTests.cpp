@@ -1,9 +1,13 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Dom/JsonObject.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseFilter.h"
 
 namespace
@@ -398,6 +402,201 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
         });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedServer(State, this));
+    return true;
+}
+
+namespace
+{
+struct FPinnedUploadState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    FString TempFile;
+    bool bCompleted = false;
+    bool bCreateSucceeded = false;
+    bool bAppendSucceeded = false;
+    bool bDeleteSucceeded = false;
+    int32 CreatedFiles = 0;
+    int32 UpdatedFiles = 0;
+    TArray<FString> Errors;
+};
+
+void FinishPinnedUpload(
+    const TSharedRef<FPinnedUploadState, ESPMode::ThreadSafe>& State,
+    const bool bDeleteRecord)
+{
+    if (!bDeleteRecord)
+    {
+        State->bCompleted = true;
+        return;
+    }
+
+    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+        TEXT("task00000000007"),
+        [State](TOpenPocketBaseResult<bool>&& Result)
+        {
+            State->bDeleteSucceeded = Result.IsSuccess() && Result.GetValue();
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(TEXT("Delete upload record"), Result.GetError()));
+            }
+            State->bCompleted = true;
+        });
+}
+
+int32 GetFileCount(const FOpenPocketBaseRecord& Record)
+{
+    const TArray<TSharedPtr<FJsonValue>>* Files = nullptr;
+    return Record.Data.JsonObject.IsValid() &&
+        Record.Data.JsonObject->TryGetArrayField(TEXT("attachments"), Files) && Files != nullptr
+        ? Files->Num()
+        : 0;
+}
+
+class FVerifyPinnedUpload final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPinnedUpload(
+        TSharedRef<FPinnedUploadState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+
+        for (const FString& Error : State->Errors)
+        {
+            Test->AddError(Error);
+        }
+        Test->TestTrue(TEXT("A disk-path upload succeeds against v0.39.11"), State->bCreateSucceeded);
+        Test->TestTrue(TEXT("A byte-array append succeeds against v0.39.11"), State->bAppendSucceeded);
+        Test->TestEqual(TEXT("Create stores one file"), State->CreatedFiles, 1);
+        Test->TestEqual(TEXT("Append retains both files"), State->UpdatedFiles, 2);
+        Test->TestTrue(TEXT("The upload fixture record is deleted"), State->bDeleteSucceeded);
+        IFileManager::Get().Delete(*State->TempFile, false, true);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPinnedUploadState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePinnedUploadTest,
+    "OpenPocketBase.Integration.V03911.MultipartUpload",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
+{
+    const FString BaseUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("OPENPOCKETBASE_TEST_URL"));
+    if (BaseUrl.IsEmpty())
+    {
+        AddInfo(TEXT("OPENPOCKETBASE_TEST_URL is not set; the pinned upload test was not requested."));
+        return true;
+    }
+
+    const TSharedRef<FPinnedUploadState, ESPMode::ThreadSafe> State =
+        MakeShared<FPinnedUploadState, ESPMode::ThreadSafe>();
+    State->TempFile = FPaths::CreateTempFilename(
+        *FPaths::ProjectIntermediateDir(),
+        TEXT("OpenPocketBaseUpload-"),
+        TEXT(".txt"));
+    const TArray<uint8> DiskBytes = {
+        'P', 'o', 'c', 'k', 'e', 't', 'B', 'a', 's', 'e', ' ', 'd', 'i', 's', 'k', ' ',
+        'u', 'p', 'l', 'o', 'a', 'd'};
+    if (!TestTrue(TEXT("The upload fixture is written"), FFileHelper::SaveArrayToFile(DiskBytes, *State->TempFile)))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = BaseUrl;
+    Config.ProfileName = TEXT("integration-v03911-upload");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    if (!TestNotNull(TEXT("The upload client is created"), State->Client.Get()))
+    {
+        IFileManager::Get().Delete(*State->TempFile, false, true);
+        AddError(Error.ServerMessage);
+        return false;
+    }
+
+    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+        TEXT("player@example.com"),
+        TEXT("correct-horse-battery"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        {
+            if (!AuthResult.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(TEXT("Upload login"), AuthResult.GetError()));
+                FinishPinnedUpload(State, false);
+                return;
+            }
+
+            FOpenPocketBaseRecordBody Body;
+            Body.SetStringField(TEXT("id"), TEXT("task00000000007"));
+            Body.SetStringField(TEXT("title"), TEXT("Multipart integration task"));
+            FOpenPocketBaseFileInput File;
+            File.FieldName = TEXT("attachments");
+            File.FileName = TEXT("disk-proof.txt");
+            File.ContentType = TEXT("text/plain");
+            File.FilePath = State->TempFile;
+            State->Client->Collection(TEXT("sdk_tasks")).CreateWithFiles(
+                MoveTemp(Body),
+                {MoveTemp(File)},
+                [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& CreateResult)
+                {
+                    State->bCreateSucceeded = CreateResult.IsSuccess();
+                    if (!CreateResult.IsSuccess())
+                    {
+                        State->Errors.Add(DescribeIntegrationError(
+                            TEXT("Multipart create"),
+                            CreateResult.GetError()));
+                        FinishPinnedUpload(State, false);
+                        return;
+                    }
+                    State->CreatedFiles = GetFileCount(CreateResult.GetValue());
+
+                    FOpenPocketBaseRecordBody UpdateBody;
+                    UpdateBody.SetStringField(TEXT("title"), TEXT("Multipart integration updated"));
+                    FOpenPocketBaseFileInput InlineFile;
+                    InlineFile.FieldName = TEXT("attachments");
+                    InlineFile.FileName = TEXT("memory-proof.txt");
+                    InlineFile.ContentType = TEXT("text/plain");
+                    InlineFile.Modifier = EOpenPocketBaseFieldModifier::Append;
+                    InlineFile.bUseFilePath = false;
+                    InlineFile.Bytes = {'m', 'e', 'm', 'o', 'r', 'y'};
+                    State->Client->Collection(TEXT("sdk_tasks")).UpdateWithFiles(
+                        TEXT("task00000000007"),
+                        MoveTemp(UpdateBody),
+                        {MoveTemp(InlineFile)},
+                        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& UpdateResult)
+                        {
+                            State->bAppendSucceeded = UpdateResult.IsSuccess();
+                            if (!UpdateResult.IsSuccess())
+                            {
+                                State->Errors.Add(DescribeIntegrationError(
+                                    TEXT("Multipart append"),
+                                    UpdateResult.GetError()));
+                                FinishPinnedUpload(State, true);
+                                return;
+                            }
+                            State->UpdatedFiles = GetFileCount(UpdateResult.GetValue());
+                            FinishPinnedUpload(State, true);
+                        });
+                });
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedUpload(State, this));
     return true;
 }
 

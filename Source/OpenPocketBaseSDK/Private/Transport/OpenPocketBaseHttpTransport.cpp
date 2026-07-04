@@ -74,7 +74,22 @@ public:
             HttpRequest->SetHeader(Header.Key, Header.Value);
         }
 
-        if (!Request.Body.IsEmpty())
+        if (Request.BodyStream.IsValid())
+        {
+            const bool bValidStream = Request.Body.IsEmpty() && Request.BodyLength >= 0 &&
+                Request.BodyStream->Tell() == 0 && Request.BodyStream->TotalSize() == Request.BodyLength;
+            if (!bValidStream || !HttpRequest->SetContentFromStream(Request.BodyStream.ToSharedRef()))
+            {
+                FOpenPocketBaseHttpResponse Result;
+                Result.RequestId = Request.RequestId;
+                Result.EffectiveUrl = Request.Url;
+                Result.ErrorMessage = TEXT("Unreal HTTP could not attach the request body stream.");
+                Callbacks->Complete(MoveTemp(Result));
+                return {};
+            }
+            HttpRequest->SetHeader(TEXT("Content-Length"), LexToString(Request.BodyLength));
+        }
+        else if (!Request.Body.IsEmpty())
         {
             HttpRequest->SetContent(MoveTemp(Request.Body));
         }

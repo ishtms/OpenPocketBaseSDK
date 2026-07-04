@@ -238,6 +238,83 @@ void UOpenPocketBaseCreateRecordAsyncAction::BroadcastCancelled()
     Cancelled.Broadcast();
 }
 
+UOpenPocketBaseCreateRecordWithFilesAsyncAction*
+UOpenPocketBaseCreateRecordWithFilesAsyncAction::CreateRecordWithFiles(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString InCollection,
+    FOpenPocketBaseRecordBody InBody,
+    TArray<FOpenPocketBaseFileInput> InFiles,
+    FOpenPocketBaseRecordOptions InOptions,
+    FOpenPocketBaseUploadLimits InLimits)
+{
+    UOpenPocketBaseCreateRecordWithFilesAsyncAction* Action =
+        NewObject<UOpenPocketBaseCreateRecordWithFilesAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->Collection = MoveTemp(InCollection);
+    Action->Body = MoveTemp(InBody);
+    Action->Files = MoveTemp(InFiles);
+    Action->Options = MoveTemp(InOptions);
+    Action->Limits = MoveTemp(InLimits);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseCreateRecordWithFilesAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->Collection(Collection).CreateWithFiles(
+        MoveTemp(Body),
+        MoveTemp(Files),
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            UOpenPocketBaseCreateRecordWithFilesAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast(Result.GetValue());
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        },
+        MoveTemp(Options),
+        MoveTemp(Limits));
+}
+
+void UOpenPocketBaseCreateRecordWithFilesAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
 UOpenPocketBaseUpdateRecordAsyncAction* UOpenPocketBaseUpdateRecordAsyncAction::UpdateRecord(
     const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
@@ -306,6 +383,86 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
 }
 
 void UOpenPocketBaseUpdateRecordAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
+UOpenPocketBaseUpdateRecordWithFilesAsyncAction*
+UOpenPocketBaseUpdateRecordWithFilesAsyncAction::UpdateRecordWithFiles(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString InCollection,
+    FString InRecordId,
+    FOpenPocketBaseRecordBody InBody,
+    TArray<FOpenPocketBaseFileInput> InFiles,
+    FOpenPocketBaseRecordOptions InOptions,
+    FOpenPocketBaseUploadLimits InLimits)
+{
+    UOpenPocketBaseUpdateRecordWithFilesAsyncAction* Action =
+        NewObject<UOpenPocketBaseUpdateRecordWithFilesAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->Collection = MoveTemp(InCollection);
+    Action->RecordId = MoveTemp(InRecordId);
+    Action->Body = MoveTemp(InBody);
+    Action->Files = MoveTemp(InFiles);
+    Action->Options = MoveTemp(InOptions);
+    Action->Limits = MoveTemp(InLimits);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseUpdateRecordWithFilesAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->Collection(Collection).UpdateWithFiles(
+        MoveTemp(RecordId),
+        MoveTemp(Body),
+        MoveTemp(Files),
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            UOpenPocketBaseUpdateRecordWithFilesAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast(Result.GetValue());
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        },
+        MoveTemp(Options),
+        MoveTemp(Limits));
+}
+
+void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::BroadcastCancelled()
 {
     Cancelled.Broadcast();
 }

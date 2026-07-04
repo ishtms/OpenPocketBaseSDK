@@ -97,11 +97,27 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             UOpenPocketBaseCreateRecordAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord)));
     TestNotNull(
+        TEXT("Create Record with Files is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseCreateRecordWithFilesAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseCreateRecordWithFilesAsyncAction,
+                CreateRecordWithFiles)));
+    TestNotNull(
         TEXT("Update Record is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,
             UOpenPocketBaseUpdateRecordAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseUpdateRecordAsyncAction, UpdateRecord)));
+    TestNotNull(
+        TEXT("Update Record with Files is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseUpdateRecordWithFilesAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseUpdateRecordWithFilesAsyncAction,
+                UpdateRecordWithFiles)));
     TestNotNull(
         TEXT("Delete Record is available as an async Blueprint node"),
         AddAsyncConsumerNode(
