@@ -4,6 +4,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseFilter.h"
 
 namespace
 {
@@ -121,10 +122,20 @@ void DeleteIntegrationRecord(
 void GetFirstIntegrationRecord(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
+    FOpenPocketBaseFilterParams FilterParams;
+    FilterParams.AddString(TEXT("id"), TEXT("task00000000002"));
+    FString Filter;
+    FOpenPocketBaseError FilterError;
+    if (!FOpenPocketBaseFilter::TryBind(TEXT("id = {:id}"), FilterParams, Filter, FilterError))
+    {
+        CompleteCrudFailure(State, TEXT("Bind Filter"), FilterError);
+        return;
+    }
+
     FOpenPocketBaseRecordOptions Options;
     Options.Fields = {TEXT("id"), TEXT("title:excerpt(12,true)"), TEXT("score")};
     State->Client->Collection(TEXT("sdk_tasks")).GetFirstListItem(
-        TEXT("id = 'task00000000002'"),
+        MoveTemp(Filter),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
             State->bFirstSucceeded = Result.IsSuccess();

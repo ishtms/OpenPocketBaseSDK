@@ -8,6 +8,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/AutomationTest.h"
+#include "OpenPocketBaseFilterLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "UObject/Package.h"
 
@@ -121,6 +122,14 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     BodyNode->PostPlacedNewNode();
     BodyNode->AllocateDefaultPins();
     Graph->AddNode(BodyNode, true, false);
+
+    UK2Node_CallFunction* FilterNode = NewObject<UK2Node_CallFunction>(Graph);
+    FilterNode->SetFromFunction(UOpenPocketBaseFilterLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFilterLibrary, BindFilter)));
+    FilterNode->CreateNewGuid();
+    FilterNode->PostPlacedNewNode();
+    FilterNode->AllocateDefaultPins();
+    Graph->AddNode(FilterNode, true, false);
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);
