@@ -35,7 +35,7 @@ migrate((app) => {
     type: "base",
     name: "sdk_tasks",
     listRule: "",
-    viewRule: "",
+    viewRule: "@request.context != 'protectedFile' || @request.auth.id != ''",
     createRule: "@request.auth.id != ''",
     updateRule: "@request.auth.id != ''",
     deleteRule: "@request.auth.id != ''",
@@ -71,7 +71,7 @@ migrate((app) => {
         maxSelect: 3,
         maxSize: 5 * 1024 * 1024,
         mimeTypes: ["text/plain"],
-        protected: false,
+        protected: true,
       },
     ],
   });

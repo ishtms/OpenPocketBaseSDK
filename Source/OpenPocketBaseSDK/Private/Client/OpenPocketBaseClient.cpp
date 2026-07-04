@@ -4,6 +4,7 @@
 #include "Clock/OpenPocketBaseClock.h"
 #include "Dom/JsonObject.h"
 #include "Files/OpenPocketBaseMultipart.h"
+#include "Files/OpenPocketBaseDownload.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "HAL/CriticalSection.h"
 #include "Math/RandomStream.h"
@@ -533,7 +534,8 @@ public:
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InTransport,
         TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> InClock,
         TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> InState,
-        FOpenPocketBaseResponseHandler InHandler)
+        FOpenPocketBaseResponseHandler InHandler,
+        FOpenPocketBaseHttpChunkCallback InOnChunk)
         : Request(MoveTemp(InRequest))
         , Options(InOptions)
         , bEligibleRead(bInEligibleRead)
@@ -541,6 +543,7 @@ public:
         , Clock(MoveTemp(InClock))
         , State(MoveTemp(InState))
         , Handler(MoveTemp(InHandler))
+        , OnChunk(MoveTemp(InOnChunk))
     {
     }
 
@@ -564,9 +567,17 @@ public:
         }
 
         FOpenPocketBaseHttpRequest AttemptRequest = Request;
+        FOpenPocketBaseHttpChunkCallback ChunkCallback;
+        if (OnChunk)
+        {
+            ChunkCallback = [Self, Generation](const TArrayView<const uint8> Chunk)
+            {
+                Self->HandleChunk(Chunk, Generation);
+            };
+        }
         FOpenPocketBaseTransportHandle Handle = PinnedTransport->Send(
             MoveTemp(AttemptRequest),
-            {},
+            MoveTemp(ChunkCallback),
             [Self, Generation](FOpenPocketBaseHttpResponse&& Response)
             {
                 Self->HandleResponse(MoveTemp(Response), Generation);
@@ -575,6 +586,15 @@ public:
     }
 
 private:
+    void HandleChunk(const TArrayView<const uint8> Chunk, const uint32 Generation)
+    {
+        if (Generation == NextGeneration.load(std::memory_order_acquire) &&
+            State->GetState() == EOpenPocketBaseRequestState::Sending && OnChunk)
+        {
+            OnChunk(Chunk);
+        }
+    }
+
     void HandleResponse(FOpenPocketBaseHttpResponse&& Response, const uint32 Generation)
     {
         if (Generation != NextGeneration.load(std::memory_order_acquire) ||
@@ -665,6 +685,7 @@ private:
     TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock;
     TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State;
     FOpenPocketBaseResponseHandler Handler;
+    FOpenPocketBaseHttpChunkCallback OnChunk;
     std::atomic<uint32> NextGeneration = 0;
     int32 RetryCount = 0;
 };
@@ -1010,7 +1031,8 @@ struct FOpenPocketBaseClient::FImpl
         const bool bEligibleRead,
         const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State,
         FOpenPocketBaseResponseHandler Handler,
-        const bool bStateAlreadySending = false)
+        const bool bStateAlreadySending = false,
+        FOpenPocketBaseHttpChunkCallback OnChunk = {})
     {
         const TSharedRef<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe> Attempts =
             MakeShared<FOpenPocketBaseRequestAttempts, ESPMode::ThreadSafe>(
@@ -1020,7 +1042,8 @@ struct FOpenPocketBaseClient::FImpl
                 Transport,
                 Clock,
                 State,
-                MoveTemp(Handler));
+                MoveTemp(Handler),
+                MoveTemp(OnChunk));
         Attempts->Start(bStateAlreadySending);
     }
 
@@ -1067,7 +1090,8 @@ struct FOpenPocketBaseClient::FImpl
         const bool bEligibleRead,
         FOpenPocketBaseResponseHandler Handler,
         TUniqueFunction<void()> OnCancelled,
-        const bool bCoordinateAuth = true)
+        const bool bCoordinateAuth = true,
+        FOpenPocketBaseHttpChunkCallback OnChunk = {})
     {
         const uint64 RequestId = NextRequestId.fetch_add(1, std::memory_order_relaxed);
         const FString RequestKey = bEligibleRead && Options.bCancelPreviousRequestWithSameKey
@@ -1140,7 +1164,9 @@ struct FOpenPocketBaseClient::FImpl
                 Options,
                 bEligibleRead,
                 State,
-                MoveTemp(Handler));
+                MoveTemp(Handler),
+                false,
+                MoveTemp(OnChunk));
         }
         return FOpenPocketBaseRequestHandle(State);
     }
@@ -1856,6 +1882,11 @@ FOpenPocketBaseCollectionService FOpenPocketBaseClient::Collection(FString Colle
     return FOpenPocketBaseCollectionService(AsShared(), MoveTemp(CollectionName));
 }
 
+FOpenPocketBaseFileService FOpenPocketBaseClient::Files()
+{
+    return FOpenPocketBaseFileService(AsShared());
+}
+
 FString FOpenPocketBaseClient::GetBaseUrl() const
 {
     return Impl->BaseUrl;
@@ -2196,6 +2227,319 @@ void FOpenPocketBaseClient::Shutdown()
     {
         Impl->Shutdown();
     }
+}
+
+FOpenPocketBaseFileService::FOpenPocketBaseFileService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient)
+    : Client(MoveTemp(InClient))
+{
+}
+
+bool FOpenPocketBaseFileService::IsValid() const
+{
+    return Client.IsValid();
+}
+
+bool FOpenPocketBaseFileService::TryBuildUrl(
+    FString InCollection,
+    FString RecordId,
+    FString FileName,
+    FOpenPocketBaseFileUrlOptions Options,
+    FString& OutUrl,
+    FOpenPocketBaseError& OutError) const
+{
+    OutUrl.Reset();
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
+        !IsSafePathSegment(InCollection) || !IsSafePathSegment(RecordId) ||
+        !IsSafePathSegment(FileName))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A ready client and safe collection, record ID, and filename are required."));
+        return false;
+    }
+
+    FString Thumbnail;
+    const bool bHasThumbnailSize = Options.Thumbnail.Width != 0 || Options.Thumbnail.Height != 0;
+    if (Options.Thumbnail.Width < 0 || Options.Thumbnail.Width > 16384 ||
+        Options.Thumbnail.Height < 0 || Options.Thumbnail.Height > 16384 ||
+        (Options.Thumbnail.Mode == EOpenPocketBaseThumbnailMode::None && bHasThumbnailSize) ||
+        (Options.Thumbnail.Mode != EOpenPocketBaseThumbnailMode::None && !bHasThumbnailSize))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Thumbnail dimensions and crop mode are invalid."));
+        return false;
+    }
+
+    if (Options.Thumbnail.Mode != EOpenPocketBaseThumbnailMode::None)
+    {
+        const TCHAR* Suffix = TEXT("");
+        switch (Options.Thumbnail.Mode)
+        {
+        case EOpenPocketBaseThumbnailMode::CropTop:
+            Suffix = TEXT("t");
+            break;
+        case EOpenPocketBaseThumbnailMode::CropBottom:
+            Suffix = TEXT("b");
+            break;
+        case EOpenPocketBaseThumbnailMode::Fit:
+            Suffix = TEXT("f");
+            break;
+        default:
+            break;
+        }
+        Thumbnail = FString::Printf(
+            TEXT("%dx%d%s"),
+            Options.Thumbnail.Width,
+            Options.Thumbnail.Height,
+            Suffix);
+    }
+
+    TArray<FString> QueryParts;
+    AddQueryValue(QueryParts, TEXT("thumb"), Thumbnail);
+    if (Options.bForceDownload)
+    {
+        QueryParts.Add(TEXT("download=true"));
+    }
+    FString Path = FString::Printf(
+        TEXT("/api/files/%s/%s/%s"),
+        *EncodeSegment(InCollection),
+        *EncodeSegment(RecordId),
+        *EncodeSegment(FileName));
+    OutUrl = PinnedClient->GetBaseUrl() + AddQuery(MoveTemp(Path), FString::Join(QueryParts, TEXT("&")));
+    OutError = FOpenPocketBaseError();
+    return true;
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::GetToken(
+    FOpenPocketBaseFileTokenCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() || !PinnedClient->IsAuthenticated())
+    {
+        DispatchFailure<FOpenPocketBaseFileToken>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("An authenticated PocketBase client is required.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseFileToken>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseFileToken>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseFileToken>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("POST"),
+        TEXT("/api/files/token"),
+        {},
+        Options,
+        true);
+
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options,
+        true,
+        [Completion](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseFileToken> Result = [&Response]()
+            {
+                TOpenPocketBaseResult<bool> Status = OpenPocketBase::Json::ParseEmptyResponse(Response);
+                if (!Status.IsSuccess())
+                {
+                    return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(Status.GetError());
+                }
+                if (Response.Body.IsEmpty())
+                {
+                    return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(
+                        MakeLocalError(
+                            EOpenPocketBaseErrorKind::Serialization,
+                            TEXT("PocketBase returned an invalid file token response.")));
+                }
+
+                const FUTF8ToTCHAR Converted(
+                    reinterpret_cast<const ANSICHAR*>(Response.Body.GetData()),
+                    Response.Body.Num());
+                const FString Json(Converted.Length(), Converted.Get());
+                TSharedPtr<FJsonObject> Object;
+                const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+                FString TokenValue;
+                if (!FJsonSerializer::Deserialize(Reader, Object) || !Object.IsValid() ||
+                    !Object->TryGetStringField(TEXT("token"), TokenValue) ||
+                    TokenValue.IsEmpty() || TokenValue.Len() > 4096)
+                {
+                    return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(
+                        MakeLocalError(
+                            EOpenPocketBaseErrorKind::Serialization,
+                            TEXT("PocketBase returned an invalid file token response.")));
+                }
+                for (const TCHAR Character : TokenValue)
+                {
+                    if (FChar::IsControl(Character))
+                    {
+                        return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(
+                            MakeLocalError(
+                                EOpenPocketBaseErrorKind::Serialization,
+                                TEXT("PocketBase returned an invalid file token response.")));
+                    }
+                }
+
+                FOpenPocketBaseFileToken Token;
+                Token.Value = MoveTemp(TokenValue);
+                return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Success(MoveTemp(Token));
+            }();
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
+    FString InCollection,
+    FString RecordId,
+    FString FileName,
+    FOpenPocketBaseFileDownloadOptions Options,
+    FOpenPocketBaseFileDownloadCallback OnComplete,
+    FOpenPocketBaseFileToken Token) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        DispatchFailure<FOpenPocketBaseFileDownloadResult>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A ready PocketBase client is required.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseFileDownloadResult>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    FString Url;
+    FOpenPocketBaseError UrlError;
+    if (!TryBuildUrl(
+            InCollection,
+            RecordId,
+            FileName,
+            Options.UrlOptions,
+            Url,
+            UrlError))
+    {
+        DispatchFailure<FOpenPocketBaseFileDownloadResult>(MoveTemp(OnComplete), MoveTemp(UrlError));
+        return {};
+    }
+
+    if (Token.IsSet())
+    {
+        bool bTokenValid = Token.Value.Len() <= 4096;
+        for (const TCHAR Character : Token.Value)
+        {
+            bTokenValid = bTokenValid && !FChar::IsControl(Character);
+        }
+        if (!bTokenValid)
+        {
+            DispatchFailure<FOpenPocketBaseFileDownloadResult>(
+                MoveTemp(OnComplete),
+                MakeLocalError(
+                    EOpenPocketBaseErrorKind::InvalidArgument,
+                    TEXT("The protected-file token is invalid.")));
+            return {};
+        }
+        Url += Url.Contains(TEXT("?")) ? TEXT("&token=") : TEXT("?token=");
+        Url += FGenericPlatformHttp::UrlEncode(Token.Value);
+    }
+
+    FOpenPocketBaseError SinkError;
+    const TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> Sink =
+        FOpenPocketBaseDownloadSink::Create(Options, FileName, SinkError);
+    if (!Sink.IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseFileDownloadResult>(MoveTemp(OnComplete), MoveTemp(SinkError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseFileDownloadResult>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseFileDownloadResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("GET"),
+        {},
+        {},
+        Options.RequestOptions,
+        false);
+    Request.Url = MoveTemp(Url);
+    Request.bStreamResponse = true;
+
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options.RequestOptions,
+        false,
+        [Completion, Sink](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult> Result = [&Response, &Sink]()
+            {
+                TOpenPocketBaseResult<bool> Status = OpenPocketBase::Json::ParseEmptyResponse(Response);
+                if (!Status.IsSuccess())
+                {
+                    Sink->Abort();
+                    return TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Failure(
+                        Status.GetError());
+                }
+
+                FOpenPocketBaseFileDownloadResult DownloadResult;
+                FOpenPocketBaseError DownloadError;
+                if (!Sink->Finalize(Response, DownloadResult, DownloadError))
+                {
+                    return TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Failure(
+                        MoveTemp(DownloadError));
+                }
+                return TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Success(
+                    MoveTemp(DownloadResult));
+            }();
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion, Sink]()
+        {
+            Sink->Abort();
+            Completion->Invoke(
+                TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Failure(
+                    MakeCancelledError()));
+        },
+        false,
+        [Sink](const TArrayView<const uint8> Chunk)
+        {
+            Sink->Receive(Chunk);
+        });
 }
 
 FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(

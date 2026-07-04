@@ -14,6 +14,7 @@
 #include "Transport/OpenPocketBaseTransport.h"
 
 class FOpenPocketBaseClient;
+class FOpenPocketBaseFileService;
 
 using FOpenPocketBaseRecordCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseRecord>&&)>;
@@ -29,6 +30,44 @@ using FOpenPocketBaseBatchCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&&)>;
 using FOpenPocketBaseSessionRestoreCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>&&)>;
+using FOpenPocketBaseFileTokenCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseFileToken>&&)>;
+using FOpenPocketBaseFileDownloadCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>&&)>;
+
+class OPENPOCKETBASESDK_API FOpenPocketBaseFileService
+{
+public:
+    bool TryBuildUrl(
+        FString Collection,
+        FString RecordId,
+        FString FileName,
+        FOpenPocketBaseFileUrlOptions Options,
+        FString& OutUrl,
+        FOpenPocketBaseError& OutError) const;
+
+    FOpenPocketBaseRequestHandle GetToken(
+        FOpenPocketBaseFileTokenCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle Download(
+        FString Collection,
+        FString RecordId,
+        FString FileName,
+        FOpenPocketBaseFileDownloadOptions Options,
+        FOpenPocketBaseFileDownloadCallback OnComplete,
+        FOpenPocketBaseFileToken Token = {}) const;
+
+    bool IsValid() const;
+
+private:
+    explicit FOpenPocketBaseFileService(
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient);
+
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+
+    friend class FOpenPocketBaseClient;
+};
 
 class OPENPOCKETBASESDK_API FOpenPocketBaseCollectionService
 {
@@ -130,6 +169,7 @@ public:
     ~FOpenPocketBaseClient();
 
     FOpenPocketBaseCollectionService Collection(FString CollectionName);
+    FOpenPocketBaseFileService Files();
     FString GetBaseUrl() const;
     bool IsAuthenticated() const;
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
@@ -163,4 +203,5 @@ private:
     TUniquePtr<FImpl> Impl;
 
     friend class FOpenPocketBaseCollectionService;
+    friend class FOpenPocketBaseFileService;
 };

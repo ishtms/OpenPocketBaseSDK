@@ -2,6 +2,7 @@
 
 #include "AsyncActions/OpenPocketBaseRecordAsyncActions.h"
 #include "AsyncActions/OpenPocketBaseBatchAsyncAction.h"
+#include "AsyncActions/OpenPocketBaseFileAsyncActions.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/Blueprint.h"
 #include "K2Node_AsyncAction.h"
@@ -10,6 +11,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseFilterLibrary.h"
+#include "OpenPocketBaseFileLibrary.h"
 #include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "UObject/Package.h"
@@ -131,6 +133,18 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             UOpenPocketBaseSendBatchAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseSendBatchAsyncAction, SendBatch)));
     TestNotNull(
+        TEXT("Get Protected File Token is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseGetFileTokenAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetFileTokenAsyncAction, GetProtectedFileToken)));
+    TestNotNull(
+        TEXT("Download File is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseDownloadFileAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseDownloadFileAsyncAction, DownloadFile)));
+    TestNotNull(
         TEXT("Refresh Auth is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,
@@ -172,6 +186,14 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     FilterNode->PostPlacedNewNode();
     FilterNode->AllocateDefaultPins();
     Graph->AddNode(FilterNode, true, false);
+
+    UK2Node_CallFunction* FileUrlNode = NewObject<UK2Node_CallFunction>(Graph);
+    FileUrlNode->SetFromFunction(UOpenPocketBaseFileLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFileLibrary, TryBuildFileUrl)));
+    FileUrlNode->CreateNewGuid();
+    FileUrlNode->PostPlacedNewNode();
+    FileUrlNode->AllocateDefaultPins();
+    Graph->AddNode(FileUrlNode, true, false);
 
     UK2Node_CallFunction* BatchNode = NewObject<UK2Node_CallFunction>(Graph);
     BatchNode->SetFromFunction(UOpenPocketBaseBatchLibrary::StaticClass()->FindFunctionByName(

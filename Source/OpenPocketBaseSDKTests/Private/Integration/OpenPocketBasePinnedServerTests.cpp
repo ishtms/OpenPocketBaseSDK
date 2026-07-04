@@ -414,9 +414,14 @@ struct FPinnedUploadState
     bool bCompleted = false;
     bool bCreateSucceeded = false;
     bool bAppendSucceeded = false;
+    bool bProtectedAccessEnforced = false;
+    bool bTokenSucceeded = false;
+    bool bDownloadSucceeded = false;
     bool bDeleteSucceeded = false;
     int32 CreatedFiles = 0;
     int32 UpdatedFiles = 0;
+    FString UploadedFileName;
+    TArray<uint8> ExpectedDownloadBytes;
     TArray<FString> Errors;
 };
 
@@ -452,6 +457,86 @@ int32 GetFileCount(const FOpenPocketBaseRecord& Record)
         : 0;
 }
 
+FString GetFirstFileName(const FOpenPocketBaseRecord& Record)
+{
+    const TArray<TSharedPtr<FJsonValue>>* Files = nullptr;
+    FString FileName;
+    if (Record.Data.JsonObject.IsValid() &&
+        Record.Data.JsonObject->TryGetArrayField(TEXT("attachments"), Files) &&
+        Files != nullptr && !Files->IsEmpty() && (*Files)[0].IsValid())
+    {
+        (*Files)[0]->TryGetString(FileName);
+    }
+    return FileName;
+}
+
+void DownloadPinnedProtectedFile(
+    const TSharedRef<FPinnedUploadState, ESPMode::ThreadSafe>& State,
+    FOpenPocketBaseFileToken Token)
+{
+    FOpenPocketBaseFileDownloadOptions Options;
+    Options.MaxBytes = 1024;
+    State->Client->Files().Download(
+        TEXT("sdk_tasks"),
+        TEXT("task00000000007"),
+        State->UploadedFileName,
+        Options,
+        [State](TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>&& Result)
+        {
+            State->bDownloadSucceeded = Result.IsSuccess() &&
+                Result.GetValue().Bytes == State->ExpectedDownloadBytes;
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Protected download"),
+                    Result.GetError()));
+            }
+            FinishPinnedUpload(State, true);
+        },
+        MoveTemp(Token));
+}
+
+void RequestPinnedFileToken(
+    const TSharedRef<FPinnedUploadState, ESPMode::ThreadSafe>& State)
+{
+    State->Client->Files().GetToken(
+        [State](TOpenPocketBaseResult<FOpenPocketBaseFileToken>&& Result)
+        {
+            State->bTokenSucceeded = Result.IsSuccess() && Result.GetValue().IsSet();
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Protected-file token"),
+                    Result.GetError()));
+                FinishPinnedUpload(State, true);
+                return;
+            }
+            DownloadPinnedProtectedFile(State, MoveTemp(Result.GetValue()));
+        });
+}
+
+void VerifyPinnedFileRequiresToken(
+    const TSharedRef<FPinnedUploadState, ESPMode::ThreadSafe>& State)
+{
+    FOpenPocketBaseFileDownloadOptions Options;
+    Options.MaxBytes = 1024;
+    State->Client->Files().Download(
+        TEXT("sdk_tasks"),
+        TEXT("task00000000007"),
+        State->UploadedFileName,
+        Options,
+        [State](TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>&& Result)
+        {
+            State->bProtectedAccessEnforced = !Result.IsSuccess() &&
+                Result.GetError().HttpStatus == 404;
+            if (!State->bProtectedAccessEnforced)
+            {
+                State->Errors.Add(TEXT("Protected file was available without a file token."));
+            }
+            RequestPinnedFileToken(State);
+        });
+}
+
 class FVerifyPinnedUpload final : public IAutomationLatentCommand
 {
 public:
@@ -476,6 +561,9 @@ public:
         }
         Test->TestTrue(TEXT("A disk-path upload succeeds against v0.39.11"), State->bCreateSucceeded);
         Test->TestTrue(TEXT("A byte-array append succeeds against v0.39.11"), State->bAppendSucceeded);
+        Test->TestTrue(TEXT("Protected access requires a file token"), State->bProtectedAccessEnforced);
+        Test->TestTrue(TEXT("Protected-file token acquisition succeeds"), State->bTokenSucceeded);
+        Test->TestTrue(TEXT("A protected streamed download succeeds"), State->bDownloadSucceeded);
         Test->TestEqual(TEXT("Create stores one file"), State->CreatedFiles, 1);
         Test->TestEqual(TEXT("Append retains both files"), State->UpdatedFiles, 2);
         Test->TestTrue(TEXT("The upload fixture record is deleted"), State->bDeleteSucceeded);
@@ -513,6 +601,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
     const TArray<uint8> DiskBytes = {
         'P', 'o', 'c', 'k', 'e', 't', 'B', 'a', 's', 'e', ' ', 'd', 'i', 's', 'k', ' ',
         'u', 'p', 'l', 'o', 'a', 'd'};
+    State->ExpectedDownloadBytes = DiskBytes;
     if (!TestTrue(TEXT("The upload fixture is written"), FFileHelper::SaveArrayToFile(DiskBytes, *State->TempFile)))
     {
         return false;
@@ -565,6 +654,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
                         return;
                     }
                     State->CreatedFiles = GetFileCount(CreateResult.GetValue());
+                    State->UploadedFileName = GetFirstFileName(CreateResult.GetValue());
 
                     FOpenPocketBaseRecordBody UpdateBody;
                     UpdateBody.SetStringField(TEXT("title"), TEXT("Multipart integration updated"));
@@ -591,7 +681,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
                                 return;
                             }
                             State->UpdatedFiles = GetFileCount(UpdateResult.GetValue());
-                            FinishPinnedUpload(State, true);
+                            VerifyPinnedFileRequiresToken(State);
                         });
                 });
         });
