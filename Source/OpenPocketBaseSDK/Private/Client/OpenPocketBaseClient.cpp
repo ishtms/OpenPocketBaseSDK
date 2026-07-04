@@ -1255,6 +1255,128 @@ struct FOpenPocketBaseClient::FImpl
         return true;
     }
 
+    bool TryStoreCurrentAuthRecord(
+        const FString& Collection,
+        const FOpenPocketBaseRecord& Record,
+        bool& bOutUpdated,
+        FOpenPocketBaseError& OutError)
+    {
+        bOutUpdated = false;
+        FOpenPocketBaseSessionSnapshot Snapshot;
+        {
+            FScopeLock Lock(&AuthMutex);
+            if (!bHasAuthRecord || AuthCollection != Collection || AuthRecord.Id != Record.Id)
+            {
+                OutError = FOpenPocketBaseError();
+                return true;
+            }
+            if (!TryPersistSessionLocked(AuthCollection, AuthToken, Record, OutError))
+            {
+                return false;
+            }
+
+            AuthRecord = Record;
+            ++AuthGeneration;
+            bOutUpdated = true;
+
+            Snapshot.bAuthenticated = true;
+            Snapshot.AuthCollection = AuthCollection;
+            Snapshot.AuthGeneration = AuthGeneration;
+            Snapshot.PersistenceState = PersistenceState;
+            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::RecordUpdated;
+            Snapshot.AuthRecord = AuthRecord;
+        }
+        SessionEvents->Enqueue(MoveTemp(Snapshot));
+        OutError = FOpenPocketBaseError();
+        return true;
+    }
+
+    bool TryClearCurrentAuthRecord(
+        const FString& Collection,
+        const FString& RecordId)
+    {
+        FOpenPocketBaseSessionSnapshot Snapshot;
+        {
+            FScopeLock Lock(&AuthMutex);
+            if (!bHasAuthRecord || AuthCollection != Collection || AuthRecord.Id != RecordId)
+            {
+                return false;
+            }
+            if (Config.SessionPersistence == EOpenPocketBaseSessionPersistence::RequireSecureStorage)
+            {
+                FOpenPocketBaseError DeleteError;
+                PersistenceState = SecureStore->Delete(SecureStorageKey, DeleteError)
+                    ? EOpenPocketBaseSessionPersistenceState::MemoryOnly
+                    : EOpenPocketBaseSessionPersistenceState::Failed;
+            }
+            AuthToken.Reset();
+            AuthExpiryUnixSeconds.Reset();
+            AuthRecord = FOpenPocketBaseRecord();
+            AuthCollection.Reset();
+            bHasAuthRecord = false;
+            ++AuthGeneration;
+
+            Snapshot.AuthGeneration = AuthGeneration;
+            Snapshot.PersistenceState = PersistenceState;
+            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::LoggedOut;
+        }
+        SessionEvents->Enqueue(MoveTemp(Snapshot));
+        return true;
+    }
+
+    bool TrySynchronizeBatchAuthRecord(
+        const FOpenPocketBaseBatchRequest& Batch,
+        const FOpenPocketBaseBatchResult& Result,
+        FOpenPocketBaseError& OutError)
+    {
+        FString CurrentCollection;
+        FString CurrentRecordId;
+        {
+            FScopeLock Lock(&AuthMutex);
+            if (!bHasAuthRecord)
+            {
+                OutError = FOpenPocketBaseError();
+                return true;
+            }
+            CurrentCollection = AuthCollection;
+            CurrentRecordId = AuthRecord.Id;
+        }
+
+        for (int32 Index = Batch.Entries.Num() - 1; Index >= 0; --Index)
+        {
+            if (!Result.Results.IsValidIndex(Index) ||
+                Batch.Entries[Index].Collection != CurrentCollection)
+            {
+                continue;
+            }
+
+            const FOpenPocketBaseBatchEntry& Entry = Batch.Entries[Index];
+            const FOpenPocketBaseBatchOperationResult& OperationResult = Result.Results[Index];
+            if (Entry.Operation == EOpenPocketBaseBatchOperation::Delete)
+            {
+                if (Entry.RecordId == CurrentRecordId)
+                {
+                    TryClearCurrentAuthRecord(CurrentCollection, CurrentRecordId);
+                    OutError = FOpenPocketBaseError();
+                    return true;
+                }
+                continue;
+            }
+            if (OperationResult.bHasRecord && OperationResult.Record.Id == CurrentRecordId)
+            {
+                bool bUpdated = false;
+                return TryStoreCurrentAuthRecord(
+                    CurrentCollection,
+                    OperationResult.Record,
+                    bUpdated,
+                    OutError);
+            }
+        }
+
+        OutError = FOpenPocketBaseError();
+        return true;
+    }
+
     void ClearAuth()
     {
         FOpenPocketBaseSessionSnapshot Snapshot;
@@ -2021,16 +2143,32 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
         MakeShared<TCompletionState<FOpenPocketBaseBatchResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
     FOpenPocketBaseHttpRequest Request = Impl->MakeRequest(
         TEXT("POST"), TEXT("/api/batch"), MoveTemp(Body), Options.RequestOptions, true);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = AsShared();
     return Impl->Send(
         MoveTemp(Request),
         Options.RequestOptions,
         false,
-        [Completion, Batch = MoveTemp(Batch)](
+        [Completion, WeakClient, Batch = MoveTemp(Batch)](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
             TOpenPocketBaseResult<FOpenPocketBaseBatchResult> Result =
                 OpenPocketBase::Json::ParseBatchResponse(Response, Batch);
+            if (Result.IsSuccess())
+            {
+                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin())
+                {
+                    FOpenPocketBaseError StoreError;
+                    if (!Client->Impl->TrySynchronizeBatchAuthRecord(
+                            Batch,
+                            Result.GetValue(),
+                            StoreError))
+                    {
+                        Result = TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
+                            MoveTemp(StoreError));
+                    }
+                }
+            }
             const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
             State->TryComplete(
                 Terminal,
@@ -2370,17 +2508,35 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Update(
         OpenPocketBase::Json::SerializeObject(Body.Data.JsonObject.ToSharedRef()),
         Options.RequestOptions,
         true);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options.RequestOptions,
         false,
-        [Completion](
+        [Completion, WeakClient, AuthCollection = Collection](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
             TOpenPocketBaseResult<FOpenPocketBaseRecord> Result =
                 OpenPocketBase::Json::ParseRecordResponse(Response);
+            if (Result.IsSuccess())
+            {
+                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin())
+                {
+                    bool bUpdated = false;
+                    FOpenPocketBaseError StoreError;
+                    if (!Client->Impl->TryStoreCurrentAuthRecord(
+                            AuthCollection,
+                            Result.GetValue(),
+                            bUpdated,
+                            StoreError))
+                    {
+                        Result = TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(
+                            MoveTemp(StoreError));
+                    }
+                }
+            }
             const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
             State->TryComplete(
                 Terminal,
@@ -2426,16 +2582,24 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Delete(
         *EncodeSegment(RecordId));
     FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
         TEXT("DELETE"), Path, {}, Options, true);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options,
         false,
-        [Completion](
+        [Completion, WeakClient, AuthCollection = Collection, DeletedRecordId = RecordId](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
             TOpenPocketBaseResult<bool> Result = OpenPocketBase::Json::ParseEmptyResponse(Response);
+            if (Result.IsSuccess())
+            {
+                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin())
+                {
+                    Client->Impl->TryClearCurrentAuthRecord(AuthCollection, DeletedRecordId);
+                }
+            }
             const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
             State->TryComplete(
                 Terminal,
