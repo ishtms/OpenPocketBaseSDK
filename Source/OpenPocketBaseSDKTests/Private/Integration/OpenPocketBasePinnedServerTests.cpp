@@ -15,6 +15,7 @@ struct FPinnedServerState
     bool bAuthSucceeded = false;
     bool bGetOneSucceeded = false;
     bool bGetListSucceeded = false;
+    bool bGetFullListSucceeded = false;
     bool bCreateSucceeded = false;
     bool bUpdateSucceeded = false;
     bool bFirstSucceeded = false;
@@ -40,7 +41,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CompletionCount != 4)
+        if (State->CompletionCount != 5)
         {
             return false;
         }
@@ -52,6 +53,7 @@ public:
         Test->TestTrue(TEXT("Password login succeeds against v0.39.11"), State->bAuthSucceeded);
         Test->TestTrue(TEXT("Get One succeeds against v0.39.11"), State->bGetOneSucceeded);
         Test->TestTrue(TEXT("Get List succeeds against v0.39.11"), State->bGetListSucceeded);
+        Test->TestTrue(TEXT("Bounded full list succeeds against v0.39.11"), State->bGetFullListSucceeded);
         Test->TestTrue(TEXT("Create succeeds against v0.39.11"), State->bCreateSucceeded);
         Test->TestTrue(TEXT("Update succeeds against v0.39.11"), State->bUpdateSucceeded);
         Test->TestTrue(TEXT("First match succeeds against v0.39.11"), State->bFirstSucceeded);
@@ -271,6 +273,23 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
             else
             {
                 State->Errors.Add(DescribeIntegrationError(TEXT("Get List"), Result.GetError()));
+            }
+            ++State->CompletionCount;
+        });
+
+    FOpenPocketBaseFullListOptions FullListOptions;
+    FullListOptions.ListOptions.PerPage = 30;
+    FullListOptions.ListOptions.bSkipTotal = true;
+    FullListOptions.MaxPages = 1;
+    State->Client->Collection(TEXT("sdk_tasks")).GetFullList(
+        FullListOptions,
+        [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
+        {
+            State->bGetFullListSucceeded = Result.IsSuccess() &&
+                Result.GetValue().Items.Num() >= 1 && Result.GetValue().bReachedEnd;
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(TEXT("Get Full List"), Result.GetError()));
             }
             ++State->CompletionCount;
         });

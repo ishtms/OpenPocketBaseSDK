@@ -14,6 +14,8 @@ using FOpenPocketBaseRecordCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseRecord>&&)>;
 using FOpenPocketBaseRecordPageCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&&)>;
+using FOpenPocketBaseFullListCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&&)>;
 using FOpenPocketBaseAuthCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&&)>;
 using FOpenPocketBaseBoolCallback =
@@ -30,6 +32,10 @@ public:
     FOpenPocketBaseRequestHandle GetList(
         FOpenPocketBaseListOptions Options,
         FOpenPocketBaseRecordPageCallback OnComplete) const;
+
+    FOpenPocketBaseRequestHandle GetFullList(
+        FOpenPocketBaseFullListOptions Options,
+        FOpenPocketBaseFullListCallback OnComplete) const;
 
     FOpenPocketBaseRequestHandle GetFirstListItem(
         FString Filter,

@@ -620,6 +620,41 @@ struct FOpenPocketBaseClient::FImpl
         return FOpenPocketBaseRequestHandle(State);
     }
 
+    TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> CreateCompositeState(
+        TUniqueFunction<void()> OnCancelled)
+    {
+        const uint64 RequestId = NextRequestId.fetch_add(1, std::memory_order_relaxed);
+        const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State =
+            MakeShared<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>(
+                RequestId,
+                MoveTemp(OnCancelled),
+                [this, RequestId]()
+                {
+                    FScopeLock Lock(&RequestsMutex);
+                    Requests.Remove(RequestId);
+                });
+        {
+            FScopeLock Lock(&RequestsMutex);
+            Requests.Add(RequestId, State);
+        }
+
+        if (bShutdown.load(std::memory_order_acquire))
+        {
+            State->Cancel();
+        }
+        else
+        {
+            State->TryMarkSending();
+        }
+        return State;
+    }
+
+    FOpenPocketBaseRequestHandle MakeRequestHandle(
+        const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State) const
+    {
+        return FOpenPocketBaseRequestHandle(State);
+    }
+
     void StoreAuth(FString Token, const FOpenPocketBaseRecord& Record)
     {
         FScopeLock Lock(&AuthMutex);
@@ -654,6 +689,138 @@ struct FOpenPocketBaseClient::FImpl
         }
     }
 };
+
+namespace
+{
+class FOpenPocketBaseFullListOperation final
+    : public TSharedFromThis<FOpenPocketBaseFullListOperation, ESPMode::ThreadSafe>
+{
+public:
+    FOpenPocketBaseFullListOperation(
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+        FString InCollection,
+        FOpenPocketBaseFullListOptions InOptions,
+        TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> InRequestState,
+        TSharedRef<TCompletionState<FOpenPocketBaseFullListResult>, ESPMode::ThreadSafe> InCompletion)
+        : Client(MoveTemp(InClient))
+        , Collection(MoveTemp(InCollection))
+        , Options(MoveTemp(InOptions))
+        , RequestState(MoveTemp(InRequestState))
+        , Completion(MoveTemp(InCompletion))
+    {
+    }
+
+    void Start()
+    {
+        RequestNextPage();
+    }
+
+private:
+    void RequestNextPage()
+    {
+        if (RequestState->GetState() != EOpenPocketBaseRequestState::Sending)
+        {
+            return;
+        }
+
+        const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+        if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+        {
+            FinishFailure(MakeCancelledError());
+            return;
+        }
+
+        FOpenPocketBaseListOptions PageOptions = Options.ListOptions;
+        PageOptions.Page = NextPage;
+        const TSharedRef<FOpenPocketBaseFullListOperation, ESPMode::ThreadSafe> Self = AsShared();
+        const FOpenPocketBaseRequestHandle PageRequest =
+            PinnedClient->Collection(Collection).GetList(
+                MoveTemp(PageOptions),
+                [Self](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
+                {
+                    Self->HandlePage(MoveTemp(Result));
+                });
+        RequestState->AttachTransportHandle(FOpenPocketBaseTransportHandle(
+            [PageRequest]()
+            {
+                PageRequest.Cancel();
+            }));
+    }
+
+    void HandlePage(TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& PageResult)
+    {
+        if (RequestState->GetState() != EOpenPocketBaseRequestState::Sending)
+        {
+            return;
+        }
+        if (!PageResult.IsSuccess())
+        {
+            FinishFailure(PageResult.GetError());
+            return;
+        }
+
+        FOpenPocketBaseRecordPage Page = PageResult.TakeValue();
+        ++Result.PagesFetched;
+        const int32 ReceivedItems = Page.Items.Num();
+        int32 ItemsToAdd = ReceivedItems;
+        if (Options.MaxItems > 0)
+        {
+            ItemsToAdd = FMath::Min(ItemsToAdd, Options.MaxItems - Result.Items.Num());
+        }
+        Result.Items.Reserve(Result.Items.Num() + ItemsToAdd);
+        for (int32 Index = 0; Index < ItemsToAdd; ++Index)
+        {
+            Result.Items.Add(MoveTemp(Page.Items[Index]));
+        }
+
+        Result.bReachedEnd = ReceivedItems < Options.ListOptions.PerPage ||
+            (Page.bHasTotalPages && Page.Page >= Page.TotalPages);
+        Result.bReachedItemLimit = Options.MaxItems > 0 && Result.Items.Num() >= Options.MaxItems;
+        Result.bReachedPageLimit = Options.MaxPages > 0 && Result.PagesFetched >= Options.MaxPages;
+        if (Result.bReachedEnd || Result.bReachedItemLimit || Result.bReachedPageLimit)
+        {
+            FinishSuccess();
+            return;
+        }
+
+        ++NextPage;
+        RequestNextPage();
+    }
+
+    void FinishSuccess()
+    {
+        RequestState->TryComplete(
+            EOpenPocketBaseRequestState::Succeeded,
+            [Completion = Completion, Result = MoveTemp(Result)]() mutable
+            {
+                Completion->Invoke(
+                    TOpenPocketBaseResult<FOpenPocketBaseFullListResult>::Success(MoveTemp(Result)));
+            });
+    }
+
+    void FinishFailure(FOpenPocketBaseError Error)
+    {
+        const EOpenPocketBaseRequestState Terminal = Error.Kind == EOpenPocketBaseErrorKind::Cancelled
+            ? EOpenPocketBaseRequestState::Cancelled
+            : EOpenPocketBaseRequestState::Failed;
+        RequestState->TryComplete(
+            Terminal,
+            [Completion = Completion, Error = MoveTemp(Error)]() mutable
+            {
+                Completion->Invoke(
+                    TOpenPocketBaseResult<FOpenPocketBaseFullListResult>::Failure(MoveTemp(Error)));
+            });
+    }
+
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    FString Collection;
+    FOpenPocketBaseFullListOptions Options;
+    TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> RequestState;
+    TSharedRef<TCompletionState<FOpenPocketBaseFullListResult>, ESPMode::ThreadSafe> Completion;
+    FOpenPocketBaseFullListResult Result;
+    int32 NextPage = 1;
+};
+}
 
 TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
     const FOpenPocketBaseClientConfig& Config,
@@ -852,6 +1019,53 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
         {
             Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(MakeCancelledError()));
         });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFullList(
+    FOpenPocketBaseFullListOptions Options,
+    FOpenPocketBaseFullListCallback OnComplete) const
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    const bool bBoundsValid = (Options.MaxItems > 0 || Options.MaxPages > 0) &&
+        Options.MaxItems >= 0 && Options.MaxItems <= 1000000 &&
+        Options.MaxPages >= 0 && Options.MaxPages <= 10000;
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+        Options.ListOptions.Page != 1 || Options.ListOptions.PerPage < 1 || !bBoundsValid)
+    {
+        DispatchFailure<FOpenPocketBaseFullListResult>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Full-list traversal requires a client, collection, first page, and an explicit item or page bound.")));
+        return {};
+    }
+
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.ListOptions.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseFullListResult>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseFullListResult>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseFullListResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> RequestState =
+        PinnedClient->Impl->CreateCompositeState(
+            [Completion]()
+            {
+                Completion->Invoke(
+                    TOpenPocketBaseResult<FOpenPocketBaseFullListResult>::Failure(MakeCancelledError()));
+            });
+    const FOpenPocketBaseRequestHandle Handle = PinnedClient->Impl->MakeRequestHandle(RequestState);
+    const TSharedRef<FOpenPocketBaseFullListOperation, ESPMode::ThreadSafe> Operation =
+        MakeShared<FOpenPocketBaseFullListOperation, ESPMode::ThreadSafe>(
+            PinnedClient,
+            Collection,
+            MoveTemp(Options),
+            RequestState,
+            Completion);
+    Operation->Start();
+    return Handle;
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFirstListItem(

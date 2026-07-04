@@ -15,6 +15,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseRecordPage,
     Page);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseFullListActionSuccess,
+    FOpenPocketBaseFullListResult,
+    Result);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseAuthActionSuccess,
     FOpenPocketBaseAuthResult,
     AuthResult);
@@ -289,6 +293,45 @@ protected:
 private:
     FString Collection;
     FOpenPocketBaseListOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseGetFullListAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseFullListActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Records",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Get Full Record List"))
+    static UOpenPocketBaseGetFullListAsyncAction* GetFullList(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString Collection,
+        FOpenPocketBaseFullListOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString Collection;
+    FOpenPocketBaseFullListOptions Options;
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))

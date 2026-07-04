@@ -210,6 +210,21 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
 };
 
 USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseFullListOptions
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
+    FOpenPocketBaseListOptions ListOptions;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", meta = (ClampMin = "0", ClampMax = "1000000"))
+    int32 MaxItems = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", meta = (ClampMin = "0", ClampMax = "10000"))
+    int32 MaxPages = 0;
+};
+
+USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordPage
 {
     GENERATED_BODY()
@@ -244,6 +259,27 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordPage
     {
         return bHasTotalPages ? TOptional<int32>(TotalPages) : TOptional<int32>();
     }
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseFullListResult
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    TArray<FOpenPocketBaseRecord> Items;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    int32 PagesFetched = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    bool bReachedEnd = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    bool bReachedItemLimit = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    bool bReachedPageLimit = false;
 };
 
 USTRUCT(BlueprintType)

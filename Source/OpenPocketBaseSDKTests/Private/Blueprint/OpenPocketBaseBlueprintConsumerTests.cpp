@@ -77,6 +77,12 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             UOpenPocketBaseListRecordsAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseListRecordsAsyncAction, ListRecords)));
     TestNotNull(
+        TEXT("Get Full Record List is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseGetFullListAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetFullListAsyncAction, GetFullList)));
+    TestNotNull(
         TEXT("Get First Record is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,
