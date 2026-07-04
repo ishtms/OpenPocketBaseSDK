@@ -20,6 +20,8 @@ struct FPinnedServerState
     bool bUpdateSucceeded = false;
     bool bFirstSucceeded = false;
     bool bDeleteSucceeded = false;
+    bool bBatchSucceeded = false;
+    bool bBatchRollbackSucceeded = false;
     FString AuthRecordId;
     FString RecordTitle;
     FString CreatedRecordId;
@@ -41,7 +43,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CompletionCount != 5)
+        if (State->CompletionCount != 6)
         {
             return false;
         }
@@ -58,6 +60,8 @@ public:
         Test->TestTrue(TEXT("Update succeeds against v0.39.11"), State->bUpdateSucceeded);
         Test->TestTrue(TEXT("First match succeeds against v0.39.11"), State->bFirstSucceeded);
         Test->TestTrue(TEXT("Delete succeeds against v0.39.11"), State->bDeleteSucceeded);
+        Test->TestTrue(TEXT("Transactional batch succeeds against v0.39.11"), State->bBatchSucceeded);
+        Test->TestTrue(TEXT("Failed transactional batch rolls back against v0.39.11"), State->bBatchRollbackSucceeded);
         Test->TestEqual(
             TEXT("The seeded auth record is returned"),
             State->AuthRecordId,
@@ -194,6 +198,90 @@ void CreateIntegrationRecord(
             UpdateIntegrationRecord(State);
         });
 }
+
+void VerifyRolledBackBatchRecord(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
+{
+    State->Client->Collection(TEXT("sdk_tasks")).GetOne(
+        TEXT("task00000000005"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bBatchRollbackSucceeded =
+                !Result.IsSuccess() && Result.GetError().HttpStatus == 404;
+            if (!State->bBatchRollbackSucceeded)
+            {
+                State->Errors.Add(Result.IsSuccess()
+                    ? TEXT("Batch rollback failed: the first record was committed.")
+                    : DescribeIntegrationError(TEXT("Verify batch rollback"), Result.GetError()));
+            }
+            ++State->CompletionCount;
+        });
+}
+
+void RunFailingIntegrationBatch(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
+{
+    FOpenPocketBaseRecordBody FirstBody;
+    FirstBody.SetStringField(TEXT("id"), TEXT("task00000000005"));
+    FirstBody.SetStringField(TEXT("title"), TEXT("Must be rolled back"));
+    FOpenPocketBaseRecordBody InvalidBody;
+    InvalidBody.SetStringField(TEXT("id"), TEXT("task00000000006"));
+
+    FOpenPocketBaseBatchRequest Batch;
+    Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(FirstBody));
+    Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(InvalidBody));
+    State->Client->SendBatch(
+        MoveTemp(Batch),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&& Result)
+        {
+            if (Result.IsSuccess())
+            {
+                State->Errors.Add(TEXT("Invalid batch unexpectedly succeeded."));
+                ++State->CompletionCount;
+                return;
+            }
+            if (Result.GetError().HttpStatus != 400)
+            {
+                State->Errors.Add(DescribeIntegrationError(TEXT("Failing batch"), Result.GetError()));
+                ++State->CompletionCount;
+                return;
+            }
+            VerifyRolledBackBatchRecord(State);
+        });
+}
+
+void RunSuccessfulIntegrationBatch(
+    const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
+{
+    FOpenPocketBaseRecordBody CreateBody;
+    CreateBody.SetStringField(TEXT("id"), TEXT("task00000000003"));
+    CreateBody.SetStringField(TEXT("title"), TEXT("Batch create"));
+    FOpenPocketBaseRecordBody UpdateBody;
+    UpdateBody.SetStringField(TEXT("title"), TEXT("Batch update"));
+    FOpenPocketBaseRecordBody UpsertBody;
+    UpsertBody.SetStringField(TEXT("id"), TEXT("task00000000004"));
+    UpsertBody.SetStringField(TEXT("title"), TEXT("Batch upsert"));
+
+    FOpenPocketBaseBatchRequest Batch;
+    Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(CreateBody));
+    Batch.AddUpdate(TEXT("sdk_tasks"), TEXT("task00000000003"), MoveTemp(UpdateBody));
+    Batch.AddUpsert(TEXT("sdk_tasks"), MoveTemp(UpsertBody));
+    Batch.AddDelete(TEXT("sdk_tasks"), TEXT("task00000000004"));
+    Batch.AddDelete(TEXT("sdk_tasks"), TEXT("task00000000003"));
+    State->Client->SendBatch(
+        MoveTemp(Batch),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&& Result)
+        {
+            State->bBatchSucceeded = Result.IsSuccess() && Result.GetValue().Results.Num() == 5;
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(TEXT("Successful batch"), Result.GetError()));
+                ++State->CompletionCount;
+                return;
+            }
+            RunFailingIntegrationBatch(State);
+        });
+}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -233,6 +321,7 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
             {
                 State->AuthRecordId = Result.GetValue().Record.Id;
                 CreateIntegrationRecord(State);
+                RunSuccessfulIntegrationBatch(State);
             }
             else
             {

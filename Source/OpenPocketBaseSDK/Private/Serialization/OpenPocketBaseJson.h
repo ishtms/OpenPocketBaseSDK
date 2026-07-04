@@ -1,5 +1,6 @@
 #pragma once
 
+#include "OpenPocketBaseBatch.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseResult.h"
 #include "Transport/OpenPocketBaseTransport.h"
@@ -18,6 +19,10 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthResult> ParseAuthResponse(
 
 TOpenPocketBaseResult<bool> ParseEmptyResponse(
     const FOpenPocketBaseHttpResponse& Response);
+
+TOpenPocketBaseResult<FOpenPocketBaseBatchResult> ParseBatchResponse(
+    const FOpenPocketBaseHttpResponse& Response,
+    const FOpenPocketBaseBatchRequest& Request);
 
 TArray<uint8> SerializeObject(const TSharedRef<FJsonObject>& Object);
 }

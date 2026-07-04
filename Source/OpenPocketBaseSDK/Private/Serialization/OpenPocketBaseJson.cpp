@@ -52,6 +52,18 @@ bool ParseObject(const TArray<uint8>& Body, TSharedPtr<FJsonObject>& OutObject)
     return FJsonSerializer::Deserialize(Reader, OutObject) && OutObject.IsValid();
 }
 
+bool ParseArray(const TArray<uint8>& Body, TArray<TSharedPtr<FJsonValue>>& OutArray)
+{
+    const FString Json = DecodeBody(Body);
+    if (Json.IsEmpty())
+    {
+        return false;
+    }
+
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+    return FJsonSerializer::Deserialize(Reader, OutArray);
+}
+
 FOpenPocketBaseError MakeHttpError(const FOpenPocketBaseHttpResponse& Response)
 {
     FOpenPocketBaseError Error;
@@ -89,6 +101,70 @@ FOpenPocketBaseError MakeHttpError(const FOpenPocketBaseHttpResponse& Response)
         }
     }
 
+    return Error;
+}
+
+FOpenPocketBaseError MakeBatchHttpError(const FOpenPocketBaseHttpResponse& Response)
+{
+    FOpenPocketBaseError Error = MakeHttpError(Response);
+    if (Response.HttpStatus == 403 &&
+        Error.ServerMessage.Contains(TEXT("Batch requests are not allowed"), ESearchCase::IgnoreCase))
+    {
+        Error.Kind = EOpenPocketBaseErrorKind::Unsupported;
+        Error.ServerCode = TEXT("batch_disabled");
+        Error.bMayRetry = false;
+        return Error;
+    }
+
+    TSharedPtr<FJsonObject> Root;
+    const TSharedPtr<FJsonObject>* Data = nullptr;
+    const TSharedPtr<FJsonObject>* Requests = nullptr;
+    if (!ParseObject(Response.Body, Root) ||
+        !Root->TryGetObjectField(TEXT("data"), Data) || Data == nullptr ||
+        !(*Data)->TryGetObjectField(TEXT("requests"), Requests) || Requests == nullptr)
+    {
+        return Error;
+    }
+
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& RequestPair : (*Requests)->Values)
+    {
+        const TSharedPtr<FJsonObject>* RequestFailure = nullptr;
+        if (!RequestPair.Value.IsValid() ||
+            !RequestPair.Value->TryGetObject(RequestFailure) || RequestFailure == nullptr)
+        {
+            continue;
+        }
+
+        if (Error.ServerCode.IsEmpty())
+        {
+            (*RequestFailure)->TryGetStringField(TEXT("code"), Error.ServerCode);
+        }
+        const TSharedPtr<FJsonObject>* FailureResponse = nullptr;
+        const TSharedPtr<FJsonObject>* FieldData = nullptr;
+        if (!(*RequestFailure)->TryGetObjectField(TEXT("response"), FailureResponse) ||
+            FailureResponse == nullptr ||
+            !(*FailureResponse)->TryGetObjectField(TEXT("data"), FieldData) || FieldData == nullptr)
+        {
+            continue;
+        }
+
+        for (const TPair<FString, TSharedPtr<FJsonValue>>& FieldPair : (*FieldData)->Values)
+        {
+            const TSharedPtr<FJsonObject>* FieldObject = nullptr;
+            if (!FieldPair.Value.IsValid() ||
+                !FieldPair.Value->TryGetObject(FieldObject) || FieldObject == nullptr)
+            {
+                continue;
+            }
+
+            FOpenPocketBaseFieldError FieldError;
+            (*FieldObject)->TryGetStringField(TEXT("code"), FieldError.Code);
+            (*FieldObject)->TryGetStringField(TEXT("message"), FieldError.Message);
+            Error.FieldErrors.Add(
+                FString::Printf(TEXT("requests.%s.%s"), *RequestPair.Key, *FieldPair.Key),
+                MoveTemp(FieldError));
+        }
+    }
     return Error;
 }
 
@@ -274,6 +350,66 @@ TOpenPocketBaseResult<bool> ParseEmptyResponse(const FOpenPocketBaseHttpResponse
         return MoveTemp(Failure.GetValue());
     }
     return TOpenPocketBaseResult<bool>::Success(true);
+}
+
+TOpenPocketBaseResult<FOpenPocketBaseBatchResult> ParseBatchResponse(
+    const FOpenPocketBaseHttpResponse& Response,
+    const FOpenPocketBaseBatchRequest& Request)
+{
+    if (!Response.bTransportSucceeded)
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(MakeTransportError(Response));
+    }
+    if (!IsSuccessStatus(Response.HttpStatus))
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(MakeBatchHttpError(Response));
+    }
+
+    TArray<TSharedPtr<FJsonValue>> Items;
+    if (!ParseArray(Response.Body, Items) || Items.Num() != Request.Entries.Num())
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
+            MakeSerializationError(Response, TEXT("PocketBase returned an invalid batch result.")));
+    }
+
+    FOpenPocketBaseBatchResult Result;
+    Result.Results.Reserve(Items.Num());
+    for (int32 Index = 0; Index < Items.Num(); ++Index)
+    {
+        const TSharedPtr<FJsonObject>* ItemObject = nullptr;
+        double Status = 0;
+        if (!Items[Index].IsValid() || !Items[Index]->TryGetObject(ItemObject) || ItemObject == nullptr ||
+            !(*ItemObject)->TryGetNumberField(TEXT("status"), Status) ||
+            Status < 200 || Status >= 300)
+        {
+            return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
+                MakeSerializationError(Response, TEXT("PocketBase returned an invalid batch operation result.")));
+        }
+
+        FOpenPocketBaseBatchOperationResult OperationResult;
+        OperationResult.Operation = Request.Entries[Index].Operation;
+        OperationResult.HttpStatus = static_cast<int32>(Status);
+        const TSharedPtr<FJsonValue>* BodyValue = (*ItemObject)->Values.Find(TEXT("body"));
+        if (OperationResult.Operation != EOpenPocketBaseBatchOperation::Delete)
+        {
+            const TSharedPtr<FJsonObject>* RecordObject = nullptr;
+            if (BodyValue == nullptr || !BodyValue->IsValid() ||
+                !(*BodyValue)->TryGetObject(RecordObject) || RecordObject == nullptr ||
+                !ParseRecordObject(RecordObject->ToSharedRef(), OperationResult.Record))
+            {
+                return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
+                    MakeSerializationError(Response, TEXT("PocketBase batch result contains an invalid record.")));
+            }
+            OperationResult.bHasRecord = true;
+        }
+        else if (BodyValue != nullptr && BodyValue->IsValid() && !(*BodyValue)->IsNull())
+        {
+            return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
+                MakeSerializationError(Response, TEXT("PocketBase batch delete returned an unexpected body.")));
+        }
+        Result.Results.Add(MoveTemp(OperationResult));
+    }
+    return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Success(MoveTemp(Result));
 }
 
 TArray<uint8> SerializeObject(const TSharedRef<FJsonObject>& Object)

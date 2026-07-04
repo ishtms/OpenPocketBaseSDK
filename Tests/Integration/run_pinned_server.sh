@@ -29,5 +29,6 @@ printf 'Set OPENPOCKETBASE_TEST_URL=http://127.0.0.1:%s for Unreal integration t
 
 exec "${binary_path}" serve \
   --http="127.0.0.1:${listen_port}" \
+  --dev=false \
   --dir="${data_dir}" \
   --migrationsDir="${script_dir}/pb_migrations"

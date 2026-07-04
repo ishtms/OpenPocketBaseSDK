@@ -1,6 +1,12 @@
 /// <reference path="../pb_data/types.d.ts" />
 
 migrate((app) => {
+  const superusers = app.findCollectionByNameOrId("_superusers");
+  const fixtureSuperuser = new Record(superusers);
+  fixtureSuperuser.set("email", "openpocketbase-fixture@example.com");
+  fixtureSuperuser.setRandomPassword();
+  app.save(fixtureSuperuser);
+
   const users = new Collection({
     type: "auth",
     name: "sdk_users",
@@ -68,10 +74,31 @@ migrate((app) => {
   task.set("title", "Ship the Unreal SDK");
   task.set("done", false);
   app.save(task);
+
+  const settings = app.settings();
+  settings.batch.enabled = true;
+  settings.batch.maxRequests = 10;
+  settings.batch.timeout = 5;
+  settings.batch.maxBodySize = 1024 * 1024;
+  app.save(settings);
 }, (app) => {
+  const settings = app.settings();
+  settings.batch.enabled = false;
+  app.save(settings);
+
   const tasks = app.findCollectionByNameOrId("sdk_tasks");
   app.delete(tasks);
 
   const users = app.findCollectionByNameOrId("sdk_users");
   app.delete(users);
+
+  try {
+    const fixtureSuperuser = app.findAuthRecordByEmail(
+      "_superusers",
+      "openpocketbase-fixture@example.com",
+    );
+    app.delete(fixtureSuperuser);
+  } catch {
+    // The disposable fixture superuser may already have been removed.
+  }
 });

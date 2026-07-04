@@ -287,6 +287,124 @@ FString AddQuery(FString Path, const FString& Query)
     return Path;
 }
 
+FString GetBatchMethod(const EOpenPocketBaseBatchOperation Operation)
+{
+    switch (Operation)
+    {
+    case EOpenPocketBaseBatchOperation::Create:
+        return TEXT("POST");
+    case EOpenPocketBaseBatchOperation::Update:
+        return TEXT("PATCH");
+    case EOpenPocketBaseBatchOperation::Upsert:
+        return TEXT("PUT");
+    case EOpenPocketBaseBatchOperation::Delete:
+        return TEXT("DELETE");
+    default:
+        return {};
+    }
+}
+
+FString MakeBatchEntryPath(const FOpenPocketBaseBatchEntry& Entry)
+{
+    FString Path = FString::Printf(
+        TEXT("/api/collections/%s/records"),
+        *EncodeSegment(Entry.Collection));
+    if (Entry.Operation == EOpenPocketBaseBatchOperation::Update ||
+        Entry.Operation == EOpenPocketBaseBatchOperation::Delete)
+    {
+        Path += TEXT("/") + EncodeSegment(Entry.RecordId);
+    }
+
+    FOpenPocketBaseRecordOptions QueryOptions;
+    QueryOptions.Expand = Entry.Expand;
+    QueryOptions.Fields = Entry.Fields;
+    return AddQuery(MoveTemp(Path), MakeRecordQuery(QueryOptions));
+}
+
+bool ValidateBatch(
+    const FOpenPocketBaseBatchRequest& Batch,
+    const FOpenPocketBaseBatchOptions& Options,
+    FOpenPocketBaseError& OutError)
+{
+    if (Options.MaxOperations < 1 || Options.MaxOperations > 50 || Batch.Entries.IsEmpty() ||
+        Batch.Entries.Num() > Options.MaxOperations ||
+        Options.MaxBodyBytes < 1024 || Options.MaxBodyBytes > 16 * 1024 * 1024 ||
+        Options.RequestOptions.TotalTimeoutSeconds <= 0 ||
+        Options.RequestOptions.TotalTimeoutSeconds > 120 ||
+        Options.RequestOptions.ActivityTimeoutSeconds <= 0 ||
+        Options.RequestOptions.ActivityTimeoutSeconds > 120)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Batch count, body, and timeout bounds are invalid."));
+        return false;
+    }
+
+    for (const FOpenPocketBaseBatchEntry& Entry : Batch.Entries)
+    {
+        if (!IsSafePathSegment(Entry.Collection))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Every batch entry requires a valid collection."));
+            return false;
+        }
+
+        const bool bUsesRecordId = Entry.Operation == EOpenPocketBaseBatchOperation::Update ||
+            Entry.Operation == EOpenPocketBaseBatchOperation::Delete;
+        if (bUsesRecordId && !IsSafePathSegment(Entry.RecordId))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Batch update and delete entries require a valid record ID."));
+            return false;
+        }
+
+        const bool bUsesBody = Entry.Operation != EOpenPocketBaseBatchOperation::Delete;
+        if (bUsesBody && !Entry.Body.Data.JsonObject.IsValid())
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Batch create, update, and upsert entries require a JSON body."));
+            return false;
+        }
+        if (Entry.Operation == EOpenPocketBaseBatchOperation::Upsert)
+        {
+            FString UpsertId;
+            if (!Entry.Body.Data.JsonObject->TryGetStringField(TEXT("id"), UpsertId) ||
+                UpsertId.Len() != 15 || !IsSafePathSegment(UpsertId))
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::InvalidArgument,
+                    TEXT("Batch upsert bodies require a valid 15-character record ID."));
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+TArray<uint8> SerializeBatch(const FOpenPocketBaseBatchRequest& Batch)
+{
+    TArray<TSharedPtr<FJsonValue>> Requests;
+    Requests.Reserve(Batch.Entries.Num());
+    for (const FOpenPocketBaseBatchEntry& Entry : Batch.Entries)
+    {
+        const TSharedRef<FJsonObject> RequestObject = MakeShared<FJsonObject>();
+        RequestObject->SetStringField(TEXT("method"), GetBatchMethod(Entry.Operation));
+        RequestObject->SetStringField(TEXT("url"), MakeBatchEntryPath(Entry));
+        if (Entry.Operation != EOpenPocketBaseBatchOperation::Delete)
+        {
+            RequestObject->SetObjectField(TEXT("body"), Entry.Body.Data.JsonObject);
+        }
+        Requests.Add(MakeShared<FJsonValueObject>(RequestObject));
+    }
+
+    const TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetArrayField(TEXT("requests"), MoveTemp(Requests));
+    return OpenPocketBase::Json::SerializeObject(Root);
+}
+
 EOpenPocketBaseRequestState TerminalStateFor(const bool bSucceeded)
 {
     return bSucceeded
@@ -884,6 +1002,59 @@ bool FOpenPocketBaseClient::GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecor
     }
     OutRecord = Impl->AuthRecord;
     return true;
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
+    FOpenPocketBaseBatchRequest Batch,
+    FOpenPocketBaseBatchCallback OnComplete,
+    FOpenPocketBaseBatchOptions Options)
+{
+    FOpenPocketBaseError ValidationError;
+    if (!ValidateRequestOptions(Options.RequestOptions, ValidationError) ||
+        !ValidateBatch(Batch, Options, ValidationError))
+    {
+        DispatchFailure<FOpenPocketBaseBatchResult>(MoveTemp(OnComplete), MoveTemp(ValidationError));
+        return {};
+    }
+
+    TArray<uint8> Body = SerializeBatch(Batch);
+    if (Body.Num() > Options.MaxBodyBytes)
+    {
+        DispatchFailure<FOpenPocketBaseBatchResult>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The serialized batch exceeds the configured body bound.")));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseBatchResult>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseBatchResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    FOpenPocketBaseHttpRequest Request = Impl->MakeRequest(
+        TEXT("POST"), TEXT("/api/batch"), MoveTemp(Body), Options.RequestOptions, true);
+    return Impl->Send(
+        MoveTemp(Request),
+        Options.RequestOptions,
+        false,
+        [Completion, Batch = MoveTemp(Batch)](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseBatchResult> Result =
+                OpenPocketBase::Json::ParseBatchResponse(Response, Batch);
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(
+                TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(MakeCancelledError()));
+        });
 }
 
 bool FOpenPocketBaseClient::IsShutdown() const

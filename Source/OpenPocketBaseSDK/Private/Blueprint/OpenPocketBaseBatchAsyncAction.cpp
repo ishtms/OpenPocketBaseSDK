@@ -1,0 +1,68 @@
+#include "AsyncActions/OpenPocketBaseBatchAsyncAction.h"
+
+UOpenPocketBaseSendBatchAsyncAction* UOpenPocketBaseSendBatchAsyncAction::SendBatch(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FOpenPocketBaseBatchRequest InBatch,
+    FOpenPocketBaseBatchOptions InOptions)
+{
+    UOpenPocketBaseSendBatchAsyncAction* Action = NewObject<UOpenPocketBaseSendBatchAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->Batch = MoveTemp(InBatch);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseSendBatchAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseSendBatchAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->SendBatch(
+        MoveTemp(Batch),
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&& Result)
+        {
+            UOpenPocketBaseSendBatchAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast(Result.GetValue());
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        },
+        MoveTemp(Options));
+}
+
+void UOpenPocketBaseSendBatchAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}

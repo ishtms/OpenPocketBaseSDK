@@ -1,5 +1,6 @@
 #pragma once
 
+#include "OpenPocketBaseBatch.h"
 #include "OpenPocketBaseClientConfig.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseRequestHandle.h"
@@ -20,6 +21,8 @@ using FOpenPocketBaseAuthCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&&)>;
 using FOpenPocketBaseBoolCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<bool>&&)>;
+using FOpenPocketBaseBatchCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&&)>;
 
 class OPENPOCKETBASESDK_API FOpenPocketBaseCollectionService
 {
@@ -96,6 +99,10 @@ public:
     FString GetBaseUrl() const;
     bool IsAuthenticated() const;
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
+    FOpenPocketBaseRequestHandle SendBatch(
+        FOpenPocketBaseBatchRequest Batch,
+        FOpenPocketBaseBatchCallback OnComplete,
+        FOpenPocketBaseBatchOptions Options = {});
     bool IsShutdown() const;
     void Shutdown();
 

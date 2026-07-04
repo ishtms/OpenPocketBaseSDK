@@ -1,6 +1,7 @@
 #if WITH_EDITOR && WITH_DEV_AUTOMATION_TESTS
 
 #include "AsyncActions/OpenPocketBaseRecordAsyncActions.h"
+#include "AsyncActions/OpenPocketBaseBatchAsyncAction.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/Blueprint.h"
 #include "K2Node_AsyncAction.h"
@@ -9,6 +10,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseFilterLibrary.h"
+#include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "UObject/Package.h"
 
@@ -107,6 +109,12 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             UOpenPocketBaseDeleteRecordAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseDeleteRecordAsyncAction, DeleteRecord)));
     TestNotNull(
+        TEXT("Send Batch is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseSendBatchAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseSendBatchAsyncAction, SendBatch)));
+    TestNotNull(
         TEXT("Log In with Password is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,
@@ -136,6 +144,14 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     FilterNode->PostPlacedNewNode();
     FilterNode->AllocateDefaultPins();
     Graph->AddNode(FilterNode, true, false);
+
+    UK2Node_CallFunction* BatchNode = NewObject<UK2Node_CallFunction>(Graph);
+    BatchNode->SetFromFunction(UOpenPocketBaseBatchLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseBatchLibrary, AddCreate)));
+    BatchNode->CreateNewGuid();
+    BatchNode->PostPlacedNewNode();
+    BatchNode->AllocateDefaultPins();
+    Graph->AddNode(BatchNode, true, false);
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);
