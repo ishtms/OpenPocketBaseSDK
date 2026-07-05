@@ -16,8 +16,20 @@ public:
     virtual void Shutdown() override;
 
 private:
-    void FinishProbe(bool bReachedTrustedHttp, const FOpenPocketBaseError& Error);
+    void FinishTlsProbe(bool bReachedTrustedHttp, const FOpenPocketBaseError& Error);
+    void BeginTransferProbe();
+    void DownloadTransferFile(FOpenPocketBaseFileToken Token);
+    void DeleteTransferRecord(bool bTransferSucceeded, FOpenPocketBaseError Error);
+    void FinishTransferProbe(bool bSucceeded, const FOpenPocketBaseError& Error);
 
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
     FOpenPocketBaseRequestHandle Request;
+    FString TransferOrigin;
+    FString TransferRecordId;
+    FString TransferFileName;
+    FString UploadPath;
+    FString DownloadPath;
+    TArray<uint8> ExpectedTransferBytes;
+    bool bUploadProgressVerified = false;
+    bool bDownloadProgressVerified = false;
 };

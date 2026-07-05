@@ -11,6 +11,7 @@ public class OpenPocketBaseSDKPackageHost : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
+                "Json",
                 "OpenPocketBaseSDK"
             });
     }

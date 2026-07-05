@@ -13,9 +13,14 @@ package_parent=${OPENPOCKETBASE_PACKAGE_PARENT:-${TMPDIR:-/tmp}}
 probe_root=$(mktemp -d "${package_parent%/}/OpenPocketBaseSDKPackageHost.XXXXXX")
 keep_package=${OPENPOCKETBASE_KEEP_PACKAGE:-0}
 probe_succeeded=0
+pocketbase_pid=""
 
 cleanup()
 {
+    if [[ -n $pocketbase_pid ]]; then
+        kill "$pocketbase_pid" 2>/dev/null || true
+        wait "$pocketbase_pid" 2>/dev/null || true
+    fi
     if [[ $probe_succeeded -eq 1 && $keep_package -ne 1 &&
           $probe_root == ${package_parent%/}/OpenPocketBaseSDKPackageHost.* ]]; then
         find "$probe_root" -depth -delete
@@ -65,7 +70,27 @@ rsync -a \
     >> "$probe_root/package.log" 2>&1
 
 probe_binary="$probe_root/Saved/StagedBuilds/Mac/OpenPocketBaseSDKTests.app/Contents/MacOS/OpenPocketBaseSDKTests"
+transfer_port=${OPENPOCKETBASE_PACKAGE_TRANSFER_PORT:-18092}
+OPENPOCKETBASE_TEST_PORT=$transfer_port \
+    "$sdk_root/Tests/Integration/run_pinned_server.sh" \
+    > "$probe_root/pocketbase.log" 2>&1 &
+pocketbase_pid=$!
+transfer_origin="http://127.0.0.1:$transfer_port"
+transfer_ready=0
+for attempt in {1..100}; do
+    if curl --fail --silent "$transfer_origin/api/health" >/dev/null 2>&1; then
+        transfer_ready=1
+        break
+    fi
+    sleep 0.1
+done
+if [[ $transfer_ready -ne 1 ]]; then
+    print -u2 "The pinned transfer server did not become ready."
+    exit 3
+fi
+
 OPENPOCKETBASE_PACKAGE_TLS_ORIGIN=${OPENPOCKETBASE_PACKAGE_TLS_ORIGIN:-https://api.github.com} \
+OPENPOCKETBASE_PACKAGE_TRANSFER_ORIGIN=$transfer_origin \
     "$probe_binary" \
     -unattended \
     -NullRHI \
@@ -84,5 +109,10 @@ if ! grep -q 'OPENPOCKETBASE_PACKAGED_SECURE_STORAGE_SUCCESS' "$probe_root/tls_p
     exit 4
 fi
 
+if ! grep -q 'OPENPOCKETBASE_PACKAGED_TRANSFER_SUCCESS' "$probe_root/tls_probe.log"; then
+    print -u2 "The packaged process did not report transfer success."
+    exit 5
+fi
+
 probe_succeeded=1
-print "Packaged Mac HTTPS and secure-storage probes passed."
+print "Packaged Mac HTTPS, secure-storage, and transfer probes passed."
