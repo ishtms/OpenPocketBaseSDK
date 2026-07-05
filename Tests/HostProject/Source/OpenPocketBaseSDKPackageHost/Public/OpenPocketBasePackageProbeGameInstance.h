@@ -2,9 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
+#include "Interfaces/IHttpRequest.h"
 #include "OpenPocketBaseClient.h"
 
 #include "OpenPocketBasePackageProbeGameInstance.generated.h"
+
+class FOpenPocketBasePackageStreamingState;
 
 UCLASS()
 class OPENPOCKETBASESDKPACKAGEHOST_API UOpenPocketBasePackageProbeGameInstance final : public UGameInstance
@@ -21,6 +24,11 @@ private:
     void DownloadTransferFile(FOpenPocketBaseFileToken Token);
     void DeleteTransferRecord(bool bTransferSucceeded, FOpenPocketBaseError Error);
     void FinishTransferProbe(bool bSucceeded, const FOpenPocketBaseError& Error);
+    void BeginStreamingProbe();
+    void HandleStreamingCancellationComplete(bool bSucceeded);
+    void BeginStreamingTimeoutProbe();
+    void HandleStreamingTimeoutComplete(bool bTimedOut);
+    void FinishStreamingProbe(bool bSucceeded, const TCHAR* Message);
 
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
     FOpenPocketBaseRequestHandle Request;
@@ -32,4 +40,7 @@ private:
     TArray<uint8> ExpectedTransferBytes;
     bool bUploadProgressVerified = false;
     bool bDownloadProgressVerified = false;
+    FHttpRequestPtr StreamingRequest;
+    TSharedPtr<FOpenPocketBasePackageStreamingState, ESPMode::ThreadSafe> StreamingState;
+    double StreamingTimeoutStartedAt = 0;
 };

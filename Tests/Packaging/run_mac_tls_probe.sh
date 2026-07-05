@@ -14,12 +14,18 @@ probe_root=$(mktemp -d "${package_parent%/}/OpenPocketBaseSDKPackageHost.XXXXXX"
 keep_package=${OPENPOCKETBASE_KEEP_PACKAGE:-0}
 probe_succeeded=0
 pocketbase_pid=""
+probe_pid=""
 
 cleanup()
 {
     if [[ -n $pocketbase_pid ]]; then
         kill "$pocketbase_pid" 2>/dev/null || true
         wait "$pocketbase_pid" 2>/dev/null || true
+    fi
+    if [[ -n $probe_pid ]]; then
+        kill -CONT "$probe_pid" 2>/dev/null || true
+        kill "$probe_pid" 2>/dev/null || true
+        wait "$probe_pid" 2>/dev/null || true
     fi
     if [[ $probe_succeeded -eq 1 && $keep_package -ne 1 &&
           $probe_root == ${package_parent%/}/OpenPocketBaseSDKPackageHost.* ]]; then
@@ -97,7 +103,30 @@ OPENPOCKETBASE_PACKAGE_TRANSFER_ORIGIN=$transfer_origin \
     -nosplash \
     -stdout \
     -FullStdOutLogOutput \
-    > "$probe_root/tls_probe.log" 2>&1
+    > "$probe_root/tls_probe.log" 2>&1 &
+probe_pid=$!
+
+streaming_started=0
+for attempt in {1..400}; do
+    if grep -q 'OPENPOCKETBASE_PACKAGED_STREAMING_TIMEOUT_STARTED' "$probe_root/tls_probe.log" 2>/dev/null; then
+        streaming_started=1
+        break
+    fi
+    if ! kill -0 "$probe_pid" 2>/dev/null; then
+        break
+    fi
+    sleep 0.05
+done
+if [[ $streaming_started -ne 1 ]]; then
+    print -u2 "The packaged process did not start its suspend/resume streaming probe."
+    exit 3
+fi
+
+kill -STOP "$probe_pid"
+sleep 0.25
+kill -CONT "$probe_pid"
+wait "$probe_pid" 2>/dev/null || wait "$probe_pid" 2>/dev/null || true
+probe_pid=""
 
 if ! grep -q 'OPENPOCKETBASE_PACKAGED_TLS_SUCCESS' "$probe_root/tls_probe.log"; then
     print -u2 "The packaged process did not report trusted HTTPS success."
@@ -114,5 +143,10 @@ if ! grep -q 'OPENPOCKETBASE_PACKAGED_TRANSFER_SUCCESS' "$probe_root/tls_probe.l
     exit 5
 fi
 
+if ! grep -q 'OPENPOCKETBASE_PACKAGED_STREAMING_SUCCESS' "$probe_root/tls_probe.log"; then
+    print -u2 "The packaged process did not report incremental streaming success."
+    exit 6
+fi
+
 probe_succeeded=1
-print "Packaged Mac HTTPS, secure-storage, and transfer probes passed."
+print "Packaged Mac HTTPS, secure-storage, transfer, and incremental streaming probes passed."

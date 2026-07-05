@@ -6,7 +6,6 @@
 #include "Misc/Paths.h"
 #include "OpenPocketBaseClient.h"
 #include "OpenPocketBaseFile.h"
-#include "OpenPocketBaseScriptedTransport.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
 namespace
@@ -68,10 +67,55 @@ struct FMultipartRequestState
     TArray<FOpenPocketBaseTransferProgress> UpdateProgress;
 };
 
+class FHeldUploadTransport final : public IOpenPocketBaseTransport
+{
+public:
+    virtual FOpenPocketBaseTransportHandle Send(
+        FOpenPocketBaseHttpRequest&& Request,
+        FOpenPocketBaseHttpChunkCallback OnChunk,
+        FOpenPocketBaseHttpCompleteCallback OnComplete) override
+    {
+        ++RequestCount;
+        Response.bTransportSucceeded = true;
+        Response.HttpStatus = 200;
+        Response.RequestId = Request.RequestId;
+        Response.EffectiveUrl = Request.Url;
+        const FString Json = TEXT("{\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\"}");
+        FTCHARToUTF8 Converted(*Json);
+        Response.Body.Append(
+            reinterpret_cast<const uint8*>(Converted.Get()),
+            Converted.Length());
+        Completion = MoveTemp(OnComplete);
+        return FOpenPocketBaseTransportHandle(
+            [this]()
+            {
+                ++CancelCount;
+            });
+    }
+
+    bool CompleteHeld()
+    {
+        if (!Completion)
+        {
+            return false;
+        }
+        FOpenPocketBaseHttpCompleteCallback Callback = MoveTemp(Completion);
+        Callback(MoveTemp(Response));
+        return true;
+    }
+
+    int32 RequestCount = 0;
+    int32 CancelCount = 0;
+
+private:
+    FOpenPocketBaseHttpResponse Response;
+    FOpenPocketBaseHttpCompleteCallback Completion;
+};
+
 struct FUploadTeardownState
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
-    TSharedPtr<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe> Transport;
+    TSharedPtr<FHeldUploadTransport, ESPMode::ThreadSafe> Transport;
     FString SourcePath;
     int32 CompletionCount = 0;
     bool bCancelled = false;
@@ -98,7 +142,8 @@ public:
         Test->TestTrue(TEXT("Client teardown cancels an upload"), State->bCancelled);
         Test->TestEqual(TEXT("Upload teardown has exactly one terminal callback"), State->CompletionCount, 1);
         Test->TestFalse(TEXT("Upload teardown has no progress after terminal"), State->bProgressAfterTerminal);
-        Test->TestEqual(TEXT("Upload teardown cancels one transport request"), State->Transport->GetCancelCount(), 1);
+        Test->TestEqual(TEXT("Upload teardown sends one transport request"), State->Transport->RequestCount, 1);
+        Test->TestEqual(TEXT("Upload teardown cancels one transport request"), State->Transport->CancelCount, 1);
         Test->TestTrue(TEXT("The upload source archive is released"), IFileManager::Get().Delete(*State->SourcePath, false, true));
         return true;
     }
@@ -251,18 +296,7 @@ bool FOpenPocketBaseUploadTeardownTest::RunTest(const FString& Parameters)
 {
     const TSharedRef<FUploadTeardownState, ESPMode::ThreadSafe> State =
         MakeShared<FUploadTeardownState, ESPMode::ThreadSafe>();
-    State->Transport = MakeShared<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe>();
-    FOpenPocketBaseTransportScript Script;
-    Script.Response.bTransportSucceeded = true;
-    Script.Response.HttpStatus = 200;
-    const FString Json = TEXT("{\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\"}");
-    FTCHARToUTF8 Converted(*Json);
-    Script.Response.Body.Append(
-        reinterpret_cast<const uint8*>(Converted.Get()),
-        Converted.Length());
-    Script.bHoldCompletion = true;
-    Script.bCompleteAfterCancel = true;
-    State->Transport->Enqueue(MoveTemp(Script));
+    State->Transport = MakeShared<FHeldUploadTransport, ESPMode::ThreadSafe>();
 
     State->SourcePath = FPaths::ConvertRelativePathToFull(
         FPaths::CreateTempFilename(
@@ -308,7 +342,7 @@ bool FOpenPocketBaseUploadTeardownTest::RunTest(const FString& Parameters)
                 State->CompletionCount > 0;
         });
     State->Client->Shutdown();
-    State->Transport->CompleteNextHeld();
+    State->Transport->CompleteHeld();
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyUploadTeardown(State, this));
     return true;

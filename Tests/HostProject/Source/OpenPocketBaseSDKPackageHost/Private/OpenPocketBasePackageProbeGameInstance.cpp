@@ -1,11 +1,17 @@
 #include "OpenPocketBasePackageProbeGameInstance.h"
 
+#include "Async/Async.h"
+#include "HttpModule.h"
 #include "Dom/JsonValue.h"
+#include "Misc/CoreDelegates.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
+
+#include <atomic>
 
 namespace
 {
@@ -17,6 +23,40 @@ FOpenPocketBaseError MakeProbeError(const TCHAR* Message)
     return Error;
 }
 }
+
+class FOpenPocketBasePackageStreamingState final
+{
+public:
+    bool Append(const void* Data, const int64 Length)
+    {
+        bChunkOffGameThread.store(!IsInGameThread(), std::memory_order_release);
+        FScopeLock Lock(&Mutex);
+        const int64 Allowed = FMath::Min<int64>(Length, 16 * 1024 - Bytes.Num());
+        if (Allowed > 0)
+        {
+            Bytes.Append(static_cast<const uint8*>(Data), static_cast<int32>(Allowed));
+        }
+        static const ANSICHAR Marker[] = "PB_CONNECT";
+        for (int32 Offset = 0; Offset + UE_ARRAY_COUNT(Marker) - 1 <= Bytes.Num(); ++Offset)
+        {
+            if (FMemory::Memcmp(
+                    Bytes.GetData() + Offset,
+                    Marker,
+                    UE_ARRAY_COUNT(Marker) - 1) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    FCriticalSection Mutex;
+    TArray<uint8> Bytes;
+    std::atomic<bool> bChunkOffGameThread = false;
+    std::atomic<bool> bHandoffScheduled = false;
+    bool bGameThreadHandoff = false;
+    bool bLifecycleSignals = false;
+};
 
 void UOpenPocketBasePackageProbeGameInstance::Init()
 {
@@ -104,6 +144,11 @@ void UOpenPocketBasePackageProbeGameInstance::Init()
 
 void UOpenPocketBasePackageProbeGameInstance::Shutdown()
 {
+    if (StreamingRequest.IsValid())
+    {
+        StreamingRequest->CancelRequest();
+        StreamingRequest.Reset();
+    }
     if (Client.IsValid())
     {
         Client->Shutdown();
@@ -375,5 +420,179 @@ void UOpenPocketBasePackageProbeGameInstance::FinishTransferProbe(
         Client->Shutdown();
         Client.Reset();
     }
-    FPlatformMisc::RequestExitWithStatus(true, bSucceeded ? 0 : 4);
+    if (bSucceeded)
+    {
+        BeginStreamingProbe();
+        return;
+    }
+    FPlatformMisc::RequestExitWithStatus(true, 4);
+}
+
+void UOpenPocketBasePackageProbeGameInstance::BeginStreamingProbe()
+{
+    StreamingState = MakeShared<FOpenPocketBasePackageStreamingState, ESPMode::ThreadSafe>();
+    StreamingRequest = FHttpModule::Get().CreateRequest();
+    StreamingRequest->SetURL(TransferOrigin + TEXT("/api/realtime"));
+    StreamingRequest->SetVerb(TEXT("GET"));
+    StreamingRequest->SetHeader(TEXT("Accept"), TEXT("text/event-stream"));
+    StreamingRequest->SetTimeout(10.0f);
+    StreamingRequest->SetActivityTimeout(5.0f);
+    StreamingRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+
+    const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
+    const TSharedRef<FOpenPocketBasePackageStreamingState, ESPMode::ThreadSafe> State =
+        StreamingState.ToSharedRef();
+    StreamingRequest->SetResponseBodyReceiveStreamDelegateV2(
+        FHttpRequestStreamDelegateV2::CreateLambda(
+            [WeakThis, State](void* Data, int64& Length)
+            {
+                if (Length <= 0 || !State->Append(Data, Length))
+                {
+                    return;
+                }
+                bool bExpected = false;
+                if (!State->bHandoffScheduled.compare_exchange_strong(
+                        bExpected,
+                        true,
+                        std::memory_order_acq_rel))
+                {
+                    return;
+                }
+                AsyncTask(
+                    ENamedThreads::GameThread,
+                    [WeakThis, State]()
+                    {
+                        if (UOpenPocketBasePackageProbeGameInstance* Probe = WeakThis.Get())
+                        {
+                            State->bGameThreadHandoff = IsInGameThread();
+                            if (Probe->StreamingRequest.IsValid())
+                            {
+                                Probe->StreamingRequest->CancelRequest();
+                            }
+                        }
+                    });
+            }));
+    StreamingRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis](FHttpRequestPtr Request, FHttpResponsePtr Response, const bool bSucceeded)
+        {
+            AsyncTask(
+                ENamedThreads::GameThread,
+                [WeakThis, bSucceeded]()
+                {
+                    if (UOpenPocketBasePackageProbeGameInstance* Probe = WeakThis.Get())
+                    {
+                        Probe->HandleStreamingCancellationComplete(bSucceeded);
+                    }
+                });
+        });
+    if (!StreamingRequest->ProcessRequest())
+    {
+        FinishStreamingProbe(false, TEXT("The packaged streaming request did not start."));
+    }
+}
+
+void UOpenPocketBasePackageProbeGameInstance::HandleStreamingCancellationComplete(
+    const bool bSucceeded)
+{
+    const bool bCancellationVerified = StreamingState.IsValid() && !bSucceeded &&
+        StreamingState->bChunkOffGameThread.load(std::memory_order_acquire) &&
+        StreamingState->bGameThreadHandoff;
+    StreamingRequest.Reset();
+    StreamingState.Reset();
+    if (!bCancellationVerified)
+    {
+        FinishStreamingProbe(
+            false,
+            TEXT("Incremental delivery, cancellation, or game-thread handoff did not verify."));
+        return;
+    }
+    BeginStreamingTimeoutProbe();
+}
+
+void UOpenPocketBasePackageProbeGameInstance::BeginStreamingTimeoutProbe()
+{
+    StreamingState = MakeShared<FOpenPocketBasePackageStreamingState, ESPMode::ThreadSafe>();
+    StreamingRequest = FHttpModule::Get().CreateRequest();
+    StreamingRequest->SetURL(TransferOrigin + TEXT("/api/realtime"));
+    StreamingRequest->SetVerb(TEXT("GET"));
+    StreamingRequest->SetHeader(TEXT("Accept"), TEXT("text/event-stream"));
+    StreamingRequest->SetTimeout(10.0f);
+    StreamingRequest->SetActivityTimeout(1.0f);
+    StreamingRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+    StreamingTimeoutStartedAt = FPlatformTime::Seconds();
+
+    const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
+    const TSharedRef<FOpenPocketBasePackageStreamingState, ESPMode::ThreadSafe> State =
+        StreamingState.ToSharedRef();
+    StreamingRequest->SetResponseBodyReceiveStreamDelegateV2(
+        FHttpRequestStreamDelegateV2::CreateLambda(
+            [State](void* Data, int64& Length)
+            {
+                if (Length > 0)
+                {
+                    State->Append(Data, Length);
+                }
+            }));
+    StreamingRequest->OnProcessRequestComplete().BindLambda(
+        [WeakThis](FHttpRequestPtr Request, FHttpResponsePtr Response, const bool bSucceeded)
+        {
+            const EHttpFailureReason FailureReason = Request.IsValid()
+                ? Request->GetFailureReason()
+                : EHttpFailureReason::Other;
+            const double CompletedAt = FPlatformTime::Seconds();
+            AsyncTask(
+                ENamedThreads::GameThread,
+                [WeakThis, bSucceeded, FailureReason, CompletedAt]()
+                {
+                    if (UOpenPocketBasePackageProbeGameInstance* Probe = WeakThis.Get())
+                    {
+                        const double Elapsed = CompletedAt - Probe->StreamingTimeoutStartedAt;
+                        const bool bTimedOut = !bSucceeded &&
+                            (FailureReason == EHttpFailureReason::TimedOut ||
+                                FailureReason == EHttpFailureReason::ConnectionError) &&
+                            Elapsed >= 0.75 && Elapsed <= 3.0;
+                        Probe->HandleStreamingTimeoutComplete(bTimedOut);
+                    }
+                });
+        });
+    if (!StreamingRequest->ProcessRequest())
+    {
+        FinishStreamingProbe(false, TEXT("The packaged activity-timeout request did not start."));
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("OPENPOCKETBASE_PACKAGED_STREAMING_TIMEOUT_STARTED"));
+    FCoreDelegates::ApplicationWillEnterBackgroundDelegate.Broadcast();
+    FCoreDelegates::ApplicationHasEnteredForegroundDelegate.Broadcast();
+    StreamingState->bLifecycleSignals = true;
+}
+
+void UOpenPocketBasePackageProbeGameInstance::HandleStreamingTimeoutComplete(
+    const bool bTimedOut)
+{
+    const bool bVerified = bTimedOut && StreamingState.IsValid() &&
+        StreamingState->bChunkOffGameThread.load(std::memory_order_acquire) &&
+        StreamingState->bLifecycleSignals;
+    StreamingRequest.Reset();
+    StreamingState.Reset();
+    FinishStreamingProbe(
+        bVerified,
+        bVerified
+            ? TEXT("")
+            : TEXT("Activity timeout or lifecycle signal handling did not verify."));
+}
+
+void UOpenPocketBasePackageProbeGameInstance::FinishStreamingProbe(
+    const bool bSucceeded,
+    const TCHAR* Message)
+{
+    if (bSucceeded)
+    {
+        UE_LOG(LogTemp, Display, TEXT("OPENPOCKETBASE_PACKAGED_STREAMING_SUCCESS"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("OPENPOCKETBASE_PACKAGED_STREAMING_FAILURE message=%s"), Message);
+    }
+    FPlatformMisc::RequestExitWithStatus(true, bSucceeded ? 0 : 5);
 }
