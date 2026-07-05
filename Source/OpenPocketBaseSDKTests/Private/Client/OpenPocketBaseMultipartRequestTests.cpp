@@ -1,8 +1,12 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "OpenPocketBaseClient.h"
 #include "OpenPocketBaseFile.h"
+#include "OpenPocketBaseScriptedTransport.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
 namespace
@@ -62,6 +66,46 @@ struct FMultipartRequestState
     bool bProgressOnGameThread = true;
     TArray<FOpenPocketBaseTransferProgress> CreateProgress;
     TArray<FOpenPocketBaseTransferProgress> UpdateProgress;
+};
+
+struct FUploadTeardownState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe> Transport;
+    FString SourcePath;
+    int32 CompletionCount = 0;
+    bool bCancelled = false;
+    bool bProgressAfterTerminal = false;
+};
+
+class FVerifyUploadTeardown final : public IAutomationLatentCommand
+{
+public:
+    FVerifyUploadTeardown(
+        TSharedRef<FUploadTeardownState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (State->CompletionCount < 1)
+        {
+            return false;
+        }
+        Test->TestTrue(TEXT("Client teardown cancels an upload"), State->bCancelled);
+        Test->TestEqual(TEXT("Upload teardown has exactly one terminal callback"), State->CompletionCount, 1);
+        Test->TestFalse(TEXT("Upload teardown has no progress after terminal"), State->bProgressAfterTerminal);
+        Test->TestEqual(TEXT("Upload teardown cancels one transport request"), State->Transport->GetCancelCount(), 1);
+        Test->TestTrue(TEXT("The upload source archive is released"), IFileManager::Get().Delete(*State->SourcePath, false, true));
+        return true;
+    }
+
+private:
+    TSharedRef<FUploadTeardownState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
 };
 
 class FVerifyMultipartRequests final : public IAutomationLatentCommand
@@ -195,6 +239,78 @@ bool FOpenPocketBaseMultipartRequestTest::RunTest(const FString& Parameters)
             State->UpdateProgress.Add(Progress);
         });
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyMultipartRequests(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseUploadTeardownTest,
+    "OpenPocketBase.Client.Files.UploadTeardownIsExactlyOnce",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseUploadTeardownTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FUploadTeardownState, ESPMode::ThreadSafe> State =
+        MakeShared<FUploadTeardownState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseTransportScript Script;
+    Script.Response.bTransportSucceeded = true;
+    Script.Response.HttpStatus = 200;
+    const FString Json = TEXT("{\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\"}");
+    FTCHARToUTF8 Converted(*Json);
+    Script.Response.Body.Append(
+        reinterpret_cast<const uint8*>(Converted.Get()),
+        Converted.Length());
+    Script.bHoldCompletion = true;
+    Script.bCompleteAfterCancel = true;
+    State->Transport->Enqueue(MoveTemp(Script));
+
+    State->SourcePath = FPaths::ConvertRelativePathToFull(
+        FPaths::CreateTempFilename(
+            *FPaths::ProjectIntermediateDir(),
+            TEXT("OpenPocketBaseUploadTeardown-"),
+            TEXT(".txt")));
+    if (!TestTrue(TEXT("The upload source is written"), FFileHelper::SaveStringToFile(TEXT("upload teardown"), *State->SourcePath)))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
+    {
+        IFileManager::Get().Delete(*State->SourcePath, false, true);
+        return false;
+    }
+
+    FOpenPocketBaseRecordBody Body;
+    Body.SetStringField(TEXT("title"), TEXT("Teardown"));
+    FOpenPocketBaseFileInput File;
+    File.FieldName = TEXT("attachment");
+    File.FileName = TEXT("teardown.txt");
+    File.ContentType = TEXT("text/plain");
+    File.FilePath = State->SourcePath;
+    State->Client->Collection(TEXT("tasks")).CreateWithFiles(
+        MoveTemp(Body),
+        {MoveTemp(File)},
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bCancelled = !Result.IsSuccess() &&
+                Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled;
+            ++State->CompletionCount;
+        },
+        {},
+        {},
+        [State](const FOpenPocketBaseTransferProgress& Progress)
+        {
+            State->bProgressAfterTerminal = State->bProgressAfterTerminal ||
+                State->CompletionCount > 0;
+        });
+    State->Client->Shutdown();
+    State->Transport->CompleteNextHeld();
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyUploadTeardown(State, this));
     return true;
 }
 

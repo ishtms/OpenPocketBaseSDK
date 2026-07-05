@@ -51,6 +51,84 @@ struct FFileServiceState
     bool bTokenIsSet = false;
 };
 
+class FProtectedFileErrorTransport final : public IOpenPocketBaseTransport
+{
+public:
+    TArray<FOpenPocketBaseHttpRequest> Requests;
+
+    virtual FOpenPocketBaseTransportHandle Send(
+        FOpenPocketBaseHttpRequest&& Request,
+        FOpenPocketBaseHttpChunkCallback OnChunk,
+        FOpenPocketBaseHttpCompleteCallback OnComplete) override
+    {
+        const int32 RequestIndex = Requests.Num();
+        Requests.Add(Request);
+        FOpenPocketBaseHttpResponse Response;
+        Response.RequestId = Request.RequestId;
+        Response.EffectiveUrl = Request.Url;
+        if (RequestIndex == 0)
+        {
+            Response.bTransportSucceeded = true;
+            Response.HttpStatus = 200;
+            Response.Body = FileServiceUtf8(
+                TEXT("{\"token\":\"header.payload.signature\",\"record\":{")
+                TEXT("\"id\":\"user123\",\"collectionId\":\"users_id\",")
+                TEXT("\"collectionName\":\"users\"}}"));
+        }
+        else if (RequestIndex == 1)
+        {
+            Response.bTransportSucceeded = true;
+            Response.HttpStatus = 200;
+            Response.Body = FileServiceUtf8(TEXT("{\"token\":\"top-secret-file-token\"}"));
+        }
+        else
+        {
+            Response.bTimedOut = true;
+            Response.ErrorMessage = TEXT("Timeout while fetching ") + Request.Url;
+        }
+        OnComplete(MoveTemp(Response));
+        return {};
+    }
+};
+
+struct FProtectedFileErrorState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FProtectedFileErrorTransport, ESPMode::ThreadSafe> Transport;
+    FOpenPocketBaseError Error;
+    bool bCompleted = false;
+};
+
+class FVerifyProtectedFileError final : public IAutomationLatentCommand
+{
+public:
+    FVerifyProtectedFileError(
+        TSharedRef<FProtectedFileErrorState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        Test->TestEqual(TEXT("The download preserves timeout classification"), State->Error.Kind, EOpenPocketBaseErrorKind::Timeout);
+        Test->TestFalse(TEXT("The protected token is redacted"), State->Error.ServerMessage.Contains(TEXT("top-secret-file-token")));
+        Test->TestFalse(TEXT("The protected query is redacted"), State->Error.ServerMessage.Contains(TEXT("token=")));
+        Test->TestEqual(TEXT("A protected download is never retried"), State->Transport->Requests.Num(), 3);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FProtectedFileErrorState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
 class FVerifyFileServiceToken final : public IAutomationLatentCommand
 {
 public:
@@ -179,6 +257,68 @@ bool FOpenPocketBaseFileTokenTest::RunTest(const FString& Parameters)
         });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyFileServiceToken(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseProtectedFileErrorTest,
+    "OpenPocketBase.Client.Files.RedactsProtectedDownloadErrors",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseProtectedFileErrorTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FProtectedFileErrorState, ESPMode::ThreadSafe> State =
+        MakeShared<FProtectedFileErrorState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FProtectedFileErrorTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
+    {
+        return false;
+    }
+
+    State->Client->Collection(TEXT("users")).AuthWithPassword(
+        TEXT("player@example.com"),
+        TEXT("correct-password"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        {
+            if (!AuthResult.IsSuccess())
+            {
+                State->Error = AuthResult.GetError();
+                State->bCompleted = true;
+                return;
+            }
+            State->Client->Files().GetToken(
+                [State](TOpenPocketBaseResult<FOpenPocketBaseFileToken>&& TokenResult)
+                {
+                    if (!TokenResult.IsSuccess())
+                    {
+                        State->Error = TokenResult.GetError();
+                        State->bCompleted = true;
+                        return;
+                    }
+                    FOpenPocketBaseFileDownloadOptions Options;
+                    Options.MaxBytes = 1024;
+                    State->Client->Files().Download(
+                        TEXT("tasks"),
+                        TEXT("record-1"),
+                        TEXT("protected.txt"),
+                        Options,
+                        [State](TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>&& Result)
+                        {
+                            if (!Result.IsSuccess())
+                            {
+                                State->Error = Result.GetError();
+                            }
+                            State->bCompleted = true;
+                        },
+                        MoveTemp(TokenResult.GetValue()));
+                });
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyProtectedFileError(State, this));
     return true;
 }
 

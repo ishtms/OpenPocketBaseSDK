@@ -164,6 +164,24 @@ TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> FOpenPocketBaseDown
         MoveTemp(Writer)));
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe>
+FOpenPocketBaseDownloadSink::CreateForTesting(
+    const int64 MaxBytes,
+    FString TempPath,
+    TUniquePtr<FArchive> Writer)
+{
+    return MakeShareable(new FOpenPocketBaseDownloadSink(
+        EOpenPocketBaseFileDownloadTarget::File,
+        MaxBytes,
+        TempPath + TEXT(".final"),
+        MoveTemp(TempPath),
+        TEXT("test.bin"),
+        false,
+        MoveTemp(Writer)));
+}
+#endif
+
 FOpenPocketBaseDownloadSink::FOpenPocketBaseDownloadSink(
     const EOpenPocketBaseFileDownloadTarget InTarget,
     const int64 InMaxBytes,

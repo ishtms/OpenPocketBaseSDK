@@ -143,6 +143,43 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
         TEXT("Oversized multipart bodies are rejected before dispatch"),
         OpenPocketBase::Multipart::Build(Body, {InlineFile}, BodyLimits, Boundary, Rejected, Error));
 
+    const FString SparseFile = FPaths::CreateTempFilename(
+        *FPaths::ProjectIntermediateDir(),
+        TEXT("OpenPocketBaseSparseMultipart-"),
+        TEXT(".bin"));
+    TUniquePtr<FArchive> SparseWriter(IFileManager::Get().CreateFileWriter(*SparseFile));
+    if (TestTrue(TEXT("A sparse large-file fixture opens"), SparseWriter.IsValid()))
+    {
+        constexpr int64 SparseSize = 64LL * 1024 * 1024;
+        SparseWriter->Seek(SparseSize - 1);
+        uint8 LastByte = 0x7f;
+        SparseWriter->Serialize(&LastByte, 1);
+        const bool bSparseWritten = !SparseWriter->IsError();
+        SparseWriter.Reset();
+        TestTrue(TEXT("A sparse large-file fixture is written"), bSparseWritten);
+
+        FOpenPocketBaseFileInput SparseInput;
+        SparseInput.FieldName = TEXT("large_file");
+        SparseInput.ContentType = TEXT("application/octet-stream");
+        SparseInput.FilePath = SparseFile;
+        OpenPocketBase::Multipart::FBuildResult SparseResult;
+        const bool bSparseBuilt = OpenPocketBase::Multipart::Build(
+            Body,
+            {SparseInput},
+            FOpenPocketBaseUploadLimits(),
+            Boundary,
+            SparseResult,
+            Error);
+        TestTrue(TEXT("A 64 MiB disk source builds without buffering it"), bSparseBuilt);
+        if (bSparseBuilt)
+        {
+            TestTrue(TEXT("The large file contributes to the streamed length"), SparseResult.ContentLength > SparseSize);
+            TestTrue(TEXT("Buffered multipart overhead stays below 64 KiB"), SparseResult.BufferedBytes < 64 * 1024);
+        }
+        SparseResult.Stream.Reset();
+    }
+    IFileManager::Get().Delete(*SparseFile, false, true);
+
     IFileManager::Get().Delete(*TempFile, false, true);
     return true;
 }

@@ -4,13 +4,20 @@
 #include "OpenPocketBaseFile.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
-class FOpenPocketBaseDownloadSink final
+class OPENPOCKETBASESDK_API FOpenPocketBaseDownloadSink final
 {
 public:
     static TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> Create(
         const FOpenPocketBaseFileDownloadOptions& Options,
         const FString& RequestedFileName,
         FOpenPocketBaseError& OutError);
+
+#if WITH_DEV_AUTOMATION_TESTS
+    static TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> CreateForTesting(
+        int64 MaxBytes,
+        FString TempPath,
+        TUniquePtr<FArchive> Writer);
+#endif
 
     ~FOpenPocketBaseDownloadSink();
 

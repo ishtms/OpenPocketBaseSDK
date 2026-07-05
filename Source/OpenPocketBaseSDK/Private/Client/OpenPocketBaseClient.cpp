@@ -65,6 +65,16 @@ FOpenPocketBaseError MakeCancelledError()
     return MakeLocalError(EOpenPocketBaseErrorKind::Cancelled, TEXT("The request was cancelled."));
 }
 
+FOpenPocketBaseError SanitizeProtectedFileError(FOpenPocketBaseError Error)
+{
+    Error.ServerMessage = Error.Kind == EOpenPocketBaseErrorKind::Timeout
+        ? TEXT("The protected file download timed out.")
+        : TEXT("The protected file download failed.");
+    Error.ServerCode.Reset();
+    Error.FieldErrors.Reset();
+    return Error;
+}
+
 template <typename ValueType>
 void DispatchFailure(
     TUniqueFunction<void(TOpenPocketBaseResult<ValueType>&&)> Callback,
@@ -2454,6 +2464,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
         return {};
     }
 
+    FString ProtectedToken;
     if (Token.IsSet())
     {
         bool bTokenValid = Token.Value.Len() <= 4096;
@@ -2472,6 +2483,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
         }
         Url += Url.Contains(TEXT("?")) ? TEXT("&token=") : TEXT("?token=");
         Url += FGenericPlatformHttp::UrlEncode(Token.Value);
+        ProtectedToken = MoveTemp(Token.Value);
     }
 
     FOpenPocketBaseError SinkError;
@@ -2502,7 +2514,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
         MoveTemp(Request),
         Options.RequestOptions,
         false,
-        [Completion, Sink, Progress](
+        [Completion, Sink, Progress, ProtectedToken = MoveTemp(ProtectedToken)](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
@@ -2526,6 +2538,11 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
                 return TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Success(
                     MoveTemp(DownloadResult));
             }();
+            if (!Result.IsSuccess() && !ProtectedToken.IsEmpty())
+            {
+                Result = TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Failure(
+                    SanitizeProtectedFileError(Result.GetError()));
+            }
             if (Progress.IsValid())
             {
                 if (Result.IsSuccess())
