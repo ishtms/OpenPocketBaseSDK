@@ -232,6 +232,12 @@ void FOpenPocketBaseDownloadSink::Receive(const TArrayView<const uint8> Chunk)
     TransferredBytes += Chunk.Num();
 }
 
+int64 FOpenPocketBaseDownloadSink::GetTransferredBytes() const
+{
+    FScopeLock Lock(&Mutex);
+    return TransferredBytes;
+}
+
 bool FOpenPocketBaseDownloadSink::Finalize(
     const FOpenPocketBaseHttpResponse& Response,
     FOpenPocketBaseFileDownloadResult& OutResult,

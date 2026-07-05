@@ -32,6 +32,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseError,
     Error);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseActionCancelled);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseTransferProgressAction,
+    FOpenPocketBaseTransferProgress,
+    TransferProgress);
 
 UCLASS(Abstract)
 class OPENPOCKETBASESDK_API UOpenPocketBaseAsyncActionBase : public UCancellableAsyncAction
@@ -187,6 +191,9 @@ public:
     FOpenPocketBaseRecordActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseTransferProgressAction Progress;
+
+    UPROPERTY(BlueprintAssignable)
     FOpenPocketBaseActionFailed Failed;
 
     UPROPERTY(BlueprintAssignable)
@@ -275,6 +282,9 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseUpdateRecordWithFilesAsyncAction fina
 public:
     UPROPERTY(BlueprintAssignable)
     FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseTransferProgressAction Progress;
 
     UPROPERTY(BlueprintAssignable)
     FOpenPocketBaseActionFailed Failed;

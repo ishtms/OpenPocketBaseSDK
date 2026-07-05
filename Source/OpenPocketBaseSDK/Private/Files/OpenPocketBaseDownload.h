@@ -15,6 +15,7 @@ public:
     ~FOpenPocketBaseDownloadSink();
 
     void Receive(TArrayView<const uint8> Chunk);
+    int64 GetTransferredBytes() const;
     bool Finalize(
         const FOpenPocketBaseHttpResponse& Response,
         FOpenPocketBaseFileDownloadResult& OutResult,

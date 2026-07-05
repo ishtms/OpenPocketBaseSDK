@@ -307,7 +307,15 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
             Action->Finish();
         },
         MoveTemp(Options),
-        MoveTemp(Limits));
+        MoveTemp(Limits),
+        [WeakThis](const FOpenPocketBaseTransferProgress& TransferProgress)
+        {
+            UOpenPocketBaseCreateRecordWithFilesAsyncAction* Action = WeakThis.Get();
+            if (Action != nullptr && !Action->bTerminal && Action->ShouldBroadcastDelegates())
+            {
+                Action->Progress.Broadcast(TransferProgress);
+            }
+        });
 }
 
 void UOpenPocketBaseCreateRecordWithFilesAsyncAction::BroadcastCancelled()
@@ -459,7 +467,15 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
             Action->Finish();
         },
         MoveTemp(Options),
-        MoveTemp(Limits));
+        MoveTemp(Limits),
+        [WeakThis](const FOpenPocketBaseTransferProgress& TransferProgress)
+        {
+            UOpenPocketBaseUpdateRecordWithFilesAsyncAction* Action = WeakThis.Get();
+            if (Action != nullptr && !Action->bTerminal && Action->ShouldBroadcastDelegates())
+            {
+                Action->Progress.Broadcast(TransferProgress);
+            }
+        });
 }
 
 void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::BroadcastCancelled()

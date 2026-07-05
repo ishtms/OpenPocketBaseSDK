@@ -63,6 +63,9 @@ public:
     FOpenPocketBaseFileDownloadActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseTransferProgressAction Progress;
+
+    UPROPERTY(BlueprintAssignable)
     FOpenPocketBaseActionFailed Failed;
 
     UPROPERTY(BlueprintAssignable)

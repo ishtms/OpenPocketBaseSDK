@@ -51,6 +51,38 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseUploadLimits
 };
 
 UENUM(BlueprintType)
+enum class EOpenPocketBaseTransferPhase : uint8
+{
+    Uploading,
+    Downloading,
+    Finalizing
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseTransferProgress
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
+    int64 TransferredBytes = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
+    bool bHasTotalBytes = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
+    int64 TotalBytes = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
+    int32 Attempt = 1;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
+    EOpenPocketBaseTransferPhase Phase = EOpenPocketBaseTransferPhase::Uploading;
+};
+
+using FOpenPocketBaseTransferProgressCallback =
+    TFunction<void(const FOpenPocketBaseTransferProgress&)>;
+
+UENUM(BlueprintType)
 enum class EOpenPocketBaseThumbnailMode : uint8
 {
     None,

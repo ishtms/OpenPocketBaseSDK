@@ -28,6 +28,8 @@ struct FDownloadTestState
     bool bDiskSucceeded = false;
     bool bBoundRejected = false;
     bool bShortWriteRejected = false;
+    bool bProgressOnGameThread = true;
+    TArray<FOpenPocketBaseTransferProgress> MemoryProgress;
     FOpenPocketBaseFileDownloadResult MemoryResult;
     FOpenPocketBaseFileDownloadResult DiskResult;
 };
@@ -56,6 +58,21 @@ public:
         Test->TestEqual(TEXT("The content type is returned"), State->MemoryResult.ContentType, FString(TEXT("text/plain")));
         Test->TestEqual(TEXT("A safe filename hint is returned"), State->MemoryResult.FileName, FString(TEXT("server_name.txt")));
         Test->TestEqual(TEXT("The ETag is returned"), State->MemoryResult.ETag, FString(TEXT("fixture-etag")));
+        Test->TestTrue(TEXT("Download progress uses the game thread"), State->bProgressOnGameThread);
+        Test->TestTrue(TEXT("Download progress is published"), !State->MemoryProgress.IsEmpty());
+        Test->TestTrue(TEXT("Tiny download chunks are coalesced"), State->MemoryProgress.Num() <= 2);
+        if (!State->MemoryProgress.IsEmpty())
+        {
+            const FOpenPocketBaseTransferProgress& FinalProgress = State->MemoryProgress.Last();
+            Test->TestEqual(TEXT("Final download progress has all bytes"), FinalProgress.TransferredBytes, 6LL);
+            Test->TestTrue(TEXT("Final download progress has a known total"), FinalProgress.bHasTotalBytes);
+            Test->TestEqual(TEXT("Final download total is exact"), FinalProgress.TotalBytes, 6LL);
+            Test->TestEqual(TEXT("Download progress reports attempt one"), FinalProgress.Attempt, 1);
+            Test->TestEqual(
+                TEXT("Completed downloads enter finalizing"),
+                FinalProgress.Phase,
+                EOpenPocketBaseTransferPhase::Finalizing);
+        }
 
         Test->TestTrue(TEXT("A streamed disk download succeeds"), State->bDiskSucceeded);
         Test->TestTrue(TEXT("Disk metadata identifies the destination"), State->DiskResult.bSavedToFile);
@@ -91,6 +108,8 @@ struct FCancelledDownloadState
     FString DestinationPath;
     bool bCompleted = false;
     bool bCancelled = false;
+    bool bProgressAfterTerminal = false;
+    int32 ProgressCount = 0;
 };
 
 class FVerifyCancelledDownload final : public IAutomationLatentCommand
@@ -111,6 +130,8 @@ public:
             return false;
         }
         Test->TestTrue(TEXT("Cancellation has one cancelled result"), State->bCancelled);
+        Test->TestTrue(TEXT("Partial progress can be observed before cancellation"), State->ProgressCount > 0);
+        Test->TestFalse(TEXT("Progress never follows the terminal callback"), State->bProgressAfterTerminal);
         Test->TestFalse(TEXT("Cancellation removes the temporary file"), IFileManager::Get().FileExists(*(State->DestinationPath + TEXT(".tmp"))));
         Test->TestFalse(TEXT("Cancellation never publishes the final file"), IFileManager::Get().FileExists(*State->DestinationPath));
         State->Client->Shutdown();
@@ -192,6 +213,12 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
                 State->MemoryResult = MoveTemp(Result.GetValue());
             }
             ++State->CompletionCount;
+        },
+        {},
+        [State](const FOpenPocketBaseTransferProgress& Progress)
+        {
+            State->bProgressOnGameThread = State->bProgressOnGameThread && IsInGameThread();
+            State->MemoryProgress.Add(Progress);
         });
 
     FOpenPocketBaseFileDownloadOptions DiskOptions;
@@ -293,6 +320,12 @@ bool FOpenPocketBaseFileDownloadCancelTest::RunTest(const FString& Parameters)
             State->bCancelled = !Result.IsSuccess() &&
                 Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled;
             State->bCompleted = true;
+        },
+        {},
+        [State](const FOpenPocketBaseTransferProgress& Progress)
+        {
+            State->bProgressAfterTerminal = State->bProgressAfterTerminal || State->bCompleted;
+            ++State->ProgressCount;
         });
     Handle.Cancel();
 

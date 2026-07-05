@@ -11,6 +11,7 @@ class FMultipartRequestTransport final : public IOpenPocketBaseTransport
 {
 public:
     TArray<FOpenPocketBaseHttpRequest> Requests;
+    TArray<int64> UploadedBytes;
 
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
@@ -18,6 +19,21 @@ public:
         FOpenPocketBaseHttpCompleteCallback OnComplete) override
     {
         Requests.Add(Request);
+        int64 TransferredBytes = 0;
+        if (Request.BodyStream.IsValid())
+        {
+            uint8 Byte = 0;
+            while (!Request.BodyStream->AtEnd())
+            {
+                Request.BodyStream->Serialize(&Byte, 1);
+                if (Request.BodyStream->IsError())
+                {
+                    break;
+                }
+                ++TransferredBytes;
+            }
+        }
+        UploadedBytes.Add(TransferredBytes);
 
         FOpenPocketBaseHttpResponse Response;
         Response.bTransportSucceeded = true;
@@ -43,6 +59,9 @@ struct FMultipartRequestState
     int32 CompletionCount = 0;
     bool bCreateSucceeded = false;
     bool bUpdateSucceeded = false;
+    bool bProgressOnGameThread = true;
+    TArray<FOpenPocketBaseTransferProgress> CreateProgress;
+    TArray<FOpenPocketBaseTransferProgress> UpdateProgress;
 };
 
 class FVerifyMultipartRequests final : public IAutomationLatentCommand
@@ -65,6 +84,11 @@ public:
 
         Test->TestTrue(TEXT("Multipart create succeeds"), State->bCreateSucceeded);
         Test->TestTrue(TEXT("Multipart update succeeds"), State->bUpdateSucceeded);
+        Test->TestTrue(TEXT("Upload progress uses the game thread"), State->bProgressOnGameThread);
+        Test->TestTrue(TEXT("Create upload progress is published"), !State->CreateProgress.IsEmpty());
+        Test->TestTrue(TEXT("Update upload progress is published"), !State->UpdateProgress.IsEmpty());
+        Test->TestTrue(TEXT("Tiny create reads are coalesced"), State->CreateProgress.Num() <= 3);
+        Test->TestTrue(TEXT("Tiny update reads are coalesced"), State->UpdateProgress.Num() <= 3);
         Test->TestEqual(TEXT("Two requests reach the transport"), State->Transport->Requests.Num(), 2);
         if (State->Transport->Requests.Num() == 2)
         {
@@ -86,6 +110,20 @@ public:
                 TEXT("The body length matches the archive"),
                 CreateRequest.BodyLength,
                 CreateRequest.BodyStream.IsValid() ? CreateRequest.BodyStream->TotalSize() : 0);
+            Test->TestEqual(TEXT("Create body is fully consumed"), State->Transport->UploadedBytes[0], CreateRequest.BodyLength);
+            Test->TestEqual(TEXT("Update body is fully consumed"), State->Transport->UploadedBytes[1], UpdateRequest.BodyLength);
+            if (!State->CreateProgress.IsEmpty())
+            {
+                const FOpenPocketBaseTransferProgress& FinalProgress = State->CreateProgress.Last();
+                Test->TestEqual(TEXT("Create progress has all bytes"), FinalProgress.TransferredBytes, CreateRequest.BodyLength);
+                Test->TestTrue(TEXT("Create progress has a known total"), FinalProgress.bHasTotalBytes);
+                Test->TestEqual(TEXT("Create total is exact"), FinalProgress.TotalBytes, CreateRequest.BodyLength);
+                Test->TestEqual(TEXT("Create progress reports attempt one"), FinalProgress.Attempt, 1);
+                Test->TestEqual(
+                    TEXT("Completed uploads enter finalizing"),
+                    FinalProgress.Phase,
+                    EOpenPocketBaseTransferPhase::Finalizing);
+            }
         }
 
         State->Client->Shutdown();
@@ -132,6 +170,13 @@ bool FOpenPocketBaseMultipartRequestTest::RunTest(const FString& Parameters)
         {
             State->bCreateSucceeded = Result.IsSuccess();
             ++State->CompletionCount;
+        },
+        {},
+        {},
+        [State](const FOpenPocketBaseTransferProgress& Progress)
+        {
+            State->bProgressOnGameThread = State->bProgressOnGameThread && IsInGameThread();
+            State->CreateProgress.Add(Progress);
         });
     State->Client->Collection(TEXT("tasks")).UpdateWithFiles(
         TEXT("task123"),
@@ -141,6 +186,13 @@ bool FOpenPocketBaseMultipartRequestTest::RunTest(const FString& Parameters)
         {
             State->bUpdateSucceeded = Result.IsSuccess();
             ++State->CompletionCount;
+        },
+        {},
+        {},
+        [State](const FOpenPocketBaseTransferProgress& Progress)
+        {
+            State->bProgressOnGameThread = State->bProgressOnGameThread && IsInGameThread();
+            State->UpdateProgress.Add(Progress);
         });
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyMultipartRequests(State, this));
     return true;

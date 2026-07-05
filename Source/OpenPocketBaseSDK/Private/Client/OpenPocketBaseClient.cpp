@@ -5,6 +5,7 @@
 #include "Dom/JsonObject.h"
 #include "Files/OpenPocketBaseMultipart.h"
 #include "Files/OpenPocketBaseDownload.h"
+#include "Files/OpenPocketBaseTransferProgress.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "HAL/CriticalSection.h"
 #include "Math/RandomStream.h"
@@ -2418,7 +2419,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
     FString FileName,
     FOpenPocketBaseFileDownloadOptions Options,
     FOpenPocketBaseFileDownloadCallback OnComplete,
-    FOpenPocketBaseFileToken Token) const
+    FOpenPocketBaseFileToken Token,
+    FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
@@ -2483,6 +2485,10 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
 
     const TSharedRef<TCompletionState<FOpenPocketBaseFileDownloadResult>, ESPMode::ThreadSafe> Completion =
         MakeShared<TCompletionState<FOpenPocketBaseFileDownloadResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedPtr<FOpenPocketBaseTransferProgressState, ESPMode::ThreadSafe> Progress =
+        FOpenPocketBaseTransferProgressState::Create(
+            PinnedClient->Impl->Clock,
+            MoveTemp(OnProgress));
     FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
         TEXT("GET"),
         {},
@@ -2496,7 +2502,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
         MoveTemp(Request),
         Options.RequestOptions,
         false,
-        [Completion, Sink](
+        [Completion, Sink, Progress](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
@@ -2520,25 +2526,53 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
                 return TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Success(
                     MoveTemp(DownloadResult));
             }();
+            if (Progress.IsValid())
+            {
+                if (Result.IsSuccess())
+                {
+                    Progress->Finish(
+                        Result.GetValue().ContentLength,
+                        Result.GetValue().ContentLength);
+                }
+                else
+                {
+                    Progress->Stop();
+                }
+            }
             const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
             State->TryComplete(
                 Terminal,
-                [Completion, Result = MoveTemp(Result)]() mutable
+                [Completion, Progress, Result = MoveTemp(Result)]() mutable
                 {
+                    if (Progress.IsValid())
+                    {
+                        Progress->Stop();
+                    }
                     Completion->Invoke(MoveTemp(Result));
                 });
         },
-        [Completion, Sink]()
+        [Completion, Sink, Progress]()
         {
             Sink->Abort();
+            if (Progress.IsValid())
+            {
+                Progress->Stop();
+            }
             Completion->Invoke(
                 TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Failure(
                     MakeCancelledError()));
         },
         false,
-        [Sink](const TArrayView<const uint8> Chunk)
+        [Sink, Progress](const TArrayView<const uint8> Chunk)
         {
             Sink->Receive(Chunk);
+            if (Progress.IsValid())
+            {
+                Progress->Report(
+                    Sink->GetTransferredBytes(),
+                    {},
+                    EOpenPocketBaseTransferPhase::Downloading);
+            }
         });
 }
 
@@ -2819,7 +2853,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
     TArray<FOpenPocketBaseFileInput> Files,
     FOpenPocketBaseRecordCallback OnComplete,
     FOpenPocketBaseRecordOptions Options,
-    FOpenPocketBaseUploadLimits Limits) const
+    FOpenPocketBaseUploadLimits Limits,
+    FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !Body.Data.JsonObject.IsValid() ||
@@ -2858,6 +2893,10 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
 
     const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
         MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedPtr<FOpenPocketBaseTransferProgressState, ESPMode::ThreadSafe> Progress =
+        FOpenPocketBaseTransferProgressState::Create(
+            PinnedClient->Impl->Clock,
+            MoveTemp(OnProgress));
     const FString Path = AddQuery(
         FString::Printf(
             TEXT("/api/collections/%s/records"),
@@ -2871,29 +2910,55 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
         true);
     Request.BodyStream = MoveTemp(Multipart.Stream);
     Request.BodyLength = Multipart.ContentLength;
+    if (Progress.IsValid())
+    {
+        Request.BodyStream = CreateOpenPocketBaseProgressArchive(
+            MoveTemp(Request.BodyStream),
+            Progress.ToSharedRef());
+    }
     Request.Headers.Add(TEXT("Content-Type"), MoveTemp(Multipart.ContentType));
     Request.Headers.Add(TEXT("Content-Length"), LexToString(Request.BodyLength));
+    const int64 TotalBytes = Request.BodyLength;
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options.RequestOptions,
         false,
-        [Completion](
+        [Completion, Progress, TotalBytes](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
             TOpenPocketBaseResult<FOpenPocketBaseRecord> Result =
                 OpenPocketBase::Json::ParseRecordResponse(Response);
+            if (Progress.IsValid())
+            {
+                if (Result.IsSuccess())
+                {
+                    Progress->Finish(TotalBytes, TotalBytes);
+                }
+                else
+                {
+                    Progress->Stop();
+                }
+            }
             const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
             State->TryComplete(
                 Terminal,
-                [Completion, Result = MoveTemp(Result)]() mutable
+                [Completion, Progress, Result = MoveTemp(Result)]() mutable
                 {
+                    if (Progress.IsValid())
+                    {
+                        Progress->Stop();
+                    }
                     Completion->Invoke(MoveTemp(Result));
                 });
         },
-        [Completion]()
+        [Completion, Progress]()
         {
+            if (Progress.IsValid())
+            {
+                Progress->Stop();
+            }
             Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MakeCancelledError()));
         });
 }
@@ -2986,7 +3051,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
     TArray<FOpenPocketBaseFileInput> Files,
     FOpenPocketBaseRecordCallback OnComplete,
     FOpenPocketBaseRecordOptions Options,
-    FOpenPocketBaseUploadLimits Limits) const
+    FOpenPocketBaseUploadLimits Limits,
+    FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId) ||
@@ -3025,6 +3091,10 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
 
     const TSharedRef<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe> Completion =
         MakeShared<TCompletionState<FOpenPocketBaseRecord>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedPtr<FOpenPocketBaseTransferProgressState, ESPMode::ThreadSafe> Progress =
+        FOpenPocketBaseTransferProgressState::Create(
+            PinnedClient->Impl->Clock,
+            MoveTemp(OnProgress));
     const FString Path = AddQuery(
         FString::Printf(
             TEXT("/api/collections/%s/records/%s"),
@@ -3039,15 +3109,22 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
         true);
     Request.BodyStream = MoveTemp(Multipart.Stream);
     Request.BodyLength = Multipart.ContentLength;
+    if (Progress.IsValid())
+    {
+        Request.BodyStream = CreateOpenPocketBaseProgressArchive(
+            MoveTemp(Request.BodyStream),
+            Progress.ToSharedRef());
+    }
     Request.Headers.Add(TEXT("Content-Type"), MoveTemp(Multipart.ContentType));
     Request.Headers.Add(TEXT("Content-Length"), LexToString(Request.BodyLength));
+    const int64 TotalBytes = Request.BodyLength;
     const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options.RequestOptions,
         false,
-        [Completion, WeakClient, AuthCollection = Collection](
+        [Completion, Progress, TotalBytes, WeakClient, AuthCollection = Collection](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
@@ -3070,16 +3147,35 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
                     }
                 }
             }
+            if (Progress.IsValid())
+            {
+                if (Result.IsSuccess())
+                {
+                    Progress->Finish(TotalBytes, TotalBytes);
+                }
+                else
+                {
+                    Progress->Stop();
+                }
+            }
             const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
             State->TryComplete(
                 Terminal,
-                [Completion, Result = MoveTemp(Result)]() mutable
+                [Completion, Progress, Result = MoveTemp(Result)]() mutable
                 {
+                    if (Progress.IsValid())
+                    {
+                        Progress->Stop();
+                    }
                     Completion->Invoke(MoveTemp(Result));
                 });
         },
-        [Completion]()
+        [Completion, Progress]()
         {
+            if (Progress.IsValid())
+            {
+                Progress->Stop();
+            }
             Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MakeCancelledError()));
         });
 }

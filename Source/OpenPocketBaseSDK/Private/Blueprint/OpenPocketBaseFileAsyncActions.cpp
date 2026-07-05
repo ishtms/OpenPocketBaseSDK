@@ -135,7 +135,15 @@ void UOpenPocketBaseDownloadFileAsyncAction::Activate()
             }
             Action->Finish();
         },
-        MoveTemp(Token));
+        MoveTemp(Token),
+        [WeakThis](const FOpenPocketBaseTransferProgress& TransferProgress)
+        {
+            UOpenPocketBaseDownloadFileAsyncAction* Action = WeakThis.Get();
+            if (Action != nullptr && !Action->bTerminal && Action->ShouldBroadcastDelegates())
+            {
+                Action->Progress.Broadcast(TransferProgress);
+            }
+        });
 }
 
 void UOpenPocketBaseDownloadFileAsyncAction::BroadcastCancelled()

@@ -56,7 +56,8 @@ public:
         FString FileName,
         FOpenPocketBaseFileDownloadOptions Options,
         FOpenPocketBaseFileDownloadCallback OnComplete,
-        FOpenPocketBaseFileToken Token = {}) const;
+        FOpenPocketBaseFileToken Token = {},
+        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
 
     bool IsValid() const;
 
@@ -100,7 +101,8 @@ public:
         TArray<FOpenPocketBaseFileInput> Files,
         FOpenPocketBaseRecordCallback OnComplete,
         FOpenPocketBaseRecordOptions Options = {},
-        FOpenPocketBaseUploadLimits Limits = {}) const;
+        FOpenPocketBaseUploadLimits Limits = {},
+        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
 
     FOpenPocketBaseRequestHandle Update(
         FString RecordId,
@@ -114,7 +116,8 @@ public:
         TArray<FOpenPocketBaseFileInput> Files,
         FOpenPocketBaseRecordCallback OnComplete,
         FOpenPocketBaseRecordOptions Options = {},
-        FOpenPocketBaseUploadLimits Limits = {}) const;
+        FOpenPocketBaseUploadLimits Limits = {},
+        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
 
     FOpenPocketBaseRequestHandle Delete(
         FString RecordId,
