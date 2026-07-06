@@ -31,6 +31,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseOtpRequest,
     OtpRequest);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseOAuth2AuthorizationActionSuccess,
+    FOpenPocketBaseOAuth2Authorization,
+    Authorization);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseMfaRequiredAction,
     FOpenPocketBaseMfaContinuation,
     Continuation);
@@ -620,6 +624,87 @@ private:
     FString Password;
     FOpenPocketBaseMfaContinuation Mfa;
     FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseBeginOAuth2AsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseOAuth2AuthorizationActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Begin Manual OAuth2"))
+    static UOpenPocketBaseBeginOAuth2AsyncAction* BeginManualOAuth2(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FOpenPocketBaseOAuth2StartOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FOpenPocketBaseOAuth2StartOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseCompleteOAuth2AsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseAuthActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseMfaRequiredAction MfaRequired;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Complete Manual OAuth2"))
+    static UOpenPocketBaseCompleteOAuth2AsyncAction* CompleteManualOAuth2(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FOpenPocketBaseOAuth2Callback Callback);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FOpenPocketBaseOAuth2Callback Callback;
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))

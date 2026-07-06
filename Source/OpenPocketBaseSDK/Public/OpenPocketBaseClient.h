@@ -33,6 +33,8 @@ using FOpenPocketBaseOtpRequestCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>&&)>;
 using FOpenPocketBaseAuthAttemptCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&&)>;
+using FOpenPocketBaseOAuth2AuthorizationCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&&)>;
 using FOpenPocketBaseBoolCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<bool>&&)>;
 using FOpenPocketBaseBatchCallback =
@@ -160,6 +162,14 @@ public:
         FOpenPocketBaseMfaContinuation Mfa,
         FOpenPocketBaseAuthAttemptCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle BeginOAuth2(
+        FOpenPocketBaseOAuth2StartOptions Options,
+        FOpenPocketBaseOAuth2AuthorizationCallback OnComplete) const;
+
+    FOpenPocketBaseRequestHandle CompleteOAuth2(
+        FOpenPocketBaseOAuth2Callback Callback,
+        FOpenPocketBaseAuthAttemptCallback OnComplete) const;
 
     FOpenPocketBaseSubscriptionHandle SubscribeToRecords(
         FOpenPocketBaseRealtimeCallbacks Callbacks,

@@ -28,6 +28,7 @@
     "GET /api/collections/{collection}/auth-methods",
     "POST /api/collections/{collection}/auth-with-password",
     "POST /api/collections/{collection}/request-otp",
-    "POST /api/collections/{collection}/auth-with-otp"
+    "POST /api/collections/{collection}/auth-with-otp",
+    "POST /api/collections/{collection}/auth-with-oauth2"
   ]
 }

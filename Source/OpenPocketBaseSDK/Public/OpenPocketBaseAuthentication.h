@@ -130,3 +130,72 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseAuthAttempt
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
     FOpenPocketBaseMfaContinuation Mfa;
 };
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseOAuth2StartOptions
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication")
+    FString Provider;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication")
+    FString RedirectUrl;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication")
+    TArray<FString> Scopes;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    FOpenPocketBaseRequestOptions RequestOptions;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseOAuth2Authorization
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString TransactionId;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString Provider;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString AuthorizationUrl;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString RedirectUrl;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString State;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString CodeChallenge;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString CodeChallengeMethod = TEXT("S256");
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FDateTime ExpiresAtUtc;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseOAuth2Callback
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication")
+    FString TransactionId;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication")
+    FString CallbackUrl;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    FOpenPocketBaseRecordBody CreateData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    FOpenPocketBaseMfaContinuation Mfa;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    FOpenPocketBaseRequestOptions RequestOptions;
+};

@@ -187,6 +187,26 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
                 UOpenPocketBaseOtpAuthAsyncAction,
                 LogInWithOneTimePassword)));
     TestNotNull(
+        TEXT("Begin Manual OAuth2 is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseBeginOAuth2AsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseBeginOAuth2AsyncAction,
+                BeginManualOAuth2)));
+    TestNotNull(
+        TEXT("Complete Manual OAuth2 is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseCompleteOAuth2AsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseCompleteOAuth2AsyncAction,
+                CompleteManualOAuth2)));
+    TestNotNull(
+        TEXT("OAuth exchange exposes an MFA Required terminal delegate"),
+        UOpenPocketBaseCompleteOAuth2AsyncAction::StaticClass()->FindPropertyByName(
+            TEXT("MfaRequired")));
+    TestNotNull(
         TEXT("Password login exposes an MFA Required terminal delegate"),
         UOpenPocketBasePasswordAuthAsyncAction::StaticClass()->FindPropertyByName(
             TEXT("MfaRequired")));
