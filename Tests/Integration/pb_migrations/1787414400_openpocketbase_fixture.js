@@ -20,6 +20,10 @@ migrate((app) => {
       enabled: true,
       identityFields: ["email"],
     },
+    otp: {
+      enabled: true,
+      duration: 300,
+    },
   });
   app.save(users);
 

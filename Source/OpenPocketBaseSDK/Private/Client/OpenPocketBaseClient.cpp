@@ -251,6 +251,22 @@ bool IsSafePathSegment(const FString& Value)
     return true;
 }
 
+bool IsBoundedTransientAuthId(const FString& Value)
+{
+    if (Value.IsEmpty() || Value.Len() > 256)
+    {
+        return false;
+    }
+    for (const TCHAR Character : Value)
+    {
+        if (FChar::IsControl(Character) || FChar::IsWhitespace(Character))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void AddQueryValue(TArray<FString>& Parts, const TCHAR* Name, const FString& Value)
 {
     if (!Value.IsEmpty())
@@ -3428,39 +3444,174 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
     FOpenPocketBaseAuthCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
 {
-    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || Identity.IsEmpty() || Password.IsEmpty())
+    return AuthenticateWithPassword(
+        MoveTemp(Identity),
+        MoveTemp(Password),
+        [OnComplete = MoveTemp(OnComplete)](
+            TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Attempt) mutable
+        {
+            if (!OnComplete)
+            {
+                return;
+            }
+            if (!Attempt.IsSuccess())
+            {
+                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
+                    Attempt.GetError()));
+                return;
+            }
+            if (Attempt.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::MfaRequired)
+            {
+                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
+                    MakeLocalError(
+                        EOpenPocketBaseErrorKind::Authentication,
+                        TEXT("Multi-factor authentication is required; use the MFA-aware authentication operation."))));
+                return;
+            }
+            OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Success(
+                MoveTemp(Attempt.GetValue().Authentication)));
+        },
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListAuthMethods(
+    FOpenPocketBaseAuthMethodsCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection))
     {
-        DispatchFailure<FOpenPocketBaseAuthResult>(
+        DispatchFailure<FOpenPocketBaseAuthMethods>(
             MoveTemp(OnComplete),
-            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument, TEXT("Client, collection, identity, and password are required.")));
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A ready client and valid auth collection are required.")));
         return {};
     }
-
     FOpenPocketBaseError OptionsError;
     if (!ValidateRequestOptions(Options, OptionsError))
     {
-        DispatchFailure<FOpenPocketBaseAuthResult>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        DispatchFailure<FOpenPocketBaseAuthMethods>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
     }
 
-    const TSharedRef<TCompletionState<FOpenPocketBaseAuthResult>, ESPMode::ThreadSafe> Completion =
-        MakeShared<TCompletionState<FOpenPocketBaseAuthResult>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedRef<TCompletionState<FOpenPocketBaseAuthMethods>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseAuthMethods>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const FString Path = FString::Printf(
+        TEXT("/api/collections/%s/auth-methods?fields=mfa%%2Cotp%%2Cpassword%%2Coauth2"),
+        *EncodeSegment(Collection));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("GET"), Path, {}, Options, false);
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options,
+        true,
+        [Completion](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseAuthMethods> Result =
+                OpenPocketBase::Json::ParseAuthMethodsResponse(Response);
+            State->TryComplete(
+                TerminalStateFor(Result.IsSuccess()),
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
+                MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestOtp(
+    FString Email,
+    FOpenPocketBaseOtpRequestCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+        Email.IsEmpty() || Email.Len() > 320)
+    {
+        DispatchFailure<FOpenPocketBaseOtpRequest>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A ready client, valid auth collection, and bounded email are required.")));
+        return {};
+    }
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseOtpRequest>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseOtpRequest>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseOtpRequest>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("email"), Email);
+    const FString Path = FString::Printf(
+        TEXT("/api/collections/%s/request-otp"), *EncodeSegment(Collection));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("POST"), Path, OpenPocketBase::Json::SerializeObject(Body), Options, false);
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options,
+        false,
+        [Completion](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseOtpRequest> Result =
+                OpenPocketBase::Json::ParseOtpResponse(Response);
+            State->TryComplete(
+                TerminalStateFor(Result.IsSuccess()),
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>::Failure(
+                MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithPassword(
+    FString Identity,
+    FString Password,
+    FOpenPocketBaseAuthAttemptCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+        Identity.IsEmpty() || Identity.Len() > 320 || Password.IsEmpty() || Password.Len() > 4096)
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Client, collection, bounded identity, and password are required.")));
+        return {};
+    }
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseAuthAttempt>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseAuthAttempt>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
     const TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
     Body->SetStringField(TEXT("identity"), Identity);
     Body->SetStringField(TEXT("password"), Password);
-
     const FString Path = FString::Printf(
-        TEXT("/api/collections/%s/auth-with-password"),
-        *EncodeSegment(Collection));
+        TEXT("/api/collections/%s/auth-with-password"), *EncodeSegment(Collection));
     FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
-        TEXT("POST"),
-        Path,
-        OpenPocketBase::Json::SerializeObject(Body),
-        Options,
-        false);
+        TEXT("POST"), Path, OpenPocketBase::Json::SerializeObject(Body), Options, false);
     const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
-
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options,
@@ -3470,23 +3621,25 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
             FString Token;
-            TOpenPocketBaseResult<FOpenPocketBaseAuthResult> Result =
-                OpenPocketBase::Json::ParseAuthResponse(Response, Token);
-            if (Result.IsSuccess())
+            TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt> Result =
+                OpenPocketBase::Json::ParseAuthAttemptResponse(Response, Token);
+            if (Result.IsSuccess() &&
+                Result.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::Authenticated)
             {
-                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> ClientToUpdate = WeakClient.Pin())
+                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> ClientToUpdate =
+                        WeakClient.Pin())
                 {
                     if (!ClientToUpdate->IsShutdown())
                     {
                         FOpenPocketBaseError StoreError;
                         if (!ClientToUpdate->Impl->StoreAuth(
                             MoveTemp(Token),
-                            Result.GetValue().Record,
+                            Result.GetValue().Authentication.Record,
                             AuthCollection,
                             EOpenPocketBaseSessionChangeReason::LoggedIn,
                             StoreError))
                         {
-                            Result = TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
+                            Result = TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
                                 MoveTemp(StoreError));
                         }
                     }
@@ -3503,7 +3656,94 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
         },
         [Completion]()
         {
-            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(MakeCancelledError()));
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
+                MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithOtp(
+    FString OtpId,
+    FString Password,
+    FOpenPocketBaseMfaContinuation Mfa,
+    FOpenPocketBaseAuthAttemptCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+        !IsBoundedTransientAuthId(OtpId) || Password.IsEmpty() || Password.Len() > 4096 ||
+        (Mfa.IsSet() && !IsBoundedTransientAuthId(Mfa.Id)))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Client, collection, bounded OTP ID, password, and MFA continuation are required.")));
+        return {};
+    }
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseAuthAttempt>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<FOpenPocketBaseAuthAttempt>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("otpId"), OtpId);
+    Body->SetStringField(TEXT("password"), Password);
+    if (Mfa.IsSet())
+    {
+        Body->SetStringField(TEXT("mfaId"), Mfa.Id);
+    }
+    const FString Path = FString::Printf(
+        TEXT("/api/collections/%s/auth-with-otp"), *EncodeSegment(Collection));
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("POST"), Path, OpenPocketBase::Json::SerializeObject(Body), Options, false);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options,
+        false,
+        [Completion, WeakClient, AuthCollection = Collection](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            FString Token;
+            TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt> Result =
+                OpenPocketBase::Json::ParseAuthAttemptResponse(Response, Token);
+            if (Result.IsSuccess() &&
+                Result.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::Authenticated)
+            {
+                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> ClientToUpdate =
+                        WeakClient.Pin())
+                {
+                    if (!ClientToUpdate->IsShutdown())
+                    {
+                        FOpenPocketBaseError StoreError;
+                        if (!ClientToUpdate->Impl->StoreAuth(
+                                MoveTemp(Token),
+                                Result.GetValue().Authentication.Record,
+                                AuthCollection,
+                                EOpenPocketBaseSessionChangeReason::LoggedIn,
+                                StoreError))
+                        {
+                            Result = TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
+                                MoveTemp(StoreError));
+                        }
+                    }
+                }
+            }
+            State->TryComplete(
+                TerminalStateFor(Result.IsSuccess()),
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
+                MakeCancelledError()));
         });
 }
 

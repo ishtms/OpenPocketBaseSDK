@@ -350,6 +350,147 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthResult> ParseAuthResponse(
     return TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Success(MoveTemp(Result));
 }
 
+TOpenPocketBaseResult<FOpenPocketBaseAuthMethods> ParseAuthMethodsResponse(
+    const FOpenPocketBaseHttpResponse& Response)
+{
+    if (TOptional<TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>> Failure =
+            ValidateResponse<FOpenPocketBaseAuthMethods>(Response))
+    {
+        return MoveTemp(Failure.GetValue());
+    }
+
+    TSharedPtr<FJsonObject> Root;
+    const TSharedPtr<FJsonObject>* Mfa = nullptr;
+    const TSharedPtr<FJsonObject>* Otp = nullptr;
+    const TSharedPtr<FJsonObject>* Password = nullptr;
+    const TSharedPtr<FJsonObject>* OAuth2 = nullptr;
+    if (!ParseObject(Response.Body, Root) ||
+        !Root->TryGetObjectField(TEXT("mfa"), Mfa) || Mfa == nullptr ||
+        !Root->TryGetObjectField(TEXT("otp"), Otp) || Otp == nullptr ||
+        !Root->TryGetObjectField(TEXT("password"), Password) || Password == nullptr ||
+        !Root->TryGetObjectField(TEXT("oauth2"), OAuth2) || OAuth2 == nullptr)
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
+            MakeSerializationError(Response, TEXT("PocketBase returned invalid auth methods.")));
+    }
+
+    FOpenPocketBaseAuthMethods Result;
+    double MfaDuration = 0;
+    double OtpDuration = 0;
+    const TArray<TSharedPtr<FJsonValue>>* IdentityFields = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* Providers = nullptr;
+    if (!(*Mfa)->TryGetBoolField(TEXT("enabled"), Result.Mfa.bEnabled) ||
+        !(*Mfa)->TryGetNumberField(TEXT("duration"), MfaDuration) ||
+        !(*Otp)->TryGetBoolField(TEXT("enabled"), Result.Otp.bEnabled) ||
+        !(*Otp)->TryGetNumberField(TEXT("duration"), OtpDuration) ||
+        !(*Password)->TryGetBoolField(TEXT("enabled"), Result.Password.bEnabled) ||
+        !(*Password)->TryGetArrayField(TEXT("identityFields"), IdentityFields) ||
+        IdentityFields == nullptr || IdentityFields->Num() > 32 ||
+        !(*OAuth2)->TryGetBoolField(TEXT("enabled"), Result.OAuth2.bEnabled) ||
+        !(*OAuth2)->TryGetArrayField(TEXT("providers"), Providers) || Providers == nullptr ||
+        Providers->Num() > 64 || MfaDuration < 0 || MfaDuration > MAX_int32 ||
+        OtpDuration < 0 || OtpDuration > MAX_int32)
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
+            MakeSerializationError(Response, TEXT("PocketBase returned unbounded auth methods.")));
+    }
+    Result.Mfa.DurationSeconds = static_cast<int32>(MfaDuration);
+    Result.Otp.DurationSeconds = static_cast<int32>(OtpDuration);
+
+    for (const TSharedPtr<FJsonValue>& Value : *IdentityFields)
+    {
+        FString Field;
+        if (!Value.IsValid() || !Value->TryGetString(Field) || Field.IsEmpty() || Field.Len() > 128)
+        {
+            return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
+                MakeSerializationError(Response, TEXT("PocketBase returned an invalid auth identity field.")));
+        }
+        Result.Password.IdentityFields.Add(MoveTemp(Field));
+    }
+
+    for (const TSharedPtr<FJsonValue>& Value : *Providers)
+    {
+        const TSharedPtr<FJsonObject>* ProviderObject = nullptr;
+        FOpenPocketBaseOAuthProvider Provider;
+        if (!Value.IsValid() || !Value->TryGetObject(ProviderObject) || ProviderObject == nullptr ||
+            !(*ProviderObject)->TryGetStringField(TEXT("name"), Provider.Name) ||
+            !(*ProviderObject)->TryGetStringField(TEXT("displayName"), Provider.DisplayName) ||
+            !(*ProviderObject)->TryGetStringField(TEXT("state"), Provider.State) ||
+            !(*ProviderObject)->TryGetStringField(TEXT("authURL"), Provider.AuthUrl) ||
+            !(*ProviderObject)->TryGetStringField(TEXT("codeVerifier"), Provider.CodeVerifier) ||
+            !(*ProviderObject)->TryGetStringField(TEXT("codeChallenge"), Provider.CodeChallenge) ||
+            !(*ProviderObject)->TryGetStringField(
+                TEXT("codeChallengeMethod"), Provider.CodeChallengeMethod) ||
+            Provider.Name.IsEmpty() || Provider.Name.Len() > 128 ||
+            Provider.DisplayName.Len() > 256 || Provider.State.Len() > 512 ||
+            Provider.AuthUrl.IsEmpty() || Provider.AuthUrl.Len() > 8192 ||
+            Provider.CodeVerifier.IsEmpty() || Provider.CodeVerifier.Len() > 1024 ||
+            Provider.CodeChallenge.IsEmpty() || Provider.CodeChallenge.Len() > 1024 ||
+            Provider.CodeChallengeMethod.Len() > 32)
+        {
+            return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
+                MakeSerializationError(Response, TEXT("PocketBase returned an invalid OAuth provider.")));
+        }
+        Result.OAuth2.Providers.Add(MoveTemp(Provider));
+    }
+
+    return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Success(MoveTemp(Result));
+}
+
+TOpenPocketBaseResult<FOpenPocketBaseOtpRequest> ParseOtpResponse(
+    const FOpenPocketBaseHttpResponse& Response)
+{
+    if (TOptional<TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>> Failure =
+            ValidateResponse<FOpenPocketBaseOtpRequest>(Response))
+    {
+        return MoveTemp(Failure.GetValue());
+    }
+
+    TSharedPtr<FJsonObject> Object;
+    FOpenPocketBaseOtpRequest Result;
+    if (!ParseObject(Response.Body, Object) ||
+        !Object->TryGetStringField(TEXT("otpId"), Result.OtpId) ||
+        Result.OtpId.IsEmpty() || Result.OtpId.Len() > 256)
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>::Failure(
+            MakeSerializationError(Response, TEXT("PocketBase returned an invalid OTP request ID.")));
+    }
+    return TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>::Success(MoveTemp(Result));
+}
+
+TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt> ParseAuthAttemptResponse(
+    const FOpenPocketBaseHttpResponse& Response,
+    FString& OutToken)
+{
+    OutToken.Reset();
+    if (Response.bTransportSucceeded && Response.HttpStatus == 401)
+    {
+        TSharedPtr<FJsonObject> Object;
+        FOpenPocketBaseAuthAttempt Challenge;
+        Challenge.Status = EOpenPocketBaseAuthAttemptStatus::MfaRequired;
+        if (ParseObject(Response.Body, Object) &&
+            Object->TryGetStringField(TEXT("mfaId"), Challenge.Mfa.Id) &&
+            !Challenge.Mfa.Id.IsEmpty() && Challenge.Mfa.Id.Len() <= 256)
+        {
+            return TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Success(
+                MoveTemp(Challenge));
+        }
+    }
+
+    TOpenPocketBaseResult<FOpenPocketBaseAuthResult> Authentication =
+        ParseAuthResponse(Response, OutToken);
+    if (!Authentication.IsSuccess())
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
+            Authentication.GetError());
+    }
+
+    FOpenPocketBaseAuthAttempt Result;
+    Result.Status = EOpenPocketBaseAuthAttemptStatus::Authenticated;
+    Result.Authentication = Authentication.TakeValue();
+    return TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Success(MoveTemp(Result));
+}
+
 TOpenPocketBaseResult<bool> ParseEmptyResponse(const FOpenPocketBaseHttpResponse& Response)
 {
     if (TOptional<TOpenPocketBaseResult<bool>> Failure = ValidateResponse<bool>(Response))

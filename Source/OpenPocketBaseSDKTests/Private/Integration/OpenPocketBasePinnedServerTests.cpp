@@ -407,6 +407,111 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
 
 namespace
 {
+struct FPinnedRemainingAuthState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    bool bCompleted = false;
+    bool bMethodsSucceeded = false;
+    bool bOtpRequestSucceeded = false;
+    FString Error;
+};
+
+class FVerifyPinnedRemainingAuth final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPinnedRemainingAuth(
+        TSharedRef<FPinnedRemainingAuthState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        if (!State->Error.IsEmpty())
+        {
+            Test->AddError(State->Error);
+        }
+        Test->TestTrue(TEXT("Auth-method discovery succeeds against v0.39.11"),
+            State->bMethodsSucceeded);
+        Test->TestTrue(TEXT("OTP request succeeds against v0.39.11"),
+            State->bOtpRequestSucceeded);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPinnedRemainingAuthState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePinnedRemainingAuthTest,
+    "OpenPocketBase.Integration.V03911.AuthMethodsAndOtpRequest",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePinnedRemainingAuthTest::RunTest(const FString& Parameters)
+{
+    const FString BaseUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("OPENPOCKETBASE_TEST_URL"));
+    if (BaseUrl.IsEmpty())
+    {
+        AddInfo(TEXT("OPENPOCKETBASE_TEST_URL is not set; the pinned auth-method test was not requested."));
+        return true;
+    }
+
+    const TSharedRef<FPinnedRemainingAuthState, ESPMode::ThreadSafe> State =
+        MakeShared<FPinnedRemainingAuthState, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = BaseUrl;
+    Config.ProfileName = TEXT("integration-v03911-remaining-auth");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    if (!TestNotNull(TEXT("The remaining-auth integration client is created"), State->Client.Get()))
+    {
+        AddError(Error.ServerMessage);
+        return false;
+    }
+
+    const FOpenPocketBaseCollectionService Auth = State->Client->Collection(TEXT("sdk_users"));
+    Auth.ListAuthMethods(
+        [State, Auth](TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Methods) mutable
+        {
+            State->bMethodsSucceeded = Methods.IsSuccess() &&
+                Methods.GetValue().Password.bEnabled && Methods.GetValue().Otp.bEnabled;
+            if (!Methods.IsSuccess())
+            {
+                State->Error = DescribeIntegrationError(
+                    TEXT("List auth methods"), Methods.GetError());
+                State->bCompleted = true;
+                return;
+            }
+            Auth.RequestOtp(
+                TEXT("player@example.com"),
+                [State](TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>&& Otp)
+                {
+                    State->bOtpRequestSucceeded = Otp.IsSuccess() &&
+                        !Otp.GetValue().OtpId.IsEmpty();
+                    if (!Otp.IsSuccess())
+                    {
+                        State->Error = DescribeIntegrationError(
+                            TEXT("Request OTP"), Otp.GetError());
+                    }
+                    State->bCompleted = true;
+                });
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedRemainingAuth(State, this));
+    return true;
+}
+
+namespace
+{
 struct FPinnedUploadState
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;

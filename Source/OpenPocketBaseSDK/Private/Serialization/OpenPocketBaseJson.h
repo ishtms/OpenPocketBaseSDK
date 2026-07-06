@@ -1,6 +1,7 @@
 #pragma once
 
 #include "OpenPocketBaseBatch.h"
+#include "OpenPocketBaseAuthentication.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseResult.h"
 #include "Transport/OpenPocketBaseTransport.h"
@@ -18,6 +19,16 @@ TOpenPocketBaseResult<FOpenPocketBaseRecordPage> ParseRecordPageResponse(
     const FOpenPocketBaseHttpResponse& Response);
 
 TOpenPocketBaseResult<FOpenPocketBaseAuthResult> ParseAuthResponse(
+    const FOpenPocketBaseHttpResponse& Response,
+    FString& OutToken);
+
+TOpenPocketBaseResult<FOpenPocketBaseAuthMethods> ParseAuthMethodsResponse(
+    const FOpenPocketBaseHttpResponse& Response);
+
+TOpenPocketBaseResult<FOpenPocketBaseOtpRequest> ParseOtpResponse(
+    const FOpenPocketBaseHttpResponse& Response);
+
+TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt> ParseAuthAttemptResponse(
     const FOpenPocketBaseHttpResponse& Response,
     FString& OutToken);
 

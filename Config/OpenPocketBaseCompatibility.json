@@ -25,6 +25,9 @@
   "implementedRoutes": [
     "GET /api/collections/{collection}/records",
     "GET /api/collections/{collection}/records/{id}",
-    "POST /api/collections/{collection}/auth-with-password"
+    "GET /api/collections/{collection}/auth-methods",
+    "POST /api/collections/{collection}/auth-with-password",
+    "POST /api/collections/{collection}/request-otp",
+    "POST /api/collections/{collection}/auth-with-otp"
   ]
 }

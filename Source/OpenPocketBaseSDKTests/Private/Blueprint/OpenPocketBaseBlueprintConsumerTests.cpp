@@ -162,6 +162,34 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
             Graph,
             UOpenPocketBasePasswordAuthAsyncAction::StaticClass(),
             GET_FUNCTION_NAME_CHECKED(UOpenPocketBasePasswordAuthAsyncAction, LogInWithPassword)));
+    TestNotNull(
+        TEXT("List Authentication Methods is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseListAuthMethodsAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseListAuthMethodsAsyncAction,
+                ListAuthenticationMethods)));
+    TestNotNull(
+        TEXT("Request One-Time Password is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseRequestOtpAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseRequestOtpAsyncAction,
+                RequestOneTimePassword)));
+    TestNotNull(
+        TEXT("Log In with One-Time Password is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseOtpAuthAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseOtpAuthAsyncAction,
+                LogInWithOneTimePassword)));
+    TestNotNull(
+        TEXT("Password login exposes an MFA Required terminal delegate"),
+        UOpenPocketBasePasswordAuthAsyncAction::StaticClass()->FindPropertyByName(
+            TEXT("MfaRequired")));
 
     UK2Node_CallFunction* FieldNode = NewObject<UK2Node_CallFunction>(Graph);
     FieldNode->SetFromFunction(UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(

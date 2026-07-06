@@ -23,6 +23,18 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseAuthResult,
     AuthResult);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseAuthMethodsActionSuccess,
+    FOpenPocketBaseAuthMethods,
+    AuthMethods);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseOtpRequestActionSuccess,
+    FOpenPocketBaseOtpRequest,
+    OtpRequest);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseMfaRequiredAction,
+    FOpenPocketBaseMfaContinuation,
+    Continuation);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseSessionRestoreActionSuccess,
     FOpenPocketBaseSessionRestoreResult,
     RestoreResult);
@@ -482,6 +494,135 @@ private:
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseListAuthMethodsAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseAuthMethodsActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "List Authentication Methods"))
+    static UOpenPocketBaseListAuthMethodsAsyncAction* ListAuthenticationMethods(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseRequestOtpAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseOtpRequestActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Request One-Time Password"))
+    static UOpenPocketBaseRequestOtpAsyncAction* RequestOneTimePassword(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString Email,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FString Email;
+    FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseOtpAuthAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseAuthActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseMfaRequiredAction MfaRequired;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Log In with One-Time Password",
+            AdvancedDisplay = "Mfa,Options"))
+    static UOpenPocketBaseOtpAuthAsyncAction* LogInWithOneTimePassword(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString OtpId,
+        FString Password,
+        FOpenPocketBaseMfaContinuation Mfa,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FString OtpId;
+    FString Password;
+    FOpenPocketBaseMfaContinuation Mfa;
+    FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
 class OPENPOCKETBASESDK_API UOpenPocketBaseRestoreSessionAsyncAction final
     : public UOpenPocketBaseAsyncActionBase
 {
@@ -529,6 +670,9 @@ class OPENPOCKETBASESDK_API UOpenPocketBasePasswordAuthAsyncAction final
 public:
     UPROPERTY(BlueprintAssignable)
     FOpenPocketBaseAuthActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseMfaRequiredAction MfaRequired;
 
     UPROPERTY(BlueprintAssignable)
     FOpenPocketBaseActionFailed Failed;

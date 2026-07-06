@@ -1,6 +1,7 @@
 #pragma once
 
 #include "OpenPocketBaseBatch.h"
+#include "OpenPocketBaseAuthentication.h"
 #include "OpenPocketBaseCapability.h"
 #include "OpenPocketBaseClientConfig.h"
 #include "OpenPocketBaseFile.h"
@@ -26,6 +27,12 @@ using FOpenPocketBaseFullListCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&&)>;
 using FOpenPocketBaseAuthCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&&)>;
+using FOpenPocketBaseAuthMethodsCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&&)>;
+using FOpenPocketBaseOtpRequestCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>&&)>;
+using FOpenPocketBaseAuthAttemptCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&&)>;
 using FOpenPocketBaseBoolCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<bool>&&)>;
 using FOpenPocketBaseBatchCallback =
@@ -130,6 +137,28 @@ public:
         FString Identity,
         FString Password,
         FOpenPocketBaseAuthCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle ListAuthMethods(
+        FOpenPocketBaseAuthMethodsCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle RequestOtp(
+        FString Email,
+        FOpenPocketBaseOtpRequestCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle AuthenticateWithPassword(
+        FString Identity,
+        FString Password,
+        FOpenPocketBaseAuthAttemptCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle AuthenticateWithOtp(
+        FString OtpId,
+        FString Password,
+        FOpenPocketBaseMfaContinuation Mfa,
+        FOpenPocketBaseAuthAttemptCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
 
     FOpenPocketBaseSubscriptionHandle SubscribeToRecords(
