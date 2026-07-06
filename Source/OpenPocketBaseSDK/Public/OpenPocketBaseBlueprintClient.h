@@ -39,6 +39,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client")
     FString GetBaseUrl() const;
 
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
+    FOpenPocketBaseCapabilityInfo GetCapability(EOpenPocketBaseCapability Capability) const;
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
+    FOpenPocketBaseCapabilityReport GetCapabilityReport() const;
+
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Authentication")
     bool IsAuthenticated() const;
 

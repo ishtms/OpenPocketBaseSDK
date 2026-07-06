@@ -56,6 +56,28 @@ FString UOpenPocketBaseClient::GetBaseUrl() const
     return NativeClient.IsValid() ? NativeClient->GetBaseUrl() : FString();
 }
 
+FOpenPocketBaseCapabilityInfo UOpenPocketBaseClient::GetCapability(
+    const EOpenPocketBaseCapability Capability) const
+{
+    if (NativeClient.IsValid())
+    {
+        return NativeClient->GetCapability(Capability);
+    }
+
+    FOpenPocketBaseCapabilityInfo Info;
+    Info.Capability = Capability;
+    Info.Status = EOpenPocketBaseCapabilityStatus::Unavailable;
+    Info.Reason = TEXT("The PocketBase client is not ready.");
+    return Info;
+}
+
+FOpenPocketBaseCapabilityReport UOpenPocketBaseClient::GetCapabilityReport() const
+{
+    return NativeClient.IsValid()
+        ? NativeClient->GetCapabilityReport()
+        : FOpenPocketBaseCapabilityReport();
+}
+
 bool UOpenPocketBaseClient::IsAuthenticated() const
 {
     return NativeClient.IsValid() && NativeClient->IsAuthenticated();

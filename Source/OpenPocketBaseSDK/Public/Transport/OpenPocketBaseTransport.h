@@ -76,6 +76,12 @@ class OPENPOCKETBASESDK_API IOpenPocketBaseTransport
 public:
     virtual ~IOpenPocketBaseTransport() = default;
 
+    virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const
+    {
+        OutReason = TEXT("The configured transport does not declare incremental response streaming support.");
+        return false;
+    }
+
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
         FOpenPocketBaseHttpChunkCallback OnChunk,

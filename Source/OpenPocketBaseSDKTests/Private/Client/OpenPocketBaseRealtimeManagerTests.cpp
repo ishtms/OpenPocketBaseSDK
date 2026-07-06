@@ -16,6 +16,12 @@ namespace
 class FRealtimeHandshakeTransport final : public IOpenPocketBaseTransport
 {
 public:
+    virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const override
+    {
+        OutReason = TEXT("The deterministic realtime transport supports streaming.");
+        return true;
+    }
+
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
         FOpenPocketBaseHttpChunkCallback OnChunk,
@@ -62,6 +68,12 @@ public:
         TSharedRef<std::atomic<bool>, ESPMode::ThreadSafe> Cancelled =
             MakeShared<std::atomic<bool>, ESPMode::ThreadSafe>(false);
     };
+
+    virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const override
+    {
+        OutReason = TEXT("The controlled realtime transport supports streaming.");
+        return true;
+    }
 
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,

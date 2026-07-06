@@ -1,6 +1,7 @@
 #pragma once
 
 #include "OpenPocketBaseBatch.h"
+#include "OpenPocketBaseCapability.h"
 #include "OpenPocketBaseClientConfig.h"
 #include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseRecord.h"
@@ -186,6 +187,8 @@ public:
     FOpenPocketBaseCollectionService Collection(FString CollectionName);
     FOpenPocketBaseFileService Files();
     FString GetBaseUrl() const;
+    FOpenPocketBaseCapabilityInfo GetCapability(EOpenPocketBaseCapability Capability) const;
+    FOpenPocketBaseCapabilityReport GetCapabilityReport() const;
     bool IsAuthenticated() const;
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
     bool GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;

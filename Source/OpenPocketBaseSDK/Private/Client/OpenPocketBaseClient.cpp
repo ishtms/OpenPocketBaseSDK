@@ -7,6 +7,7 @@
 #include "Files/OpenPocketBaseDownload.h"
 #include "Files/OpenPocketBaseTransferProgress.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
+#include "HAL/PlatformProperties.h"
 #include "HAL/CriticalSection.h"
 #include "Math/RandomStream.h"
 #include "Misc/Base64.h"
@@ -64,6 +65,21 @@ FOpenPocketBaseError MakeLocalError(
 FOpenPocketBaseError MakeCancelledError()
 {
     return MakeLocalError(EOpenPocketBaseErrorKind::Cancelled, TEXT("The request was cancelled."));
+}
+
+FString GetBuildConfigurationName()
+{
+#if UE_BUILD_SHIPPING
+    return TEXT("Shipping");
+#elif UE_BUILD_TEST
+    return TEXT("Test");
+#elif UE_BUILD_DEBUG
+    return TEXT("Debug");
+#elif UE_BUILD_DEVELOPMENT
+    return TEXT("Development");
+#else
+    return TEXT("Unknown");
+#endif
 }
 
 FOpenPocketBaseError SanitizeProtectedFileError(FOpenPocketBaseError Error)
@@ -1931,6 +1947,81 @@ FString FOpenPocketBaseClient::GetBaseUrl() const
     return Impl->BaseUrl;
 }
 
+FOpenPocketBaseCapabilityInfo FOpenPocketBaseClient::GetCapability(
+    const EOpenPocketBaseCapability Capability) const
+{
+    FOpenPocketBaseCapabilityInfo Info;
+    Info.Capability = Capability;
+    Info.Platform = FPlatformProperties::PlatformName();
+    Info.BuildConfiguration = GetBuildConfigurationName();
+
+    switch (Capability)
+    {
+    case EOpenPocketBaseCapability::HttpStreaming:
+        Info.Status = Impl->Transport->IsIncrementalResponseStreamingAvailable(Info.Reason)
+            ? EOpenPocketBaseCapabilityStatus::Supported
+            : EOpenPocketBaseCapabilityStatus::Unsupported;
+        break;
+    case EOpenPocketBaseCapability::SecurePersistence:
+        Info.Status = Impl->SecureStore->IsAvailable(Info.Reason)
+            ? EOpenPocketBaseCapabilityStatus::Supported
+            : EOpenPocketBaseCapabilityStatus::Unavailable;
+        if (Info.Reason.IsEmpty())
+        {
+            Info.Reason = Info.IsSupported()
+                ? TEXT("A platform secure store is available.")
+                : TEXT("A platform secure store is unavailable.");
+        }
+        break;
+    case EOpenPocketBaseCapability::OAuthCallback:
+        Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
+        Info.Reason = TEXT("Assisted OAuth callback handling is not implemented.");
+        break;
+    case EOpenPocketBaseCapability::OfflineModule:
+        Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
+        Info.Reason = TEXT("The optional mutation outbox is not implemented.");
+        break;
+    case EOpenPocketBaseCapability::EditorMock:
+#if WITH_EDITOR
+        Info.Status = EOpenPocketBaseCapabilityStatus::Supported;
+        Info.Reason = TEXT("The scripted mock transport is available in Editor builds.");
+#else
+        Info.Status = EOpenPocketBaseCapabilityStatus::Unavailable;
+        Info.Reason = TEXT("The scripted mock transport is available only in Editor builds.");
+#endif
+        break;
+    case EOpenPocketBaseCapability::PrivilegedModule:
+        Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
+        Info.Reason = TEXT("The optional privileged API module is not implemented.");
+        break;
+    default:
+        Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
+        Info.Reason = TEXT("The requested capability is not recognized.");
+        break;
+    }
+    return Info;
+}
+
+FOpenPocketBaseCapabilityReport FOpenPocketBaseClient::GetCapabilityReport() const
+{
+    static constexpr EOpenPocketBaseCapability Capabilities[] = {
+        EOpenPocketBaseCapability::HttpStreaming,
+        EOpenPocketBaseCapability::SecurePersistence,
+        EOpenPocketBaseCapability::OAuthCallback,
+        EOpenPocketBaseCapability::OfflineModule,
+        EOpenPocketBaseCapability::EditorMock,
+        EOpenPocketBaseCapability::PrivilegedModule
+    };
+
+    FOpenPocketBaseCapabilityReport Report;
+    Report.Entries.Reserve(UE_ARRAY_COUNT(Capabilities));
+    for (const EOpenPocketBaseCapability Capability : Capabilities)
+    {
+        Report.Entries.Add(GetCapability(Capability));
+    }
+    return Report;
+}
+
 bool FOpenPocketBaseClient::IsAuthenticated() const
 {
     FScopeLock Lock(&Impl->AuthMutex);
@@ -2266,6 +2357,13 @@ FOpenPocketBaseSubscriptionHandle FOpenPocketBaseClient::Subscribe(
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Cancelled,
             TEXT("The client has shut down."));
+        return {};
+    }
+    const FOpenPocketBaseCapabilityInfo Streaming =
+        GetCapability(EOpenPocketBaseCapability::HttpStreaming);
+    if (!Streaming.IsSupported())
+    {
+        OutError = MakeLocalError(EOpenPocketBaseErrorKind::Unsupported, *Streaming.Reason);
         return {};
     }
     return Impl->Realtime->Subscribe(

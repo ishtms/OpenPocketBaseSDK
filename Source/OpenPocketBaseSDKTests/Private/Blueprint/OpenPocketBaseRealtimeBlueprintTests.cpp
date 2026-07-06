@@ -14,6 +14,12 @@ namespace
 class FBlueprintRealtimeTransport final : public IOpenPocketBaseTransport
 {
 public:
+    virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const override
+    {
+        OutReason = TEXT("The Blueprint realtime transport supports streaming.");
+        return true;
+    }
+
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
         FOpenPocketBaseHttpChunkCallback OnChunk,

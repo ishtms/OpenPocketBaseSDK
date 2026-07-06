@@ -52,6 +52,17 @@ private:
 class FOpenPocketBaseHttpTransport final : public IOpenPocketBaseTransport
 {
 public:
+    virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const override
+    {
+#if PLATFORM_MAC && PLATFORM_CPU_ARM_FAMILY
+        OutReason = TEXT("Incremental Unreal HTTP streaming is packaged-proven on Mac ARM64.");
+        return true;
+#else
+        OutReason = TEXT("Incremental Unreal HTTP streaming has not been packaged-proven on this target.");
+        return false;
+#endif
+    }
+
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
         FOpenPocketBaseHttpChunkCallback OnChunk,
