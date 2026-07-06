@@ -4,6 +4,7 @@
 #include "OpenPocketBaseClientConfig.h"
 #include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseRecord.h"
+#include "OpenPocketBaseRealtime.h"
 #include "OpenPocketBaseRequestHandle.h"
 #include "OpenPocketBaseResult.h"
 #include "OpenPocketBaseSession.h"
@@ -130,6 +131,17 @@ public:
         FOpenPocketBaseAuthCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
 
+    FOpenPocketBaseSubscriptionHandle SubscribeToRecords(
+        FOpenPocketBaseRealtimeCallbacks Callbacks,
+        FOpenPocketBaseRealtimeOptions Options,
+        FOpenPocketBaseError& OutError) const;
+
+    FOpenPocketBaseSubscriptionHandle SubscribeToRecord(
+        FString RecordId,
+        FOpenPocketBaseRealtimeCallbacks Callbacks,
+        FOpenPocketBaseRealtimeOptions Options,
+        FOpenPocketBaseError& OutError) const;
+
     bool IsValid() const;
 
 private:
@@ -190,6 +202,13 @@ public:
         FOpenPocketBaseBatchRequest Batch,
         FOpenPocketBaseBatchCallback OnComplete,
         FOpenPocketBaseBatchOptions Options = {});
+    FOpenPocketBaseSubscriptionHandle Subscribe(
+        FString Topic,
+        FOpenPocketBaseRealtimeCallbacks Callbacks,
+        FOpenPocketBaseRealtimeOptions Options,
+        FOpenPocketBaseError& OutError);
+    void UnsubscribeTopic(const FString& Topic);
+    void UnsubscribeAllRealtime();
     bool IsShutdown() const;
     void Shutdown();
 

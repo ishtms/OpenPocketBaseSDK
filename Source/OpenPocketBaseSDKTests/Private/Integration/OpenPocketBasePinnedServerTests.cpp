@@ -690,4 +690,394 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
     return true;
 }
 
+namespace
+{
+struct FPinnedRealtimeState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    FOpenPocketBaseSubscriptionHandle Subscription;
+    bool bMutationStarted = false;
+    bool bCreateCompleted = false;
+    bool bCreateSucceeded = false;
+    bool bEventReceived = false;
+    bool bDeleteCompleted = false;
+    bool bDeleteSucceeded = false;
+    TArray<FString> Errors;
+};
+
+class FVerifyPinnedRealtime final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPinnedRealtime(
+        TSharedRef<FPinnedRealtimeState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCreateCompleted || !State->bDeleteCompleted)
+        {
+            return false;
+        }
+        for (const FString& Error : State->Errors)
+        {
+            Test->AddError(Error);
+        }
+        Test->TestTrue(TEXT("The authenticated realtime mutation succeeds"),
+            State->bCreateSucceeded);
+        Test->TestTrue(TEXT("The shared SSE manager receives the create event"),
+            State->bEventReceived);
+        Test->TestTrue(TEXT("The realtime fixture record is deleted"),
+            State->bDeleteSucceeded);
+        State->Subscription.Unsubscribe();
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPinnedRealtimeState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
+void DeletePinnedRealtimeRecord(
+    const TSharedRef<FPinnedRealtimeState, ESPMode::ThreadSafe>& State)
+{
+    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+        TEXT("task00000000008"),
+        [State](TOpenPocketBaseResult<bool>&& Result)
+        {
+            State->bDeleteSucceeded = Result.IsSuccess() && Result.GetValue();
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime cleanup"),
+                    Result.GetError()));
+            }
+            State->bDeleteCompleted = true;
+        });
+}
+
+void CreatePinnedRealtimeRecord(
+    const TSharedRef<FPinnedRealtimeState, ESPMode::ThreadSafe>& State)
+{
+    if (State->bMutationStarted)
+    {
+        return;
+    }
+    State->bMutationStarted = true;
+    FOpenPocketBaseRecordBody Body;
+    Body.SetStringField(TEXT("id"), TEXT("task00000000008"));
+    Body.SetStringField(TEXT("title"), TEXT("Realtime integration task"));
+    State->Client->Collection(TEXT("sdk_tasks")).Create(
+        MoveTemp(Body),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bCreateSucceeded = Result.IsSuccess();
+            State->bCreateCompleted = true;
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime create"),
+                    Result.GetError()));
+                State->bDeleteCompleted = true;
+            }
+        });
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePinnedRealtimeTest,
+    "OpenPocketBase.Integration.V03911.RealtimeSubscription",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
+{
+    const FString BaseUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("OPENPOCKETBASE_TEST_URL"));
+    if (BaseUrl.IsEmpty())
+    {
+        AddInfo(TEXT("OPENPOCKETBASE_TEST_URL is not set; the pinned realtime test was not requested."));
+        return true;
+    }
+
+    const TSharedRef<FPinnedRealtimeState, ESPMode::ThreadSafe> State =
+        MakeShared<FPinnedRealtimeState, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = BaseUrl;
+    Config.ProfileName = TEXT("integration-v03911-realtime");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    if (!TestNotNull(TEXT("The realtime integration client is created"), State->Client.Get()))
+    {
+        AddError(Error.ServerMessage);
+        return false;
+    }
+
+    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+        TEXT("player@example.com"),
+        TEXT("correct-horse-battery"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        {
+            if (!AuthResult.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime login"),
+                    AuthResult.GetError()));
+                State->bCreateCompleted = true;
+                State->bDeleteCompleted = true;
+                return;
+            }
+
+            FOpenPocketBaseRealtimeCallbacks Callbacks;
+            Callbacks.OnConnectionStateChanged = [State](
+                const EOpenPocketBaseRealtimeConnectionState ConnectionState)
+            {
+                if (ConnectionState == EOpenPocketBaseRealtimeConnectionState::Active)
+                {
+                    CreatePinnedRealtimeRecord(State);
+                }
+            };
+            Callbacks.OnEvent = [State](const FOpenPocketBaseRealtimeEvent& Event)
+            {
+                if (Event.Action == EOpenPocketBaseRealtimeAction::Create &&
+                    Event.bHasRecord && Event.Record.Id == TEXT("task00000000008"))
+                {
+                    State->bEventReceived = true;
+                    State->Subscription.Unsubscribe();
+                    DeletePinnedRealtimeRecord(State);
+                }
+            };
+            Callbacks.OnError = [State](const FOpenPocketBaseError& RealtimeError)
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime stream"),
+                    RealtimeError));
+            };
+            FOpenPocketBaseError SubscribeError;
+            State->Subscription = State->Client->Collection(TEXT("sdk_tasks"))
+                .SubscribeToRecords(MoveTemp(Callbacks), {}, SubscribeError);
+            if (SubscribeError.IsSet())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime subscribe"),
+                    SubscribeError));
+                State->bCreateCompleted = true;
+                State->bDeleteCompleted = true;
+            }
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedRealtime(State, this));
+    return true;
+}
+
+namespace
+{
+struct FPinnedRealtimeChaosState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    FOpenPocketBaseSubscriptionHandle Subscription;
+    int32 ActiveCount = 0;
+    int32 DisconnectErrorCount = 0;
+    int32 ResyncCount = 0;
+    bool bMutationStarted = false;
+    bool bCreateCompleted = false;
+    bool bCreateSucceeded = false;
+    bool bEventReceived = false;
+    bool bDeleteCompleted = false;
+    bool bDeleteSucceeded = false;
+    TArray<FString> Errors;
+};
+
+class FVerifyPinnedRealtimeChaos final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPinnedRealtimeChaos(
+        TSharedRef<FPinnedRealtimeChaosState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCreateCompleted || !State->bDeleteCompleted)
+        {
+            return false;
+        }
+        for (const FString& Error : State->Errors)
+        {
+            Test->AddError(Error);
+        }
+        Test->TestTrue(TEXT("The proxy forces a second active connection"),
+            State->ActiveCount >= 2);
+        Test->TestTrue(TEXT("The dropped stream reports a reconnect error"),
+            State->DisconnectErrorCount >= 1);
+        Test->TestTrue(TEXT("The dropped stream reports a resynchronization gap"),
+            State->ResyncCount >= 1);
+        Test->TestTrue(TEXT("The post-reconnect mutation succeeds"),
+            State->bCreateSucceeded);
+        Test->TestTrue(TEXT("The byte-fragmented stream delivers the record event"),
+            State->bEventReceived);
+        Test->TestTrue(TEXT("The chaos fixture record is deleted"),
+            State->bDeleteSucceeded);
+        State->Subscription.Unsubscribe();
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPinnedRealtimeChaosState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
+void DeletePinnedRealtimeChaosRecord(
+    const TSharedRef<FPinnedRealtimeChaosState, ESPMode::ThreadSafe>& State)
+{
+    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+        TEXT("task00000000009"),
+        [State](TOpenPocketBaseResult<bool>&& Result)
+        {
+            State->bDeleteSucceeded = Result.IsSuccess() && Result.GetValue();
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime chaos cleanup"),
+                    Result.GetError()));
+            }
+            State->bDeleteCompleted = true;
+        });
+}
+
+void CreatePinnedRealtimeChaosRecord(
+    const TSharedRef<FPinnedRealtimeChaosState, ESPMode::ThreadSafe>& State)
+{
+    if (State->bMutationStarted)
+    {
+        return;
+    }
+    State->bMutationStarted = true;
+    FOpenPocketBaseRecordBody Body;
+    Body.SetStringField(TEXT("id"), TEXT("task00000000009"));
+    Body.SetStringField(TEXT("title"), TEXT("Realtime chaos integration task"));
+    State->Client->Collection(TEXT("sdk_tasks")).Create(
+        MoveTemp(Body),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bCreateSucceeded = Result.IsSuccess();
+            State->bCreateCompleted = true;
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime chaos create"),
+                    Result.GetError()));
+                State->bDeleteCompleted = true;
+            }
+        });
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePinnedRealtimeChaosTest,
+    "OpenPocketBase.Integration.V03911.RealtimeFragmentationAndReconnect",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
+{
+    const FString BaseUrl = FPlatformMisc::GetEnvironmentVariable(
+        TEXT("OPENPOCKETBASE_REALTIME_CHAOS_URL"));
+    if (BaseUrl.IsEmpty())
+    {
+        AddInfo(TEXT("OPENPOCKETBASE_REALTIME_CHAOS_URL is not set; the realtime chaos test was not requested."));
+        return true;
+    }
+
+    const TSharedRef<FPinnedRealtimeChaosState, ESPMode::ThreadSafe> State =
+        MakeShared<FPinnedRealtimeChaosState, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = BaseUrl;
+    Config.ProfileName = TEXT("integration-v03911-realtime-chaos");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    if (!TestNotNull(TEXT("The realtime chaos client is created"), State->Client.Get()))
+    {
+        AddError(Error.ServerMessage);
+        return false;
+    }
+
+    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+        TEXT("player@example.com"),
+        TEXT("correct-horse-battery"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        {
+            if (!AuthResult.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime chaos login"),
+                    AuthResult.GetError()));
+                State->bCreateCompleted = true;
+                State->bDeleteCompleted = true;
+                return;
+            }
+
+            FOpenPocketBaseRealtimeCallbacks Callbacks;
+            Callbacks.OnConnectionStateChanged = [State](
+                const EOpenPocketBaseRealtimeConnectionState ConnectionState)
+            {
+                if (ConnectionState == EOpenPocketBaseRealtimeConnectionState::Active)
+                {
+                    ++State->ActiveCount;
+                    if (State->ActiveCount >= 2)
+                    {
+                        CreatePinnedRealtimeChaosRecord(State);
+                    }
+                }
+            };
+            Callbacks.OnEvent = [State](const FOpenPocketBaseRealtimeEvent& Event)
+            {
+                if (Event.Action == EOpenPocketBaseRealtimeAction::Create &&
+                    Event.bHasRecord && Event.Record.Id == TEXT("task00000000009"))
+                {
+                    State->bEventReceived = true;
+                    State->Subscription.Unsubscribe();
+                    DeletePinnedRealtimeChaosRecord(State);
+                }
+            };
+            Callbacks.OnError = [State](const FOpenPocketBaseError& RealtimeError)
+            {
+                if (RealtimeError.Kind == EOpenPocketBaseErrorKind::Transport ||
+                    RealtimeError.Kind == EOpenPocketBaseErrorKind::Timeout)
+                {
+                    ++State->DisconnectErrorCount;
+                }
+                else
+                {
+                    State->Errors.Add(DescribeIntegrationError(
+                        TEXT("Realtime chaos stream"),
+                        RealtimeError));
+                }
+            };
+            Callbacks.OnResyncRequired = [State]()
+            {
+                ++State->ResyncCount;
+            };
+            FOpenPocketBaseError SubscribeError;
+            State->Subscription = State->Client->Collection(TEXT("sdk_tasks"))
+                .SubscribeToRecords(MoveTemp(Callbacks), {}, SubscribeError);
+            if (SubscribeError.IsSet())
+            {
+                State->Errors.Add(DescribeIntegrationError(
+                    TEXT("Realtime chaos subscribe"),
+                    SubscribeError));
+                State->bCreateCompleted = true;
+                State->bDeleteCompleted = true;
+            }
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedRealtimeChaos(State, this));
+    return true;
+}
+
 #endif

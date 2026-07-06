@@ -151,6 +151,7 @@ void UOpenPocketBasePackageProbeGameInstance::Shutdown()
     }
     if (Client.IsValid())
     {
+        RealtimeSubscription.Unsubscribe();
         Client->Shutdown();
         Client.Reset();
     }
@@ -415,6 +416,125 @@ void UOpenPocketBasePackageProbeGameInstance::FinishTransferProbe(
             *Error.RequestId,
             *Error.ServerMessage);
     }
+    if (bSucceeded)
+    {
+        BeginRealtimeManagerProbe();
+        return;
+    }
+    if (Client.IsValid())
+    {
+        Client->Shutdown();
+        Client.Reset();
+    }
+    FPlatformMisc::RequestExitWithStatus(true, 4);
+}
+
+void UOpenPocketBasePackageProbeGameInstance::BeginRealtimeManagerProbe()
+{
+    if (!Client.IsValid())
+    {
+        FinishRealtimeManagerProbe(
+            false,
+            MakeProbeError(TEXT("The packaged realtime manager client was unavailable.")));
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
+    FOpenPocketBaseRealtimeCallbacks Callbacks;
+    Callbacks.OnConnectionStateChanged = [WeakThis](
+        const EOpenPocketBaseRealtimeConnectionState State)
+    {
+        UOpenPocketBasePackageProbeGameInstance* Probe = WeakThis.Get();
+        if (Probe == nullptr || State != EOpenPocketBaseRealtimeConnectionState::Active ||
+            Probe->bRealtimeMutationStarted)
+        {
+            return;
+        }
+        Probe->bRealtimeMutationStarted = true;
+        FOpenPocketBaseRecordBody Body;
+        Body.SetStringField(TEXT("id"), TEXT("pkgrealtime0001"));
+        Body.SetStringField(TEXT("title"), TEXT("Packaged realtime manager proof"));
+        Probe->Request = Probe->Client->Collection(TEXT("sdk_tasks")).Create(
+            MoveTemp(Body),
+            [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+            {
+                if (UOpenPocketBasePackageProbeGameInstance* Pinned = WeakThis.Get();
+                    Pinned != nullptr && !Result.IsSuccess())
+                {
+                    Pinned->FinishRealtimeManagerProbe(false, Result.GetError());
+                }
+            });
+    };
+    Callbacks.OnEvent = [WeakThis](const FOpenPocketBaseRealtimeEvent& Event)
+    {
+        UOpenPocketBasePackageProbeGameInstance* Probe = WeakThis.Get();
+        if (Probe != nullptr && !Probe->bRealtimeManagerFinished &&
+            Event.Action == EOpenPocketBaseRealtimeAction::Create && Event.bHasRecord &&
+            Event.Record.Id == TEXT("pkgrealtime0001"))
+        {
+            Probe->RealtimeSubscription.Unsubscribe();
+            Probe->DeleteRealtimeManagerRecord();
+        }
+    };
+    Callbacks.OnError = [WeakThis](const FOpenPocketBaseError& Error)
+    {
+        if (UOpenPocketBasePackageProbeGameInstance* Probe = WeakThis.Get();
+            Probe != nullptr && !Probe->bRealtimeManagerFinished)
+        {
+            Probe->FinishRealtimeManagerProbe(false, Error);
+        }
+    };
+
+    FOpenPocketBaseError Error;
+    RealtimeSubscription = Client->Collection(TEXT("sdk_tasks")).SubscribeToRecords(
+        MoveTemp(Callbacks), {}, Error);
+    if (!RealtimeSubscription.IsActive())
+    {
+        FinishRealtimeManagerProbe(false, Error);
+    }
+}
+
+void UOpenPocketBasePackageProbeGameInstance::DeleteRealtimeManagerRecord()
+{
+    const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
+    Request = Client->Collection(TEXT("sdk_tasks")).Delete(
+        TEXT("pkgrealtime0001"),
+        [WeakThis](TOpenPocketBaseResult<bool>&& Result)
+        {
+            if (UOpenPocketBasePackageProbeGameInstance* Probe = WeakThis.Get())
+            {
+                Probe->FinishRealtimeManagerProbe(
+                    Result.IsSuccess() && Result.GetValue(),
+                    Result.IsSuccess() ? FOpenPocketBaseError() : Result.GetError());
+            }
+        });
+}
+
+void UOpenPocketBasePackageProbeGameInstance::FinishRealtimeManagerProbe(
+    const bool bSucceeded,
+    const FOpenPocketBaseError& Error)
+{
+    if (bRealtimeManagerFinished)
+    {
+        return;
+    }
+    bRealtimeManagerFinished = true;
+    RealtimeSubscription.Unsubscribe();
+    if (bSucceeded)
+    {
+        UE_LOG(LogTemp, Display, TEXT("OPENPOCKETBASE_PACKAGED_REALTIME_MANAGER_SUCCESS"));
+    }
+    else
+    {
+        UE_LOG(
+            LogTemp,
+            Error,
+            TEXT("OPENPOCKETBASE_PACKAGED_REALTIME_MANAGER_FAILURE kind=%d status=%d request=%s message=%s"),
+            static_cast<int32>(Error.Kind),
+            Error.HttpStatus,
+            *Error.RequestId,
+            *Error.ServerMessage);
+    }
     if (Client.IsValid())
     {
         Client->Shutdown();
@@ -425,7 +545,7 @@ void UOpenPocketBasePackageProbeGameInstance::FinishTransferProbe(
         BeginStreamingProbe();
         return;
     }
-    FPlatformMisc::RequestExitWithStatus(true, 4);
+    FPlatformMisc::RequestExitWithStatus(true, 6);
 }
 
 void UOpenPocketBasePackageProbeGameInstance::BeginStreamingProbe()

@@ -81,9 +81,119 @@ void UOpenPocketBaseClient::Logout()
 
 void UOpenPocketBaseClient::Shutdown()
 {
+    const TArray<TObjectPtr<UOpenPocketBaseSubscription>> Subscriptions = ActiveSubscriptions;
+    for (UOpenPocketBaseSubscription* Subscription : Subscriptions)
+    {
+        if (Subscription != nullptr)
+        {
+            Subscription->Unsubscribe();
+        }
+    }
+    ActiveSubscriptions.Reset();
+
     if (NativeClient.IsValid())
     {
         NativeClient->Shutdown();
+    }
+}
+
+UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
+    FString Collection,
+    const FOpenPocketBaseRealtimeOptions& Options,
+    FOpenPocketBaseError& OutError)
+{
+    if (!IsReady())
+    {
+        OutError = FOpenPocketBaseError();
+        OutError.Kind = EOpenPocketBaseErrorKind::Cancelled;
+        OutError.ServerMessage = TEXT("The PocketBase client is not ready.");
+        return nullptr;
+    }
+
+    UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
+    FOpenPocketBaseSubscriptionHandle Handle = NativeClient->Collection(MoveTemp(Collection))
+        .SubscribeToRecords(MakeRealtimeCallbacks(Subscription), Options, OutError);
+    if (!Handle.IsActive())
+    {
+        return nullptr;
+    }
+    Subscription->Initialize(this, MoveTemp(Handle));
+    RetainSubscription(Subscription);
+    return Subscription;
+}
+
+UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
+    FString Collection,
+    FString RecordId,
+    const FOpenPocketBaseRealtimeOptions& Options,
+    FOpenPocketBaseError& OutError)
+{
+    if (!IsReady())
+    {
+        OutError = FOpenPocketBaseError();
+        OutError.Kind = EOpenPocketBaseErrorKind::Cancelled;
+        OutError.ServerMessage = TEXT("The PocketBase client is not ready.");
+        return nullptr;
+    }
+
+    UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
+    FOpenPocketBaseSubscriptionHandle Handle = NativeClient->Collection(MoveTemp(Collection))
+        .SubscribeToRecord(
+            MoveTemp(RecordId),
+            MakeRealtimeCallbacks(Subscription),
+            Options,
+            OutError);
+    if (!Handle.IsActive())
+    {
+        return nullptr;
+    }
+    Subscription->Initialize(this, MoveTemp(Handle));
+    RetainSubscription(Subscription);
+    return Subscription;
+}
+
+UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToTopic(
+    FString Topic,
+    const FOpenPocketBaseRealtimeOptions& Options,
+    FOpenPocketBaseError& OutError)
+{
+    if (!IsReady())
+    {
+        OutError = FOpenPocketBaseError();
+        OutError.Kind = EOpenPocketBaseErrorKind::Cancelled;
+        OutError.ServerMessage = TEXT("The PocketBase client is not ready.");
+        return nullptr;
+    }
+
+    UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
+    FOpenPocketBaseSubscriptionHandle Handle = NativeClient->Subscribe(
+        MoveTemp(Topic),
+        MakeRealtimeCallbacks(Subscription),
+        Options,
+        OutError);
+    if (!Handle.IsActive())
+    {
+        return nullptr;
+    }
+    Subscription->Initialize(this, MoveTemp(Handle));
+    RetainSubscription(Subscription);
+    return Subscription;
+}
+
+void UOpenPocketBaseClient::UnsubscribeAllRealtime()
+{
+    const TArray<TObjectPtr<UOpenPocketBaseSubscription>> Subscriptions = ActiveSubscriptions;
+    for (UOpenPocketBaseSubscription* Subscription : Subscriptions)
+    {
+        if (Subscription != nullptr)
+        {
+            Subscription->Unsubscribe();
+        }
+    }
+    ActiveSubscriptions.Reset();
+    if (NativeClient.IsValid())
+    {
+        NativeClient->UnsubscribeAllRealtime();
     }
 }
 
@@ -114,4 +224,54 @@ void UOpenPocketBaseClient::HandleNativeSessionChanged(
     const FOpenPocketBaseSessionSnapshot& Session)
 {
     SessionChanged.Broadcast(Session);
+}
+
+FOpenPocketBaseRealtimeCallbacks UOpenPocketBaseClient::MakeRealtimeCallbacks(
+    UOpenPocketBaseSubscription* Subscription) const
+{
+    const TWeakObjectPtr<UOpenPocketBaseSubscription> WeakSubscription = Subscription;
+    FOpenPocketBaseRealtimeCallbacks Callbacks;
+    Callbacks.OnEvent = [WeakSubscription](const FOpenPocketBaseRealtimeEvent& Event)
+    {
+        if (UOpenPocketBaseSubscription* Pinned = WeakSubscription.Get())
+        {
+            Pinned->HandleNativeEvent(Event);
+        }
+    };
+    Callbacks.OnConnectionStateChanged = [WeakSubscription](
+        const EOpenPocketBaseRealtimeConnectionState State)
+    {
+        if (UOpenPocketBaseSubscription* Pinned = WeakSubscription.Get())
+        {
+            Pinned->HandleNativeState(State);
+        }
+    };
+    Callbacks.OnError = [WeakSubscription](const FOpenPocketBaseError& Error)
+    {
+        if (UOpenPocketBaseSubscription* Pinned = WeakSubscription.Get())
+        {
+            Pinned->HandleNativeError(Error);
+        }
+    };
+    Callbacks.OnResyncRequired = [WeakSubscription]()
+    {
+        if (UOpenPocketBaseSubscription* Pinned = WeakSubscription.Get())
+        {
+            Pinned->HandleNativeResyncRequired();
+        }
+    };
+    return Callbacks;
+}
+
+void UOpenPocketBaseClient::RetainSubscription(UOpenPocketBaseSubscription* Subscription)
+{
+    if (Subscription != nullptr)
+    {
+        ActiveSubscriptions.AddUnique(Subscription);
+    }
+}
+
+void UOpenPocketBaseClient::ReleaseSubscription(UOpenPocketBaseSubscription* Subscription)
+{
+    ActiveSubscriptions.Remove(Subscription);
 }

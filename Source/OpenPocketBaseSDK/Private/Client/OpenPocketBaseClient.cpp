@@ -14,6 +14,7 @@
 #include "Misc/ScopeLock.h"
 #include "Misc/SecureHash.h"
 #include "Request/OpenPocketBaseRequestState.h"
+#include "Realtime/OpenPocketBaseRealtimeManager.h"
 #include "Serialization/OpenPocketBaseJson.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -952,6 +953,7 @@ struct FOpenPocketBaseClient::FImpl
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
     TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore;
     TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock;
+    TSharedPtr<OpenPocketBase::Realtime::FConnectionManager, ESPMode::ThreadSafe> Realtime;
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Owner;
     FString SecureStorageKey;
     std::atomic<bool> bShutdown = false;
@@ -987,6 +989,21 @@ struct FOpenPocketBaseClient::FImpl
     {
         const FString Binding = BaseUrl + TEXT("|") + Config.ProfileName;
         SecureStorageKey = TEXT("openpocketbase.session.") + FMD5::HashAnsiString(*Binding);
+        Realtime = MakeShared<OpenPocketBase::Realtime::FConnectionManager, ESPMode::ThreadSafe>(
+            BaseUrl,
+            Config.DefaultHeaders,
+            Config.AcceptLanguage,
+            Transport,
+            Clock,
+            [this]()
+            {
+                FScopeLock Lock(&AuthMutex);
+                return bHasAuthRecord ? AuthToken : FString();
+            },
+            [this]()
+            {
+                return !bShutdown.load(std::memory_order_acquire) && Owner.IsValid();
+            });
     }
 
     void GetCurrentAuthIdentity(int64& OutGeneration, FString& OutToken) const
@@ -1290,6 +1307,7 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
+        Realtime->NotifyAuthChanged();
         return true;
     }
 
@@ -1325,6 +1343,7 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
+        Realtime->NotifyAuthChanged();
         OutError = FOpenPocketBaseError();
         return true;
     }
@@ -1359,6 +1378,7 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.Reason = EOpenPocketBaseSessionChangeReason::LoggedOut;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
+        Realtime->NotifyAuthChanged();
         return true;
     }
 
@@ -1439,6 +1459,7 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.Reason = EOpenPocketBaseSessionChangeReason::LoggedOut;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
+        Realtime->NotifyAuthChanged();
     }
 
     bool TryStoreRefreshedAuth(
@@ -1479,6 +1500,7 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
+        Realtime->NotifyAuthChanged();
         OutError = FOpenPocketBaseError();
         return true;
     }
@@ -1574,6 +1596,7 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(Snapshot);
+        Realtime->NotifyAuthChanged();
         OutResult.Status = EOpenPocketBaseSessionRestoreStatus::Restored;
         OutResult.Session = MoveTemp(Snapshot);
         return true;
@@ -1630,6 +1653,11 @@ struct FOpenPocketBaseClient::FImpl
         if (bShutdown.exchange(true, std::memory_order_acq_rel))
         {
             return;
+        }
+
+        if (Realtime.IsValid())
+        {
+            Realtime->Shutdown();
         }
 
         TArray<TSharedPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>> ActiveRequests;
@@ -2225,6 +2253,42 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
             Completion->Invoke(
                 TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(MakeCancelledError()));
         });
+}
+
+FOpenPocketBaseSubscriptionHandle FOpenPocketBaseClient::Subscribe(
+    FString Topic,
+    FOpenPocketBaseRealtimeCallbacks Callbacks,
+    FOpenPocketBaseRealtimeOptions Options,
+    FOpenPocketBaseError& OutError)
+{
+    if (IsShutdown() || !Impl->Realtime.IsValid())
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::Cancelled,
+            TEXT("The client has shut down."));
+        return {};
+    }
+    return Impl->Realtime->Subscribe(
+        MoveTemp(Topic),
+        MoveTemp(Callbacks),
+        MoveTemp(Options),
+        OutError);
+}
+
+void FOpenPocketBaseClient::UnsubscribeTopic(const FString& Topic)
+{
+    if (Impl->Realtime.IsValid())
+    {
+        Impl->Realtime->UnsubscribeTopic(Topic);
+    }
+}
+
+void FOpenPocketBaseClient::UnsubscribeAllRealtime()
+{
+    if (Impl->Realtime.IsValid())
+    {
+        Impl->Realtime->UnsubscribeAll();
+    }
 }
 
 bool FOpenPocketBaseClient::IsShutdown() const
@@ -3343,4 +3407,46 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
         {
             Completion->Invoke(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(MakeCancelledError()));
         });
+}
+
+FOpenPocketBaseSubscriptionHandle FOpenPocketBaseCollectionService::SubscribeToRecords(
+    FOpenPocketBaseRealtimeCallbacks Callbacks,
+    FOpenPocketBaseRealtimeOptions Options,
+    FOpenPocketBaseError& OutError) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A ready client and valid collection are required."));
+        return {};
+    }
+    return PinnedClient->Subscribe(
+        Collection + TEXT("/*"),
+        MoveTemp(Callbacks),
+        MoveTemp(Options),
+        OutError);
+}
+
+FOpenPocketBaseSubscriptionHandle FOpenPocketBaseCollectionService::SubscribeToRecord(
+    FString RecordId,
+    FOpenPocketBaseRealtimeCallbacks Callbacks,
+    FOpenPocketBaseRealtimeOptions Options,
+    FOpenPocketBaseError& OutError) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+        !IsSafePathSegment(RecordId))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A ready client, valid collection, and valid record ID are required."));
+        return {};
+    }
+    return PinnedClient->Subscribe(
+        Collection + TEXT("/") + MoveTemp(RecordId),
+        MoveTemp(Callbacks),
+        MoveTemp(Options),
+        OutError);
 }

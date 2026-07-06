@@ -13,6 +13,7 @@ public class OpenPocketBaseSDKTests : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
+                "HTTP",
                 "Json",
                 "JsonUtilities",
                 "OpenPocketBaseSDK"

@@ -24,6 +24,9 @@ private:
     void DownloadTransferFile(FOpenPocketBaseFileToken Token);
     void DeleteTransferRecord(bool bTransferSucceeded, FOpenPocketBaseError Error);
     void FinishTransferProbe(bool bSucceeded, const FOpenPocketBaseError& Error);
+    void BeginRealtimeManagerProbe();
+    void DeleteRealtimeManagerRecord();
+    void FinishRealtimeManagerProbe(bool bSucceeded, const FOpenPocketBaseError& Error);
     void BeginStreamingProbe();
     void HandleStreamingCancellationComplete(bool bSucceeded);
     void BeginStreamingTimeoutProbe();
@@ -32,6 +35,7 @@ private:
 
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
     FOpenPocketBaseRequestHandle Request;
+    FOpenPocketBaseSubscriptionHandle RealtimeSubscription;
     FString TransferOrigin;
     FString TransferRecordId;
     FString TransferFileName;
@@ -40,6 +44,8 @@ private:
     TArray<uint8> ExpectedTransferBytes;
     bool bUploadProgressVerified = false;
     bool bDownloadProgressVerified = false;
+    bool bRealtimeMutationStarted = false;
+    bool bRealtimeManagerFinished = false;
     FHttpRequestPtr StreamingRequest;
     TSharedPtr<FOpenPocketBasePackageStreamingState, ESPMode::ThreadSafe> StreamingState;
     double StreamingTimeoutStartedAt = 0;

@@ -143,10 +143,15 @@ if ! grep -q 'OPENPOCKETBASE_PACKAGED_TRANSFER_SUCCESS' "$probe_root/tls_probe.l
     exit 5
 fi
 
-if ! grep -q 'OPENPOCKETBASE_PACKAGED_STREAMING_SUCCESS' "$probe_root/tls_probe.log"; then
-    print -u2 "The packaged process did not report incremental streaming success."
+if ! grep -q 'OPENPOCKETBASE_PACKAGED_REALTIME_MANAGER_SUCCESS' "$probe_root/tls_probe.log"; then
+    print -u2 "The packaged process did not report realtime-manager success."
     exit 6
 fi
 
+if ! grep -q 'OPENPOCKETBASE_PACKAGED_STREAMING_SUCCESS' "$probe_root/tls_probe.log"; then
+    print -u2 "The packaged process did not report incremental streaming success."
+    exit 7
+fi
+
 probe_succeeded=1
-print "Packaged Mac HTTPS, secure-storage, transfer, and incremental streaming probes passed."
+print "Packaged Mac HTTPS, secure-storage, transfer, realtime-manager, and incremental streaming probes passed."
