@@ -199,3 +199,24 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseOAuth2Callback
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
     FOpenPocketBaseRequestOptions RequestOptions;
 };
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseAssistedOAuth2Options
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication")
+    FString Provider;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication")
+    TArray<FString> Scopes;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    FOpenPocketBaseRecordBody CreateData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    FOpenPocketBaseMfaContinuation Mfa;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    FOpenPocketBaseRequestOptions RequestOptions;
+};

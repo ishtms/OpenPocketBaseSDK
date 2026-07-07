@@ -708,6 +708,48 @@ private:
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseAssistedOAuth2AsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseAuthActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseMfaRequiredAction MfaRequired;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Log In with OAuth2"))
+    static UOpenPocketBaseAssistedOAuth2AsyncAction* LogInWithOAuth2(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FOpenPocketBaseAssistedOAuth2Options Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FOpenPocketBaseAssistedOAuth2Options Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
 class OPENPOCKETBASESDK_API UOpenPocketBaseRestoreSessionAsyncAction final
     : public UOpenPocketBaseAsyncActionBase
 {

@@ -11,6 +11,7 @@
 #include "OpenPocketBaseResult.h"
 #include "OpenPocketBaseSession.h"
 #include "Clock/OpenPocketBaseClock.h"
+#include "OAuth/OpenPocketBaseOAuthBrowser.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Function.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
@@ -18,6 +19,11 @@
 
 class FOpenPocketBaseClient;
 class FOpenPocketBaseFileService;
+
+namespace OpenPocketBase::Internal
+{
+class FAssistedOAuthOperation;
+}
 
 using FOpenPocketBaseRecordCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseRecord>&&)>;
@@ -171,6 +177,10 @@ public:
         FOpenPocketBaseOAuth2Callback Callback,
         FOpenPocketBaseAuthAttemptCallback OnComplete) const;
 
+    FOpenPocketBaseRequestHandle AuthenticateWithOAuth2(
+        FOpenPocketBaseAssistedOAuth2Options Options,
+        FOpenPocketBaseAuthAttemptCallback OnComplete) const;
+
     FOpenPocketBaseSubscriptionHandle SubscribeToRecords(
         FOpenPocketBaseRealtimeCallbacks Callbacks,
         FOpenPocketBaseRealtimeOptions Options,
@@ -221,6 +231,14 @@ public:
         TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
         FOpenPocketBaseError& OutError);
 
+    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
+        const FOpenPocketBaseClientConfig& Config,
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
+        TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser,
+        FOpenPocketBaseError& OutError);
+
     ~FOpenPocketBaseClient();
 
     FOpenPocketBaseCollectionService Collection(FString CollectionName);
@@ -262,10 +280,12 @@ private:
         FString NormalizedBaseUrl,
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
         TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
-        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock);
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
+        TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser);
 
     TUniquePtr<FImpl> Impl;
 
     friend class FOpenPocketBaseCollectionService;
     friend class FOpenPocketBaseFileService;
+    friend class OpenPocketBase::Internal::FAssistedOAuthOperation;
 };

@@ -388,6 +388,19 @@ void FConnectionManager::UnsubscribeAll()
     }
 }
 
+bool FConnectionManager::TryGetActiveClientId(FString& OutClientId) const
+{
+    FScopeLock Lock(&Mutex);
+    if (bShutdown || ConnectionState != EOpenPocketBaseRealtimeConnectionState::Active ||
+        ClientId.IsEmpty())
+    {
+        OutClientId.Reset();
+        return false;
+    }
+    OutClientId = ClientId;
+    return true;
+}
+
 void FConnectionManager::NotifyAuthChanged()
 {
     bool bHasListeners = false;

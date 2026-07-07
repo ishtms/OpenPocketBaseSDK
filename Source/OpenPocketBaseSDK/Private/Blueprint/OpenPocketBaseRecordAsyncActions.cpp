@@ -1168,6 +1168,78 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::BroadcastCancelled()
     Cancelled.Broadcast();
 }
 
+UOpenPocketBaseAssistedOAuth2AsyncAction*
+UOpenPocketBaseAssistedOAuth2AsyncAction::LogInWithOAuth2(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString InAuthCollection,
+    FOpenPocketBaseAssistedOAuth2Options InOptions)
+{
+    UOpenPocketBaseAssistedOAuth2AsyncAction* Action =
+        NewObject<UOpenPocketBaseAssistedOAuth2AsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseAssistedOAuth2AsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->Collection(AuthCollection).AuthenticateWithOAuth2(
+        MoveTemp(Options),
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
+        {
+            UOpenPocketBaseAssistedOAuth2AsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess() &&
+                    Result.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::Authenticated)
+                {
+                    Action->Success.Broadcast(Result.GetValue().Authentication);
+                }
+                else if (Result.IsSuccess())
+                {
+                    Action->MfaRequired.Broadcast(Result.GetValue().Mfa);
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        });
+}
+
+void UOpenPocketBaseAssistedOAuth2AsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
 UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::LogInWithPassword(
     const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,

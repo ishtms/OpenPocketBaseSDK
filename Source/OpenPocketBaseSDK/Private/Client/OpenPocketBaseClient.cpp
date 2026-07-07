@@ -527,6 +527,89 @@ bool TryBuildOAuthAuthorizationUrl(
     return true;
 }
 
+bool TryBuildAssistedOAuthAuthorizationUrl(
+    const FString& ProviderUrl,
+    const FString& RedirectUrl,
+    const FString& State,
+    const TArray<FString>& Scopes,
+    FString& OutUrl,
+    FOpenPocketBaseError& OutError)
+{
+    if (ProviderUrl.IsEmpty() || ProviderUrl.Len() > 8192 ||
+        ProviderUrl.Contains(TEXT("#")) || ProviderUrl.Contains(TEXT("\\")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::Serialization,
+            TEXT("PocketBase returned an invalid OAuth authorization URL."));
+        return false;
+    }
+    FString ProviderOrigin;
+    if (!TryGetNormalizedOrigin(ProviderUrl, ProviderOrigin))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::Serialization,
+            TEXT("PocketBase returned an OAuth authorization URL without a valid origin."));
+        return false;
+    }
+
+    FString Base = ProviderUrl;
+    FString Query;
+    ProviderUrl.Split(TEXT("?"), &Base, &Query);
+    TMap<FString, FString> Values;
+    if (!TryParseQuery(Query, Values))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::Serialization,
+            TEXT("PocketBase returned invalid OAuth authorization parameters."));
+        return false;
+    }
+    Values.Add(TEXT("redirect_uri"), RedirectUrl);
+    Values.Add(TEXT("state"), State);
+    if (!Scopes.IsEmpty())
+    {
+        if (Scopes.Num() > 32)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OAuth scopes exceed the supported bound."));
+            return false;
+        }
+        for (const FString& Scope : Scopes)
+        {
+            if (!IsSafeOAuthValue(Scope, 256) || Scope.Contains(TEXT(" ")))
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::InvalidArgument,
+                    TEXT("OAuth scopes contain an invalid value."));
+                return false;
+            }
+        }
+        Values.Add(TEXT("scope"), FString::Join(Scopes, TEXT(" ")));
+    }
+
+    TArray<FString> Parts;
+    Parts.Reserve(Values.Num());
+    Values.KeySort([](const FString& First, const FString& Second)
+    {
+        return First < Second;
+    });
+    for (const TPair<FString, FString>& Pair : Values)
+    {
+        Parts.Add(FGenericPlatformHttp::UrlEncode(Pair.Key) + TEXT("=") +
+            FGenericPlatformHttp::UrlEncode(Pair.Value));
+    }
+    OutUrl = Base + TEXT("?") + FString::Join(Parts, TEXT("&"));
+    if (OutUrl.Len() > 8192)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The OAuth authorization URL exceeds the supported bound."));
+        return false;
+    }
+    OutError = FOpenPocketBaseError();
+    return true;
+}
+
 bool TryValidateOAuthCallback(
     const FString& CallbackUrl,
     const FString& ExpectedRedirectUrl,
@@ -1274,6 +1357,7 @@ struct FOpenPocketBaseClient::FImpl
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
     TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore;
     TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock;
+    TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser;
     TSharedPtr<OpenPocketBase::Realtime::FConnectionManager, ESPMode::ThreadSafe> Realtime;
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Owner;
     FString SecureStorageKey;
@@ -1303,12 +1387,14 @@ struct FOpenPocketBaseClient::FImpl
         FString InBaseUrl,
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InTransport,
         TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> InSecureStore,
-        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> InClock)
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> InClock,
+        TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> InOAuthBrowser)
         : Config(MoveTemp(InConfig))
         , BaseUrl(MoveTemp(InBaseUrl))
         , Transport(MoveTemp(InTransport))
         , SecureStore(MoveTemp(InSecureStore))
         , Clock(MoveTemp(InClock))
+        , OAuthBrowser(MoveTemp(InOAuthBrowser))
     {
         const FString Binding = BaseUrl + TEXT("|") + Config.ProfileName;
         SecureStorageKey = TEXT("openpocketbase.session.") + FMD5::HashAnsiString(*Binding);
@@ -1515,6 +1601,92 @@ struct FOpenPocketBaseClient::FImpl
         OAuthTransactions.Remove(Callback.TransactionId);
         OutError = FOpenPocketBaseError();
         return true;
+    }
+
+    bool TryCreateAssistedOAuthTransaction(
+        const FString& TransactionAuthCollection,
+        const FOpenPocketBaseOAuthProvider& Provider,
+        const TArray<FString>& Scopes,
+        const FString& RealtimeClientId,
+        FString& OutTransactionId,
+        FString& OutAuthorizationUrl,
+        FOpenPocketBaseError& OutError)
+    {
+        OutTransactionId.Reset();
+        OutAuthorizationUrl.Reset();
+        if (!Config.bEnableAssistedOAuth || bShutdown.load(std::memory_order_acquire) ||
+            !IsSafePathSegment(TransactionAuthCollection) ||
+            !IsSafeOAuthValue(Provider.Name, 128) ||
+            !IsSafeOAuthValue(Provider.CodeVerifier, 4096) ||
+            !IsBoundedTransientAuthId(RealtimeClientId))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A configured client, provider, verifier, and realtime identity are required."));
+            return false;
+        }
+
+        const FString RedirectUrl = BaseUrl + TEXT("/api/oauth2-redirect");
+        if (!TryBuildAssistedOAuthAuthorizationUrl(
+                Provider.AuthUrl,
+                RedirectUrl,
+                RealtimeClientId,
+                Scopes,
+                OutAuthorizationUrl,
+                OutError))
+        {
+            return false;
+        }
+
+        const double Now = Clock->MonotonicSeconds();
+        constexpr double LifetimeSeconds = 300;
+        FScopeLock Lock(&OAuthMutex);
+        if (bShutdown.load(std::memory_order_acquire))
+        {
+            OutError = MakeCancelledError();
+            return false;
+        }
+        RemoveExpiredOAuthTransactionsLocked(Now);
+        if (OAuthTransactions.Num() >= 16)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("The maximum number of active OAuth transactions has been reached."));
+            return false;
+        }
+        for (int32 Attempt = 0; Attempt < 4; ++Attempt)
+        {
+            OutTransactionId = GenerateOAuthRandomToken(1);
+            if (!OAuthTransactions.Contains(OutTransactionId))
+            {
+                break;
+            }
+            OutTransactionId.Reset();
+        }
+        if (OutTransactionId.IsEmpty())
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("A unique OAuth transaction could not be created."));
+            return false;
+        }
+
+        FOAuthTransaction Transaction;
+        Transaction.AuthCollection = TransactionAuthCollection;
+        Transaction.Provider = Provider.Name;
+        Transaction.RedirectUrl = RedirectUrl;
+        Transaction.State = RealtimeClientId;
+        Transaction.CodeVerifier = Provider.CodeVerifier;
+        Transaction.ExpiresAtMonotonicSeconds = Now + LifetimeSeconds;
+        OAuthTransactions.Add(OutTransactionId, MoveTemp(Transaction));
+        OutError = FOpenPocketBaseError();
+        return true;
+    }
+
+    void CancelOAuthTransaction(const FString& TransactionId)
+    {
+        FScopeLock Lock(&OAuthMutex);
+        OAuthTransactions.Remove(TransactionId);
     }
 
     void GetCurrentAuthIdentity(int64& OutGeneration, FString& OutToken) const
@@ -2196,6 +2368,479 @@ struct FOpenPocketBaseClient::FImpl
     }
 };
 
+namespace OpenPocketBase::Internal
+{
+class FAssistedOAuthOperation final
+    : public TSharedFromThis<FAssistedOAuthOperation, ESPMode::ThreadSafe>
+{
+public:
+    struct FCancelBridge
+    {
+        void Set(TFunction<void()> InCancel)
+        {
+            FScopeLock Lock(&Mutex);
+            Cancel = MoveTemp(InCancel);
+        }
+
+        void Invoke()
+        {
+            TFunction<void()> LocalCancel;
+            {
+                FScopeLock Lock(&Mutex);
+                LocalCancel = Cancel;
+            }
+            if (LocalCancel)
+            {
+                LocalCancel();
+            }
+        }
+
+        FCriticalSection Mutex;
+        TFunction<void()> Cancel;
+    };
+
+    static FOpenPocketBaseRequestHandle Start(
+        const TSharedRef<FOpenPocketBaseClient, ESPMode::ThreadSafe>& Client,
+        FString AuthCollection,
+        FOpenPocketBaseAssistedOAuth2Options Options,
+        FOpenPocketBaseAuthAttemptCallback OnComplete)
+    {
+        const TSharedRef<TCompletionState<FOpenPocketBaseAuthAttempt>, ESPMode::ThreadSafe>
+            Completion = MakeShared<
+                TCompletionState<FOpenPocketBaseAuthAttempt>,
+                ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+        const TSharedRef<FCancelBridge, ESPMode::ThreadSafe> CancelBridge =
+            MakeShared<FCancelBridge, ESPMode::ThreadSafe>();
+        const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> RequestState =
+            Client->Impl->CreateCompositeState(
+                [CancelBridge, Completion]()
+                {
+                    CancelBridge->Invoke();
+                    Completion->Invoke(
+                        TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
+                            MakeCancelledError()));
+                });
+        const FOpenPocketBaseRequestHandle Handle =
+            Client->Impl->MakeRequestHandle(RequestState);
+        const TSharedRef<FAssistedOAuthOperation, ESPMode::ThreadSafe> Operation =
+            MakeShared<FAssistedOAuthOperation, ESPMode::ThreadSafe>(
+                Client,
+                MoveTemp(AuthCollection),
+                MoveTemp(Options),
+                RequestState,
+                Completion);
+        const TWeakPtr<FAssistedOAuthOperation, ESPMode::ThreadSafe> WeakOperation = Operation;
+        CancelBridge->Set([WeakOperation]()
+        {
+            if (const TSharedPtr<FAssistedOAuthOperation, ESPMode::ThreadSafe> Pinned =
+                    WeakOperation.Pin())
+            {
+                Pinned->CancelStages();
+            }
+        });
+        Operation->BeginDiscovery();
+        return Handle;
+    }
+
+    FAssistedOAuthOperation(
+        TSharedRef<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+        FString InAuthCollection,
+        FOpenPocketBaseAssistedOAuth2Options InOptions,
+        TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> InRequestState,
+        TSharedRef<TCompletionState<FOpenPocketBaseAuthAttempt>, ESPMode::ThreadSafe> InCompletion)
+        : Client(MoveTemp(InClient))
+        , AuthCollection(MoveTemp(InAuthCollection))
+        , Options(MoveTemp(InOptions))
+        , RequestState(MoveTemp(InRequestState))
+        , Completion(MoveTemp(InCompletion))
+    {
+    }
+
+private:
+    void BeginDiscovery()
+    {
+        if (!RequestState->IsActive())
+        {
+            return;
+        }
+        const TSharedRef<FAssistedOAuthOperation, ESPMode::ThreadSafe> Self = AsShared();
+        SetChildHandle(Client->Collection(AuthCollection).ListAuthMethods(
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Result)
+            {
+                Self->HandleDiscovery(MoveTemp(Result));
+            },
+            Options.RequestOptions));
+    }
+
+    void HandleDiscovery(TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Result)
+    {
+        if (!RequestState->IsActive())
+        {
+            return;
+        }
+        if (!Result.IsSuccess())
+        {
+            FinishFailure(Result.GetError());
+            return;
+        }
+        if (!Result.GetValue().OAuth2.bEnabled)
+        {
+            FinishFailure(MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("OAuth2 is not enabled for this auth collection.")));
+            return;
+        }
+        const FOpenPocketBaseOAuthProvider* MatchedProvider =
+            Result.GetValue().OAuth2.Providers.FindByPredicate(
+                [this](const FOpenPocketBaseOAuthProvider& Candidate)
+                {
+                    return Candidate.Name == Options.Provider;
+                });
+        if (MatchedProvider == nullptr)
+        {
+            FinishFailure(MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("The requested OAuth provider is not available.")));
+            return;
+        }
+        Provider = *MatchedProvider;
+
+        const TSharedRef<FAssistedOAuthOperation, ESPMode::ThreadSafe> Self = AsShared();
+        FOpenPocketBaseRealtimeCallbacks Callbacks;
+        Callbacks.OnEvent = [Self](const FOpenPocketBaseRealtimeEvent& Event)
+        {
+            Self->HandleRealtimeEvent(Event);
+        };
+        Callbacks.OnConnectionStateChanged =
+            [Self](const EOpenPocketBaseRealtimeConnectionState State)
+            {
+                Self->HandleConnectionState(State);
+            };
+        Callbacks.OnError = [Self](const FOpenPocketBaseError& Error)
+        {
+            Self->HandleRealtimeError(Error);
+        };
+        Callbacks.OnResyncRequired = [Self]()
+        {
+            Self->HandleRealtimeGap();
+        };
+
+        FOpenPocketBaseError SubscribeError;
+        FOpenPocketBaseSubscriptionHandle NewSubscription = Client->Subscribe(
+            TEXT("@oauth2"),
+            MoveTemp(Callbacks),
+            {},
+            SubscribeError);
+        if (!NewSubscription.IsActive())
+        {
+            FinishFailure(MoveTemp(SubscribeError));
+            return;
+        }
+        SetSubscription(MoveTemp(NewSubscription));
+    }
+
+    void HandleConnectionState(const EOpenPocketBaseRealtimeConnectionState State)
+    {
+        if (!RequestState->IsActive())
+        {
+            return;
+        }
+        if (State == EOpenPocketBaseRealtimeConnectionState::Active)
+        {
+            BeginBrowser();
+            return;
+        }
+        if (State == EOpenPocketBaseRealtimeConnectionState::Reconnecting ||
+            State == EOpenPocketBaseRealtimeConnectionState::Stopped)
+        {
+            bool bIgnore = false;
+            {
+                FScopeLock Lock(&StageMutex);
+                bIgnore = bHandoffAccepted;
+            }
+            if (!bIgnore)
+            {
+                FinishFailure(MakeLocalError(
+                    EOpenPocketBaseErrorKind::Transport,
+                    TEXT("The assisted OAuth realtime handoff was interrupted.")));
+            }
+        }
+    }
+
+    void BeginBrowser()
+    {
+        FString RealtimeClientId;
+        if (!Client->Impl->Realtime->TryGetActiveClientId(RealtimeClientId))
+        {
+            FinishFailure(MakeLocalError(
+                EOpenPocketBaseErrorKind::Transport,
+                TEXT("The assisted OAuth realtime identity is unavailable.")));
+            return;
+        }
+
+        {
+            FScopeLock Lock(&StageMutex);
+            if (bBrowserOpened || bHandoffAccepted || !RequestState->IsActive())
+            {
+                return;
+            }
+            bBrowserOpened = true;
+            ExpectedState = RealtimeClientId;
+        }
+
+        FString NewTransactionId;
+        FString AuthorizationUrl;
+        FOpenPocketBaseError Error;
+        if (!Client->Impl->TryCreateAssistedOAuthTransaction(
+                AuthCollection,
+                Provider,
+                Options.Scopes,
+                RealtimeClientId,
+                NewTransactionId,
+                AuthorizationUrl,
+                Error))
+        {
+            FinishFailure(MoveTemp(Error));
+            return;
+        }
+        {
+            FScopeLock Lock(&StageMutex);
+            TransactionId = NewTransactionId;
+        }
+        if (!Client->Impl->OAuthBrowser->OpenExternalAuthorizationUrl(
+                AuthorizationUrl,
+                Error))
+        {
+            FinishFailure(MoveTemp(Error));
+        }
+    }
+
+    void HandleRealtimeEvent(const FOpenPocketBaseRealtimeEvent& Event)
+    {
+        if (!RequestState->IsActive() || Event.Topic != TEXT("@oauth2") ||
+            !Event.Data.JsonObject.IsValid())
+        {
+            return;
+        }
+
+        FString EventState;
+        FString Code;
+        FString ProviderError;
+        Event.Data.JsonObject->TryGetStringField(TEXT("state"), EventState);
+        Event.Data.JsonObject->TryGetStringField(TEXT("code"), Code);
+        Event.Data.JsonObject->TryGetStringField(TEXT("error"), ProviderError);
+
+        FString ActiveTransactionId;
+        bool bStateMismatch = false;
+        bool bProviderRejected = false;
+        {
+            FScopeLock Lock(&StageMutex);
+            if (!bBrowserOpened || bHandoffAccepted)
+            {
+                return;
+            }
+            bStateMismatch = EventState != ExpectedState;
+            bProviderRejected = !ProviderError.IsEmpty() || !IsSafeOAuthValue(Code, 4096);
+            if (!bStateMismatch && !bProviderRejected)
+            {
+                bHandoffAccepted = true;
+                ActiveTransactionId = TransactionId;
+            }
+        }
+        if (bStateMismatch)
+        {
+            FinishFailure(MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("The assisted OAuth handoff state does not match.")));
+            return;
+        }
+        if (bProviderRejected)
+        {
+            FinishFailure(MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("The OAuth provider rejected the assisted authorization request.")));
+            return;
+        }
+
+        UnsubscribeHandoff();
+        FOpenPocketBaseOAuth2Callback Callback;
+        Callback.TransactionId = ActiveTransactionId;
+        Callback.CallbackUrl = Client->Impl->BaseUrl + TEXT("/api/oauth2-redirect?state=") +
+            FGenericPlatformHttp::UrlEncode(EventState) + TEXT("&code=") +
+            FGenericPlatformHttp::UrlEncode(Code);
+        Callback.CreateData = Options.CreateData;
+        Callback.Mfa = Options.Mfa;
+        Callback.RequestOptions = Options.RequestOptions;
+        const TSharedRef<FAssistedOAuthOperation, ESPMode::ThreadSafe> Self = AsShared();
+        SetChildHandle(Client->Collection(AuthCollection).CompleteOAuth2(
+            MoveTemp(Callback),
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
+            {
+                Self->HandleExchange(MoveTemp(Result));
+            }));
+    }
+
+    void HandleExchange(TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
+    {
+        if (!RequestState->IsActive())
+        {
+            return;
+        }
+        if (Result.IsSuccess())
+        {
+            FinishSuccess(MoveTemp(Result.GetValue()));
+        }
+        else
+        {
+            FinishFailure(Result.GetError());
+        }
+    }
+
+    void HandleRealtimeError(const FOpenPocketBaseError& Error)
+    {
+        if (!RequestState->IsActive())
+        {
+            return;
+        }
+        {
+            FScopeLock Lock(&StageMutex);
+            if (bHandoffAccepted)
+            {
+                return;
+            }
+        }
+        FOpenPocketBaseError Sanitized = Error;
+        Sanitized.ServerMessage = TEXT("The assisted OAuth realtime handoff failed.");
+        Sanitized.ServerCode.Reset();
+        Sanitized.FieldErrors.Reset();
+        FinishFailure(MoveTemp(Sanitized));
+    }
+
+    void HandleRealtimeGap()
+    {
+        bool bIgnore = false;
+        {
+            FScopeLock Lock(&StageMutex);
+            bIgnore = bHandoffAccepted;
+        }
+        if (RequestState->IsActive() && !bIgnore)
+        {
+            FinishFailure(MakeLocalError(
+                EOpenPocketBaseErrorKind::Transport,
+                TEXT("The assisted OAuth realtime handoff may have missed its result.")));
+        }
+    }
+
+    void SetChildHandle(FOpenPocketBaseRequestHandle Handle)
+    {
+        bool bCancel = false;
+        {
+            FScopeLock Lock(&StageMutex);
+            bCancel = !RequestState->IsActive();
+            if (!bCancel)
+            {
+                ChildHandle = Handle;
+            }
+        }
+        if (bCancel)
+        {
+            Handle.Cancel();
+        }
+    }
+
+    void SetSubscription(FOpenPocketBaseSubscriptionHandle Handle)
+    {
+        bool bCancel = false;
+        {
+            FScopeLock Lock(&StageMutex);
+            bCancel = !RequestState->IsActive();
+            if (!bCancel)
+            {
+                Subscription = MoveTemp(Handle);
+            }
+        }
+        if (bCancel)
+        {
+            Handle.Unsubscribe();
+        }
+    }
+
+    void UnsubscribeHandoff()
+    {
+        FOpenPocketBaseSubscriptionHandle LocalSubscription;
+        {
+            FScopeLock Lock(&StageMutex);
+            LocalSubscription = MoveTemp(Subscription);
+        }
+        LocalSubscription.Unsubscribe();
+    }
+
+    void CancelStages()
+    {
+        FOpenPocketBaseRequestHandle LocalChild;
+        FOpenPocketBaseSubscriptionHandle LocalSubscription;
+        FString LocalTransactionId;
+        {
+            FScopeLock Lock(&StageMutex);
+            LocalChild = ChildHandle;
+            ChildHandle = {};
+            LocalSubscription = MoveTemp(Subscription);
+            LocalTransactionId = MoveTemp(TransactionId);
+        }
+        LocalChild.Cancel();
+        LocalSubscription.Unsubscribe();
+        if (!LocalTransactionId.IsEmpty())
+        {
+            Client->Impl->CancelOAuthTransaction(LocalTransactionId);
+        }
+    }
+
+    void FinishSuccess(FOpenPocketBaseAuthAttempt Result)
+    {
+        CancelStages();
+        RequestState->TryComplete(
+            EOpenPocketBaseRequestState::Succeeded,
+            [Completion = Completion, Result = MoveTemp(Result)]() mutable
+            {
+                Completion->Invoke(
+                    TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Success(
+                        MoveTemp(Result)));
+            });
+    }
+
+    void FinishFailure(FOpenPocketBaseError Error)
+    {
+        CancelStages();
+        const EOpenPocketBaseRequestState Terminal =
+            Error.Kind == EOpenPocketBaseErrorKind::Cancelled
+                ? EOpenPocketBaseRequestState::Cancelled
+                : EOpenPocketBaseRequestState::Failed;
+        RequestState->TryComplete(
+            Terminal,
+            [Completion = Completion, Error = MoveTemp(Error)]() mutable
+            {
+                Completion->Invoke(
+                    TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
+                        MoveTemp(Error)));
+            });
+    }
+
+    TSharedRef<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    FString AuthCollection;
+    FOpenPocketBaseAssistedOAuth2Options Options;
+    TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> RequestState;
+    TSharedRef<TCompletionState<FOpenPocketBaseAuthAttempt>, ESPMode::ThreadSafe> Completion;
+    FCriticalSection StageMutex;
+    FOpenPocketBaseRequestHandle ChildHandle;
+    FOpenPocketBaseSubscriptionHandle Subscription;
+    FOpenPocketBaseOAuthProvider Provider;
+    FString ExpectedState;
+    FString TransactionId;
+    bool bBrowserOpened = false;
+    bool bHandoffAccepted = false;
+};
+}
+
 namespace
 {
 class FOpenPocketBaseFullListOperation final
@@ -2369,6 +3014,23 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
     TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
     FOpenPocketBaseError& OutError)
 {
+    return Create(
+        Config,
+        MoveTemp(Transport),
+        MoveTemp(SecureStore),
+        MoveTemp(Clock),
+        CreateOpenPocketBaseOAuthBrowser(),
+        OutError);
+}
+
+TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
+    const FOpenPocketBaseClientConfig& Config,
+    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
+    TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser,
+    FOpenPocketBaseError& OutError)
+{
     FString BaseUrl;
     if (!Config.TryGetNormalizedBaseUrl(BaseUrl, OutError) ||
         !ValidateDefaultHeaders(Config, OutError))
@@ -2407,7 +3069,8 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
             MoveTemp(BaseUrl),
             MoveTemp(Transport),
             MoveTemp(SecureStore),
-            MoveTemp(Clock)));
+            MoveTemp(Clock),
+            MoveTemp(OAuthBrowser)));
     Client->Impl->Owner = Client;
     return Client;
 }
@@ -2417,13 +3080,15 @@ FOpenPocketBaseClient::FOpenPocketBaseClient(
     FString NormalizedBaseUrl,
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
     TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
-    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock)
+    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
+    TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser)
     : Impl(MakeUnique<FImpl>(
         MoveTemp(Config),
         MoveTemp(NormalizedBaseUrl),
         MoveTemp(Transport),
         MoveTemp(SecureStore),
-        MoveTemp(Clock)))
+        MoveTemp(Clock),
+        MoveTemp(OAuthBrowser)))
 {
 }
 
@@ -2474,8 +3139,36 @@ FOpenPocketBaseCapabilityInfo FOpenPocketBaseClient::GetCapability(
         }
         break;
     case EOpenPocketBaseCapability::OAuthCallback:
-        Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
-        Info.Reason = TEXT("Assisted OAuth callback handling is not implemented.");
+        if (!Impl->Config.bEnableAssistedOAuth)
+        {
+            Info.Status = EOpenPocketBaseCapabilityStatus::DisabledByPolicy;
+            Info.Reason = TEXT("Assisted OAuth requires explicit client configuration.");
+            break;
+        }
+        if (!Impl->OAuthBrowser->IsAvailable(Info.Reason))
+        {
+            Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
+            break;
+        }
+        if (!Impl->OAuthBrowser->IsPlatformFlowValidated(Info.Reason))
+        {
+            Info.Status = EOpenPocketBaseCapabilityStatus::RequiresConfiguration;
+            break;
+        }
+        {
+            FString StreamingReason;
+            if (!Impl->Transport->IsIncrementalResponseStreamingAvailable(StreamingReason))
+            {
+                Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
+                Info.Reason = TEXT("Assisted OAuth requires incremental realtime streaming.");
+                break;
+            }
+        }
+        Info.Status = EOpenPocketBaseCapabilityStatus::Supported;
+        if (Info.Reason.IsEmpty())
+        {
+            Info.Reason = TEXT("The assisted OAuth browser and realtime handoff are available.");
+        }
         break;
     case EOpenPocketBaseCapability::OfflineModule:
         Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
@@ -4463,6 +5156,84 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CompleteOAuth2(
                 TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
                     MakeCancelledError()));
         });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithOAuth2(
+    FOpenPocketBaseAssistedOAuth2Options Options,
+    FOpenPocketBaseAuthAttemptCallback OnComplete) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
+        !IsSafePathSegment(Collection) || !IsSafeOAuthValue(Options.Provider, 128) ||
+        (Options.Mfa.IsSet() && !IsBoundedTransientAuthId(Options.Mfa.Id)))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A live client, auth collection, provider, and bounded MFA continuation are required.")));
+        return {};
+    }
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+    if (Options.Scopes.Num() > 32)
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OAuth scopes exceed the supported bound.")));
+        return {};
+    }
+    for (const FString& Scope : Options.Scopes)
+    {
+        if (!IsSafeOAuthValue(Scope, 256) || Scope.Contains(TEXT(" ")))
+        {
+            DispatchFailure<FOpenPocketBaseAuthAttempt>(
+                MoveTemp(OnComplete),
+                MakeLocalError(
+                    EOpenPocketBaseErrorKind::InvalidArgument,
+                    TEXT("OAuth scopes contain an invalid value.")));
+            return {};
+        }
+    }
+    if (Options.CreateData.Data.JsonObject.IsValid() &&
+        !Options.CreateData.Data.JsonObject->Values.IsEmpty() &&
+        OpenPocketBase::Json::SerializeObject(
+            Options.CreateData.Data.JsonObject.ToSharedRef()).Num() > 64 * 1024)
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OAuth create data exceeds the supported byte limit.")));
+        return {};
+    }
+
+    const FOpenPocketBaseCapabilityInfo Capability =
+        PinnedClient->GetCapability(EOpenPocketBaseCapability::OAuthCallback);
+    if (!Capability.IsSupported())
+    {
+        FOpenPocketBaseError Error = MakeLocalError(
+            EOpenPocketBaseErrorKind::Unsupported,
+            TEXT("Assisted OAuth is unavailable."));
+        if (!Capability.Reason.IsEmpty())
+        {
+            Error.ServerMessage += TEXT(" ") + Capability.Reason;
+        }
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete), MoveTemp(Error));
+        return {};
+    }
+
+    return OpenPocketBase::Internal::FAssistedOAuthOperation::Start(
+        PinnedClient.ToSharedRef(),
+        Collection,
+        MoveTemp(Options),
+        MoveTemp(OnComplete));
 }
 
 FOpenPocketBaseSubscriptionHandle FOpenPocketBaseCollectionService::SubscribeToRecords(

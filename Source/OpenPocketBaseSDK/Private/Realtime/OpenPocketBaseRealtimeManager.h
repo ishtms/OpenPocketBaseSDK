@@ -27,6 +27,7 @@ public:
         FOpenPocketBaseError& OutError);
     void UnsubscribeTopic(const FString& Topic);
     void UnsubscribeAll();
+    bool TryGetActiveClientId(FString& OutClientId) const;
     void NotifyAuthChanged();
     void Shutdown();
 

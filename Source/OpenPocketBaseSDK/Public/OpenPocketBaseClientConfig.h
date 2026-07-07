@@ -41,5 +41,8 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseClientConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
     bool bRetryEligibleReadsAfterAuthRefresh = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
+    bool bEnableAssistedOAuth = false;
+
     bool TryGetNormalizedBaseUrl(FString& OutBaseUrl, FOpenPocketBaseError& OutError) const;
 };
