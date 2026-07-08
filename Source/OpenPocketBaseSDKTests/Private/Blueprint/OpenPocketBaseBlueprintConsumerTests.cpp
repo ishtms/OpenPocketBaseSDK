@@ -69,6 +69,21 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
 
     TestNotNull(
+        TEXT("Check Health is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseHealthAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseHealthAsyncAction, CheckHealth)));
+    TestNotNull(
+        TEXT("Send Custom Route is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseCustomRouteAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseCustomRouteAsyncAction,
+                SendCustomRoute)));
+
+    TestNotNull(
         TEXT("Get Record is available as an async Blueprint node"),
         AddAsyncConsumerNode(
             Graph,

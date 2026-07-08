@@ -39,6 +39,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseExternalAuthList,
     ExternalAuths);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseHealthActionSuccess,
+    FOpenPocketBaseHealthResult,
+    HealthResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseCustomRouteActionSuccess,
+    FOpenPocketBaseCustomRouteResponse,
+    Response);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseMfaRequiredAction,
     FOpenPocketBaseMfaContinuation,
     Continuation);
@@ -75,6 +83,81 @@ protected:
 
     FOpenPocketBaseRequestHandle RequestHandle;
     bool bTerminal = false;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseHealthAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseHealthActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Utilities",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Check Health",
+            AdvancedDisplay = "Options"))
+    static UOpenPocketBaseHealthAsyncAction* CheckHealth(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseCustomRouteAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseCustomRouteActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Utilities",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Send Custom Route"))
+    static UOpenPocketBaseCustomRouteAsyncAction* SendCustomRoute(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FOpenPocketBaseCustomRouteRequest Request);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FOpenPocketBaseCustomRouteRequest Request;
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))

@@ -23,4 +23,12 @@ OPENPOCKETBASESDK_API bool Build(
     const FString& Boundary,
     FBuildResult& OutResult,
     FOpenPocketBaseError& OutError);
+
+OPENPOCKETBASESDK_API bool BuildForm(
+    const TMap<FString, FString>& Fields,
+    const TArray<FOpenPocketBaseFileInput>& Files,
+    const FOpenPocketBaseUploadLimits& Limits,
+    const FString& Boundary,
+    FBuildResult& OutResult,
+    FOpenPocketBaseError& OutError);
 }

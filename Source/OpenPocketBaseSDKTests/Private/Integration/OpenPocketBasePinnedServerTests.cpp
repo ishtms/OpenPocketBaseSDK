@@ -27,6 +27,7 @@ struct FPinnedServerState
     bool bBatchSucceeded = false;
     bool bBatchRollbackSucceeded = false;
     bool bRefreshSucceeded = false;
+    bool bHealthSucceeded = false;
     FString AuthRecordId;
     FString RecordTitle;
     FString CreatedRecordId;
@@ -48,7 +49,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CompletionCount != 7)
+        if (State->CompletionCount != 8)
         {
             return false;
         }
@@ -68,6 +69,7 @@ public:
         Test->TestTrue(TEXT("Transactional batch succeeds against v0.39.11"), State->bBatchSucceeded);
         Test->TestTrue(TEXT("Failed transactional batch rolls back against v0.39.11"), State->bBatchRollbackSucceeded);
         Test->TestTrue(TEXT("Auth Refresh succeeds against v0.39.11"), State->bRefreshSucceeded);
+        Test->TestTrue(TEXT("Health succeeds against v0.39.11"), State->bHealthSucceeded);
         Test->TestEqual(
             TEXT("The seeded auth record is returned"),
             State->AuthRecordId,
@@ -345,6 +347,19 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
             {
                 State->Errors.Add(DescribeIntegrationError(TEXT("Password login"), Result.GetError()));
                 ++State->CompletionCount;
+            }
+            ++State->CompletionCount;
+        });
+
+    State->Client->Health(
+        [State](TOpenPocketBaseResult<FOpenPocketBaseHealthResult>&& Result)
+        {
+            State->bHealthSucceeded = Result.IsSuccess() &&
+                Result.GetValue().bHealthy && Result.GetValue().Code == 200 &&
+                Result.GetValue().DurationSeconds >= 0.0;
+            if (!Result.IsSuccess())
+            {
+                State->Errors.Add(DescribeIntegrationError(TEXT("Health"), Result.GetError()));
             }
             ++State->CompletionCount;
         });

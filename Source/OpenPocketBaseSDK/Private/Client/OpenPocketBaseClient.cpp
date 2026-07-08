@@ -207,6 +207,60 @@ bool IsProtectedDefaultHeader(const FString& Header)
     return false;
 }
 
+bool IsProtectedRequestHeader(const FString& Header)
+{
+    static const TCHAR* ProtectedHeaders[] = {
+        TEXT("Connection"),
+        TEXT("Keep-Alive"),
+        TEXT("TE"),
+        TEXT("Traceparent"),
+        TEXT("Trailer"),
+        TEXT("Transfer-Encoding"),
+        TEXT("Upgrade")
+    };
+    if (IsProtectedDefaultHeader(Header) ||
+        Header.StartsWith(TEXT("Sec-"), ESearchCase::IgnoreCase))
+    {
+        return true;
+    }
+    for (const TCHAR* ProtectedHeader : ProtectedHeaders)
+    {
+        if (IsHeaderName(Header, ProtectedHeader))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool IsValidTraceParent(const FString& Value)
+{
+    if (Value.IsEmpty())
+    {
+        return true;
+    }
+    if (Value.Len() != 55 || !Value.StartsWith(TEXT("00")) ||
+        Value[2] != TEXT('-') || Value[35] != TEXT('-') ||
+        Value[52] != TEXT('-'))
+    {
+        return false;
+    }
+    for (int32 Index = 0; Index < Value.Len(); ++Index)
+    {
+        if (Index == 2 || Index == 35 || Index == 52)
+        {
+            continue;
+        }
+        if (!FChar::IsHexDigit(Value[Index]) ||
+            (Value[Index] >= TEXT('A') && Value[Index] <= TEXT('F')))
+        {
+            return false;
+        }
+    }
+    return Value.Mid(3, 32) != TEXT("00000000000000000000000000000000") &&
+        Value.Mid(36, 16) != TEXT("0000000000000000");
+}
+
 bool ValidateDefaultHeaders(
     const FOpenPocketBaseClientConfig& Config,
     FOpenPocketBaseError& OutError)
@@ -262,6 +316,227 @@ bool IsSafePathSegment(const FString& Value)
         }
     }
     return true;
+}
+
+const TCHAR* GetCustomRouteMethod(const EOpenPocketBaseCustomRouteMethod Method)
+{
+    switch (Method)
+    {
+    case EOpenPocketBaseCustomRouteMethod::Get:
+        return TEXT("GET");
+    case EOpenPocketBaseCustomRouteMethod::Post:
+        return TEXT("POST");
+    case EOpenPocketBaseCustomRouteMethod::Put:
+        return TEXT("PUT");
+    case EOpenPocketBaseCustomRouteMethod::Patch:
+        return TEXT("PATCH");
+    case EOpenPocketBaseCustomRouteMethod::Delete:
+        return TEXT("DELETE");
+    default:
+        return nullptr;
+    }
+}
+
+bool IsBoundedPlainText(const FString& Value, const int32 MaxLength)
+{
+    if (Value.Len() > MaxLength)
+    {
+        return false;
+    }
+    for (const TCHAR Character : Value)
+    {
+        if (FChar::IsControl(Character))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool IsSafeCustomContentType(const FString& Value)
+{
+    if (Value.IsEmpty() || Value.Len() > 127 || !Value.Contains(TEXT("/")))
+    {
+        return false;
+    }
+    for (const TCHAR Character : Value)
+    {
+        const bool bPunctuation = Character == TEXT('/') || Character == TEXT('-') ||
+            Character == TEXT('+') || Character == TEXT('.') || Character == TEXT(';') ||
+            Character == TEXT('=') || Character == TEXT(' ');
+        if (!FChar::IsAlnum(Character) && !bPunctuation)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool TryBuildCustomRoutePath(
+    const FString& Path,
+    const TMap<FString, FString>& Query,
+    FString& OutPath,
+    FOpenPocketBaseError& OutError)
+{
+    if (Path.Len() < 2 || Path.Len() > 2048 || !Path.StartsWith(TEXT("/")) ||
+        Path.StartsWith(TEXT("//")) || Path.EndsWith(TEXT("/")) ||
+        Path.Contains(TEXT("//")) || Path.Contains(TEXT("?")) ||
+        Path.Contains(TEXT("#")) || Path.Contains(TEXT("\\")) ||
+        Path.Contains(TEXT("%")) || Query.Num() > 64)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The custom route path or query is invalid."));
+        return false;
+    }
+
+    TArray<FString> Segments;
+    Path.RightChop(1).ParseIntoArray(Segments, TEXT("/"), false);
+    if (Segments.IsEmpty() || Segments.Num() > 32)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The custom route path exceeds the supported segment bound."));
+        return false;
+    }
+
+    TArray<FString> EncodedSegments;
+    EncodedSegments.Reserve(Segments.Num());
+    for (const FString& Segment : Segments)
+    {
+        if (!IsSafePathSegment(Segment) || Segment.Len() > 255)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The custom route path contains an invalid segment."));
+            return false;
+        }
+        EncodedSegments.Add(EncodeSegment(Segment));
+    }
+    OutPath = TEXT("/") + FString::Join(EncodedSegments, TEXT("/"));
+
+    TArray<FString> QueryNames;
+    Query.GetKeys(QueryNames);
+    QueryNames.Sort();
+    TArray<FString> QueryParts;
+    QueryParts.Reserve(QueryNames.Num());
+    for (const FString& Name : QueryNames)
+    {
+        const FString* Value = Query.Find(Name);
+        if (Value == nullptr || Name.IsEmpty() || !IsBoundedPlainText(Name, 128) ||
+            !IsBoundedPlainText(*Value, 4096))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The custom route query contains an invalid name or value."));
+            return false;
+        }
+        QueryParts.Add(FGenericPlatformHttp::UrlEncode(Name) + TEXT("=") +
+            FGenericPlatformHttp::UrlEncode(*Value));
+    }
+    if (!QueryParts.IsEmpty())
+    {
+        OutPath += TEXT("?") + FString::Join(QueryParts, TEXT("&"));
+    }
+    if (OutPath.Len() > 8192)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The custom route URL exceeds the supported bound."));
+        return false;
+    }
+    OutError = FOpenPocketBaseError();
+    return true;
+}
+
+bool TrySerializeCustomForm(
+    const TMap<FString, FString>& Fields,
+    TArray<uint8>& OutBody,
+    FOpenPocketBaseError& OutError)
+{
+    if (Fields.IsEmpty() || Fields.Num() > 128)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A form body requires a bounded set of fields."));
+        return false;
+    }
+    TArray<FString> Names;
+    Fields.GetKeys(Names);
+    Names.Sort();
+    TArray<FString> Parts;
+    Parts.Reserve(Names.Num());
+    for (const FString& Name : Names)
+    {
+        const FString* Value = Fields.Find(Name);
+        if (Value == nullptr || Name.IsEmpty() || !IsBoundedPlainText(Name, 128) ||
+            !IsBoundedPlainText(*Value, 4096))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The form body contains an invalid name or value."));
+            return false;
+        }
+        Parts.Add(FGenericPlatformHttp::UrlEncode(Name) + TEXT("=") +
+            FGenericPlatformHttp::UrlEncode(*Value));
+    }
+    const FString Form = FString::Join(Parts, TEXT("&"));
+    const FTCHARToUTF8 Converted(*Form);
+    OutBody.Reset(Converted.Length());
+    OutBody.Append(reinterpret_cast<const uint8*>(Converted.Get()), Converted.Length());
+    OutError = FOpenPocketBaseError();
+    return true;
+}
+
+FString FindResponseHeader(
+    const FOpenPocketBaseHttpResponse& Response,
+    const TCHAR* HeaderName)
+{
+    for (const TPair<FString, FString>& Header : Response.Headers)
+    {
+        if (Header.Key.Equals(HeaderName, ESearchCase::IgnoreCase))
+        {
+            return Header.Value;
+        }
+    }
+    return {};
+}
+
+bool TryParseJsonObject(
+    const TArray<uint8>& Body,
+    TSharedPtr<FJsonObject>& OutObject,
+    FString* OutJson = nullptr)
+{
+    if (Body.IsEmpty())
+    {
+        return false;
+    }
+    const FUTF8ToTCHAR Converted(
+        reinterpret_cast<const ANSICHAR*>(Body.GetData()),
+        Body.Num());
+    const FString Json(Converted.Length(), Converted.Get());
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+    if (!FJsonSerializer::Deserialize(Reader, OutObject) || !OutObject.IsValid())
+    {
+        return false;
+    }
+    if (OutJson != nullptr)
+    {
+        *OutJson = Json;
+    }
+    return true;
+}
+
+FOpenPocketBaseError MakeResponseSerializationError(
+    const FOpenPocketBaseHttpResponse& Response,
+    const TCHAR* Message)
+{
+    FOpenPocketBaseError Error = MakeLocalError(
+        EOpenPocketBaseErrorKind::Serialization,
+        Message);
+    Error.HttpStatus = Response.HttpStatus;
+    Error.RequestId = Response.RequestId;
+    return Error;
 }
 
 bool IsBoundedTransientAuthId(const FString& Value)
@@ -919,7 +1194,16 @@ bool ValidateRequestOptions(
         bRequestKeyValid = bRequestKeyValid && !FChar::IsControl(Character);
     }
 
-    if (!bRequestKeyValid || Options.TotalTimeoutSeconds < 0 || Options.ActivityTimeoutSeconds < 0 ||
+    bool bHeadersValid = Options.AdditionalHeaders.Num() <= 32;
+    for (const TPair<FString, FString>& Header : Options.AdditionalHeaders)
+    {
+        bHeadersValid = bHeadersValid && Header.Key.Len() <= 128 &&
+            Header.Value.Len() <= 4096 && IsValidHeaderName(Header.Key) &&
+            IsValidHeaderValue(Header.Value) && !IsProtectedRequestHeader(Header.Key);
+    }
+
+    if (!bRequestKeyValid || !bHeadersValid || !IsValidTraceParent(Options.TraceParent) ||
+        Options.TotalTimeoutSeconds < 0 || Options.ActivityTimeoutSeconds < 0 ||
         Options.MaxReadRetries < 0 || Options.MaxReadRetries > 5 ||
         Options.RetryBaseDelaySeconds < 0 || Options.RetryBaseDelaySeconds > 30 ||
         Options.RetryMaxDelaySeconds < 0 || Options.RetryMaxDelaySeconds > 60 ||
@@ -1805,6 +2089,14 @@ struct FOpenPocketBaseClient::FImpl
         if (!Config.AcceptLanguage.IsEmpty())
         {
             Request.Headers.Add(TEXT("Accept-Language"), Config.AcceptLanguage);
+        }
+        for (const TPair<FString, FString>& Header : Options.AdditionalHeaders)
+        {
+            Request.Headers.Add(Header.Key, Header.Value);
+        }
+        if (!Options.TraceParent.IsEmpty())
+        {
+            Request.Headers.Add(TEXT("traceparent"), Options.TraceParent);
         }
         if (!Request.Body.IsEmpty())
         {
@@ -3262,6 +3554,293 @@ FOpenPocketBaseCollectionService FOpenPocketBaseClient::Collection(FString Colle
 FOpenPocketBaseFileService FOpenPocketBaseClient::Files()
 {
     return FOpenPocketBaseFileService(AsShared());
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseClient::Health(
+    FOpenPocketBaseHealthCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options)
+{
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<FOpenPocketBaseHealthResult>(
+            MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseHealthResult>, ESPMode::ThreadSafe>
+        Completion = MakeShared<TCompletionState<FOpenPocketBaseHealthResult>, ESPMode::ThreadSafe>(
+            MoveTemp(OnComplete));
+    const double StartedAt = Impl->Clock->MonotonicSeconds();
+    const TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock = Impl->Clock;
+    FOpenPocketBaseHttpRequest Request = Impl->MakeRequest(
+        TEXT("GET"), TEXT("/api/health"), {}, Options, false);
+    return Impl->Send(
+        MoveTemp(Request),
+        Options,
+        true,
+        [Completion, Clock, StartedAt](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseHealthResult> Result =
+                [&Response, &Clock, StartedAt]()
+            {
+                TOpenPocketBaseResult<bool> Status =
+                    OpenPocketBase::Json::ParseEmptyResponse(Response);
+                if (!Status.IsSuccess())
+                {
+                    return TOpenPocketBaseResult<FOpenPocketBaseHealthResult>::Failure(
+                        Status.GetError());
+                }
+
+                TSharedPtr<FJsonObject> Object;
+                double NumericCode = 0;
+                FString Message;
+                if (!TryParseJsonObject(Response.Body, Object) ||
+                    !Object->TryGetNumberField(TEXT("code"), NumericCode) ||
+                    !FMath::IsFinite(NumericCode) ||
+                    NumericCode != FMath::RoundToDouble(NumericCode) ||
+                    NumericCode < MIN_int32 || NumericCode > MAX_int32 ||
+                    !Object->TryGetStringField(TEXT("message"), Message) ||
+                    !IsBoundedPlainText(Message, 1024))
+                {
+                    return TOpenPocketBaseResult<FOpenPocketBaseHealthResult>::Failure(
+                        MakeResponseSerializationError(
+                            Response,
+                            TEXT("PocketBase returned an invalid health response.")));
+                }
+
+                FOpenPocketBaseHealthResult Health;
+                Health.HttpStatus = Response.HttpStatus;
+                Health.Code = static_cast<int32>(NumericCode);
+                Health.Message = MoveTemp(Message);
+                Health.bHealthy = Health.HttpStatus >= 200 && Health.HttpStatus < 300 &&
+                    Health.Code == 200;
+                Health.DurationSeconds = FMath::Max(
+                    0.0, Clock->MonotonicSeconds() - StartedAt);
+                return TOpenPocketBaseResult<FOpenPocketBaseHealthResult>::Success(
+                    MoveTemp(Health));
+            }();
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(
+                TOpenPocketBaseResult<FOpenPocketBaseHealthResult>::Failure(
+                    MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendCustomRoute(
+    FOpenPocketBaseCustomRouteRequest CustomRequest,
+    FOpenPocketBaseCustomRouteCallback OnComplete)
+{
+    FOpenPocketBaseError ValidationError;
+    FString Path;
+    const TCHAR* Method = GetCustomRouteMethod(CustomRequest.Method);
+    if (Method == nullptr || !ValidateRequestOptions(CustomRequest.Options, ValidationError) ||
+        !TryBuildCustomRoutePath(
+            CustomRequest.Path, CustomRequest.Query, Path, ValidationError) ||
+        CustomRequest.MaxRequestBytes < 0 ||
+        CustomRequest.MaxRequestBytes > 64LL * 1024 * 1024 ||
+        (CustomRequest.Method == EOpenPocketBaseCustomRouteMethod::Get &&
+            CustomRequest.BodyFormat != EOpenPocketBaseCustomBodyFormat::None))
+    {
+        if (!ValidationError.IsSet())
+        {
+            ValidationError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The custom route method or body bound is invalid."));
+        }
+        DispatchFailure<FOpenPocketBaseCustomRouteResponse>(
+            MoveTemp(OnComplete), MoveTemp(ValidationError));
+        return {};
+    }
+
+    TArray<uint8> Body;
+    TSharedPtr<FArchive, ESPMode::ThreadSafe> BodyStream;
+    int64 BodyLength = 0;
+    FString ContentType;
+    const bool bHasJson = CustomRequest.JsonBody.JsonObject.IsValid();
+    const bool bHasFields = !CustomRequest.FormFields.IsEmpty();
+    const bool bHasFiles = !CustomRequest.Files.IsEmpty();
+    const bool bHasBody = !CustomRequest.Body.IsEmpty();
+    bool bBodyValid = true;
+    switch (CustomRequest.BodyFormat)
+    {
+    case EOpenPocketBaseCustomBodyFormat::None:
+        bBodyValid = !bHasFields && !bHasFiles && !bHasBody &&
+            CustomRequest.ContentType.IsEmpty();
+        break;
+    case EOpenPocketBaseCustomBodyFormat::Json:
+        bBodyValid = bHasJson && !bHasFields && !bHasFiles && !bHasBody &&
+            CustomRequest.ContentType.IsEmpty();
+        if (bBodyValid)
+        {
+            Body = OpenPocketBase::Json::SerializeObject(
+                CustomRequest.JsonBody.JsonObject.ToSharedRef());
+            ContentType = TEXT("application/json");
+        }
+        break;
+    case EOpenPocketBaseCustomBodyFormat::Form:
+        bBodyValid = bHasFields && !bHasFiles && !bHasBody &&
+            CustomRequest.ContentType.IsEmpty() &&
+            TrySerializeCustomForm(CustomRequest.FormFields, Body, ValidationError);
+        ContentType = TEXT("application/x-www-form-urlencoded");
+        break;
+    case EOpenPocketBaseCustomBodyFormat::Multipart:
+        bBodyValid = (bHasFields || bHasFiles) && !bHasBody &&
+            CustomRequest.ContentType.IsEmpty();
+        if (bBodyValid)
+        {
+            FOpenPocketBaseUploadLimits Limits = CustomRequest.UploadLimits;
+            Limits.MaxTotalBodyBytes = FMath::Min(
+                Limits.MaxTotalBodyBytes, CustomRequest.MaxRequestBytes);
+            OpenPocketBase::Multipart::FBuildResult Multipart;
+            const FString Boundary = TEXT("openpocketbase-") +
+                FGuid::NewGuid().ToString(EGuidFormats::DigitsLower);
+            bBodyValid = OpenPocketBase::Multipart::BuildForm(
+                CustomRequest.FormFields,
+                CustomRequest.Files,
+                Limits,
+                Boundary,
+                Multipart,
+                ValidationError);
+            if (bBodyValid)
+            {
+                BodyStream = MoveTemp(Multipart.Stream);
+                BodyLength = Multipart.ContentLength;
+                ContentType = MoveTemp(Multipart.ContentType);
+            }
+        }
+        break;
+    case EOpenPocketBaseCustomBodyFormat::Raw:
+    case EOpenPocketBaseCustomBodyFormat::Binary:
+        bBodyValid = !bHasFields && !bHasFiles &&
+            IsSafeCustomContentType(CustomRequest.ContentType);
+        if (bBodyValid)
+        {
+            Body = MoveTemp(CustomRequest.Body);
+            ContentType = MoveTemp(CustomRequest.ContentType);
+        }
+        break;
+    default:
+        bBodyValid = false;
+        break;
+    }
+
+    if (!bBodyValid || Body.Num() > CustomRequest.MaxRequestBytes ||
+        BodyLength > CustomRequest.MaxRequestBytes)
+    {
+        if (!ValidationError.IsSet())
+        {
+            ValidationError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The custom route body does not match its bounded body format."));
+        }
+        DispatchFailure<FOpenPocketBaseCustomRouteResponse>(
+            MoveTemp(OnComplete), MoveTemp(ValidationError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<FOpenPocketBaseCustomRouteResponse>, ESPMode::ThreadSafe>
+        Completion =
+            MakeShared<TCompletionState<FOpenPocketBaseCustomRouteResponse>, ESPMode::ThreadSafe>(
+                MoveTemp(OnComplete));
+    const double StartedAt = Impl->Clock->MonotonicSeconds();
+    const TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock = Impl->Clock;
+    FOpenPocketBaseHttpRequest Request = Impl->MakeRequest(
+        Method,
+        MoveTemp(Path),
+        MoveTemp(Body),
+        CustomRequest.Options,
+        CustomRequest.bUseAuth);
+    if (!ContentType.IsEmpty())
+    {
+        Request.Headers.Add(TEXT("Content-Type"), MoveTemp(ContentType));
+    }
+    if (BodyStream.IsValid())
+    {
+        Request.BodyStream = MoveTemp(BodyStream);
+        Request.BodyLength = BodyLength;
+        Request.Headers.Add(TEXT("Content-Length"), LexToString(BodyLength));
+    }
+    const bool bEligibleRead = CustomRequest.Method == EOpenPocketBaseCustomRouteMethod::Get;
+    return Impl->Send(
+        MoveTemp(Request),
+        CustomRequest.Options,
+        bEligibleRead,
+        [Completion, Clock, StartedAt](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
+        {
+            TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse> Result =
+                [&Response, &Clock, StartedAt]()
+            {
+                TOpenPocketBaseResult<bool> Status =
+                    OpenPocketBase::Json::ParseEmptyResponse(Response);
+                if (!Status.IsSuccess())
+                {
+                    return TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>::Failure(
+                        Status.GetError());
+                }
+
+                FOpenPocketBaseCustomRouteResponse CustomResponse;
+                CustomResponse.HttpStatus = Response.HttpStatus;
+                CustomResponse.RequestId = Response.RequestId;
+                CustomResponse.ContentType = FindResponseHeader(Response, TEXT("Content-Type"));
+                if (!CustomResponse.ContentType.IsEmpty() &&
+                    !IsBoundedPlainText(CustomResponse.ContentType, 127))
+                {
+                    CustomResponse.ContentType.Reset();
+                }
+                CustomResponse.DurationSeconds = FMath::Max(
+                    0.0, Clock->MonotonicSeconds() - StartedAt);
+                CustomResponse.Body = MoveTemp(Response.Body);
+                const bool bJsonContent =
+                    CustomResponse.ContentType.Contains(
+                        TEXT("application/json"), ESearchCase::IgnoreCase) ||
+                    CustomResponse.ContentType.Contains(TEXT("+json"), ESearchCase::IgnoreCase);
+                if (bJsonContent && !CustomResponse.Body.IsEmpty())
+                {
+                    TSharedPtr<FJsonObject> Object;
+                    if (!TryParseJsonObject(
+                            CustomResponse.Body,
+                            Object,
+                            &CustomResponse.JsonBody.JsonString))
+                    {
+                        return TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>::Failure(
+                            MakeResponseSerializationError(
+                                Response,
+                                TEXT("The custom route returned invalid JSON.")));
+                    }
+                    CustomResponse.JsonBody.JsonObject = MoveTemp(Object);
+                    CustomResponse.bHasJson = true;
+                }
+                return TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>::Success(
+                    MoveTemp(CustomResponse));
+            }();
+            const EOpenPocketBaseRequestState Terminal = TerminalStateFor(Result.IsSuccess());
+            State->TryComplete(
+                Terminal,
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(
+                TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>::Failure(
+                    MakeCancelledError()));
+        });
 }
 
 FString FOpenPocketBaseClient::GetBaseUrl() const

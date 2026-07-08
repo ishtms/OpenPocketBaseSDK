@@ -4,6 +4,7 @@
 #include "OpenPocketBaseAuthentication.h"
 #include "OpenPocketBaseCapability.h"
 #include "OpenPocketBaseClientConfig.h"
+#include "OpenPocketBaseCustomRoute.h"
 #include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseRealtime.h"
@@ -43,6 +44,10 @@ using FOpenPocketBaseOAuth2AuthorizationCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&&)>;
 using FOpenPocketBaseExternalAuthsCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&&)>;
+using FOpenPocketBaseHealthCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseHealthResult>&&)>;
+using FOpenPocketBaseCustomRouteCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&&)>;
 using FOpenPocketBaseBoolCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<bool>&&)>;
 using FOpenPocketBaseBatchCallback =
@@ -297,6 +302,14 @@ public:
 
     FOpenPocketBaseCollectionService Collection(FString CollectionName);
     FOpenPocketBaseFileService Files();
+
+    FOpenPocketBaseRequestHandle Health(
+        FOpenPocketBaseHealthCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {});
+
+    FOpenPocketBaseRequestHandle SendCustomRoute(
+        FOpenPocketBaseCustomRouteRequest Request,
+        FOpenPocketBaseCustomRouteCallback OnComplete);
     FString GetBaseUrl() const;
     FOpenPocketBaseCapabilityInfo GetCapability(EOpenPocketBaseCapability Capability) const;
     FOpenPocketBaseCapabilityReport GetCapabilityReport() const;

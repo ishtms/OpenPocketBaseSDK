@@ -31,6 +31,135 @@ void UOpenPocketBaseAsyncActionBase::Finish()
     SetReadyToDestroy();
 }
 
+UOpenPocketBaseHealthAsyncAction* UOpenPocketBaseHealthAsyncAction::CheckHealth(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseHealthAsyncAction* Action =
+        NewObject<UOpenPocketBaseHealthAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseHealthAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseHealthAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->Health(
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseHealthResult>&& Result)
+        {
+            UOpenPocketBaseHealthAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast(Result.GetValue());
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        },
+        MoveTemp(Options));
+}
+
+void UOpenPocketBaseHealthAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
+UOpenPocketBaseCustomRouteAsyncAction*
+UOpenPocketBaseCustomRouteAsyncAction::SendCustomRoute(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FOpenPocketBaseCustomRouteRequest InRequest)
+{
+    UOpenPocketBaseCustomRouteAsyncAction* Action =
+        NewObject<UOpenPocketBaseCustomRouteAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->Request = MoveTemp(InRequest);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseCustomRouteAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseCustomRouteAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->SendCustomRoute(
+        MoveTemp(Request),
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+        {
+            UOpenPocketBaseCustomRouteAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast(Result.GetValue());
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        });
+}
+
+void UOpenPocketBaseCustomRouteAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
 UOpenPocketBaseGetRecordAsyncAction* UOpenPocketBaseGetRecordAsyncAction::GetRecord(
     const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,

@@ -344,4 +344,160 @@ bool Build(
     OutError = FOpenPocketBaseError();
     return true;
 }
+
+bool BuildForm(
+    const TMap<FString, FString>& Fields,
+    const TArray<FOpenPocketBaseFileInput>& Files,
+    const FOpenPocketBaseUploadLimits& Limits,
+    const FString& Boundary,
+    FBuildResult& OutResult,
+    FOpenPocketBaseError& OutError)
+{
+    OutResult = FBuildResult();
+    if ((Fields.IsEmpty() && Files.IsEmpty()) || Fields.Num() > 128 ||
+        !IsSafeBoundary(Boundary) || Limits.MaxFiles < 1 || Limits.MaxFiles > 100 ||
+        Files.Num() > Limits.MaxFiles ||
+        Limits.MaxInlineFileBytes < 1 || Limits.MaxInlineFileBytes > 64 * 1024 * 1024 ||
+        Limits.MaxSourceFileBytes < 1 ||
+        Limits.MaxSourceFileBytes > 16LL * 1024 * 1024 * 1024 ||
+        Limits.MaxTotalBodyBytes < 1 ||
+        Limits.MaxTotalBodyBytes > 16LL * 1024 * 1024 * 1024)
+    {
+        OutError = MakeMultipartError(
+            TEXT("Multipart fields, files, boundary, or limits are invalid."));
+        return false;
+    }
+
+    TArray<FMultipartSegment> Segments;
+    int64 TotalLength = 0;
+    int64 BufferedBytes = 0;
+    const auto AddMemory = [&Segments, &TotalLength, &BufferedBytes, &Limits](TArray<uint8> Bytes)
+    {
+        if (!TryAddLength(Bytes.Num(), Limits, TotalLength))
+        {
+            return false;
+        }
+        BufferedBytes += Bytes.Num();
+        FMultipartSegment Segment;
+        Segment.Length = Bytes.Num();
+        Segment.Memory = MoveTemp(Bytes);
+        Segments.Add(MoveTemp(Segment));
+        return true;
+    };
+
+    TArray<FString> FieldNames;
+    Fields.GetKeys(FieldNames);
+    FieldNames.Sort();
+    for (const FString& FieldName : FieldNames)
+    {
+        const FString* Value = Fields.Find(FieldName);
+        if (!IsSafeFieldName(FieldName) || Value == nullptr)
+        {
+            OutError = MakeMultipartError(TEXT("A multipart field name is invalid."));
+            return false;
+        }
+        const FString Header = FString::Printf(
+            TEXT("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n"),
+            *Boundary,
+            *FieldName);
+        if (!AddMemory(ToUtf8(Header)) || !AddMemory(ToUtf8(*Value)) ||
+            !AddMemory(ToUtf8(TEXT("\r\n"))))
+        {
+            OutError = MakeMultipartError(
+                TEXT("The multipart body exceeds its configured size bound."));
+            return false;
+        }
+    }
+
+    for (const FOpenPocketBaseFileInput& File : Files)
+    {
+        if (!IsSafeFieldName(File.FieldName) || !IsSafeContentType(File.ContentType) ||
+            File.Modifier != EOpenPocketBaseFieldModifier::Replace)
+        {
+            OutError = MakeMultipartError(
+                TEXT("A multipart file field name, content type, or modifier is invalid."));
+            return false;
+        }
+
+        const FString FileName = File.FileName.IsEmpty() && File.bUseFilePath
+            ? SanitizeFileName(File.FilePath)
+            : SanitizeFileName(File.FileName);
+        const FString Header = FString::Printf(
+            TEXT("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n")
+            TEXT("Content-Type: %s\r\n\r\n"),
+            *Boundary,
+            *File.FieldName,
+            *FileName,
+            *File.ContentType);
+        if (!AddMemory(ToUtf8(Header)))
+        {
+            OutError = MakeMultipartError(
+                TEXT("The multipart body exceeds its configured size bound."));
+            return false;
+        }
+
+        FMultipartSegment ContentSegment;
+        if (File.bUseFilePath)
+        {
+            const int64 FileSize = IFileManager::Get().FileSize(*File.FilePath);
+            if (File.FilePath.IsEmpty() || FileSize < 0 ||
+                FileSize > Limits.MaxSourceFileBytes)
+            {
+                OutError = MakeMultipartError(
+                    TEXT("A multipart source file is missing or exceeds its size bound."));
+                return false;
+            }
+            ContentSegment.File = MakeShareable(
+                IFileManager::Get().CreateFileReader(*File.FilePath));
+            if (!ContentSegment.File.IsValid())
+            {
+                OutError = MakeMultipartError(
+                    TEXT("A multipart source file could not be opened."));
+                return false;
+            }
+            ContentSegment.Length = FileSize;
+        }
+        else
+        {
+            if (File.Bytes.Num() > Limits.MaxInlineFileBytes)
+            {
+                OutError = MakeMultipartError(
+                    TEXT("An inline multipart file exceeds its size bound."));
+                return false;
+            }
+            ContentSegment.Memory = File.Bytes;
+            ContentSegment.Length = File.Bytes.Num();
+            BufferedBytes += File.Bytes.Num();
+        }
+        if (!TryAddLength(ContentSegment.Length, Limits, TotalLength))
+        {
+            OutError = MakeMultipartError(
+                TEXT("The multipart body exceeds its configured size bound."));
+            return false;
+        }
+        Segments.Add(MoveTemp(ContentSegment));
+        if (!AddMemory(ToUtf8(TEXT("\r\n"))))
+        {
+            OutError = MakeMultipartError(
+                TEXT("The multipart body exceeds its configured size bound."));
+            return false;
+        }
+    }
+
+    if (!AddMemory(ToUtf8(FString::Printf(TEXT("--%s--\r\n"), *Boundary))))
+    {
+        OutError = MakeMultipartError(
+            TEXT("The multipart body exceeds its configured size bound."));
+        return false;
+    }
+
+    OutResult.Stream = MakeShared<FSegmentedMultipartArchive, ESPMode::ThreadSafe>(
+        MoveTemp(Segments));
+    OutResult.ContentType = FString::Printf(
+        TEXT("multipart/form-data; boundary=%s"), *Boundary);
+    OutResult.ContentLength = TotalLength;
+    OutResult.BufferedBytes = BufferedBytes;
+    OutError = FOpenPocketBaseError();
+    return true;
+}
 }

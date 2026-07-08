@@ -23,6 +23,7 @@
     }
   },
   "implementedRoutes": [
+    "GET /api/health",
     "GET /api/collections/{collection}/records",
     "GET /api/collections/{collection}/records/{id}",
     "GET /api/collections/{collection}/auth-methods",
