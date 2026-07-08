@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Dom/JsonValue.h"
 #include "JsonObjectWrapper.h"
 #include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseRecord.h"
@@ -26,6 +27,15 @@ enum class EOpenPocketBaseCustomBodyFormat : uint8
     Multipart,
     Raw,
     Binary
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseJsonRootType : uint8
+{
+    None,
+    Object,
+    Array,
+    Scalar
 };
 
 USTRUCT(BlueprintType)
@@ -115,8 +125,21 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteResponse
     bool bHasJson = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Utilities")
+    EOpenPocketBaseJsonRootType JsonRootType = EOpenPocketBaseJsonRootType::None;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Utilities")
     FJsonObjectWrapper JsonBody;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Utilities")
     double DurationSeconds = 0.0;
+
+    const TSharedPtr<FJsonValue>& GetParsedJson() const
+    {
+        return ParsedJson;
+    }
+
+private:
+    TSharedPtr<FJsonValue> ParsedJson;
+
+    friend class FOpenPocketBaseClient;
 };

@@ -527,6 +527,23 @@ bool TryParseJsonObject(
     return true;
 }
 
+bool TryParseJsonValue(
+    const TArray<uint8>& Body,
+    TSharedPtr<FJsonValue>& OutValue,
+    FString& OutJson)
+{
+    if (Body.IsEmpty())
+    {
+        return false;
+    }
+    const FUTF8ToTCHAR Converted(
+        reinterpret_cast<const ANSICHAR*>(Body.GetData()),
+        Body.Num());
+    OutJson = FString(Converted.Length(), Converted.Get());
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(OutJson);
+    return FJsonSerializer::Deserialize(Reader, OutValue) && OutValue.IsValid();
+}
+
 FOpenPocketBaseError MakeResponseSerializationError(
     const FOpenPocketBaseHttpResponse& Response,
     const TCHAR* Message)
@@ -3810,19 +3827,33 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendCustomRoute(
                     CustomResponse.ContentType.Contains(TEXT("+json"), ESearchCase::IgnoreCase);
                 if (bJsonContent && !CustomResponse.Body.IsEmpty())
                 {
-                    TSharedPtr<FJsonObject> Object;
-                    if (!TryParseJsonObject(
+                    FString Json;
+                    if (!TryParseJsonValue(
                             CustomResponse.Body,
-                            Object,
-                            &CustomResponse.JsonBody.JsonString))
+                            CustomResponse.ParsedJson,
+                            Json))
                     {
                         return TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>::Failure(
                             MakeResponseSerializationError(
                                 Response,
                                 TEXT("The custom route returned invalid JSON.")));
                     }
-                    CustomResponse.JsonBody.JsonObject = MoveTemp(Object);
                     CustomResponse.bHasJson = true;
+                    switch (CustomResponse.ParsedJson->Type)
+                    {
+                    case EJson::Object:
+                        CustomResponse.JsonRootType = EOpenPocketBaseJsonRootType::Object;
+                        CustomResponse.JsonBody.JsonObject =
+                            CustomResponse.ParsedJson->AsObject();
+                        CustomResponse.JsonBody.JsonString = MoveTemp(Json);
+                        break;
+                    case EJson::Array:
+                        CustomResponse.JsonRootType = EOpenPocketBaseJsonRootType::Array;
+                        break;
+                    default:
+                        CustomResponse.JsonRootType = EOpenPocketBaseJsonRootType::Scalar;
+                        break;
+                    }
                 }
                 return TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>::Success(
                     MoveTemp(CustomResponse));

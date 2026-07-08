@@ -108,6 +108,14 @@ struct FCustomRouteValidationState
     TArray<FOpenPocketBaseError> Errors;
 };
 
+struct FCustomRouteJsonRootState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FCustomRouteTransport, ESPMode::ThreadSafe> Transport;
+    bool bCompleted = false;
+    bool bArrayRetained = false;
+};
+
 class FCustomRouteFlow final
     : public TSharedFromThis<FCustomRouteFlow, ESPMode::ThreadSafe>
 {
@@ -333,6 +341,34 @@ private:
     TSharedRef<FCustomRouteValidationState, ESPMode::ThreadSafe> State;
     FAutomationTestBase* Test;
 };
+
+class FVerifyCustomRouteJsonRoot final : public IAutomationLatentCommand
+{
+public:
+    FVerifyCustomRouteJsonRoot(
+        TSharedRef<FCustomRouteJsonRootState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        Test->TestTrue(TEXT("A JSON array root is parsed and retained"),
+            State->bArrayRetained);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FCustomRouteJsonRootState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -439,6 +475,54 @@ bool FOpenPocketBaseCustomRouteValidationTest::RunTest(const FString& Parameters
     State->Client->SendCustomRoute(MoveTemp(InvalidTrace), OnFailure);
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyCustomRouteValidation(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseCustomRouteJsonRootTest,
+    "OpenPocketBase.Client.CustomRoutes.RetainsJsonArrayRoot",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseCustomRouteJsonRootTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FCustomRouteJsonRootState, ESPMode::ThreadSafe> State =
+        MakeShared<FCustomRouteJsonRootState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FCustomRouteTransport, ESPMode::ThreadSafe>();
+    State->Transport->AddResponse(
+        200,
+        TEXT("application/json"),
+        CustomUtf8(TEXT("[{\"id\":\"one\"}]")));
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(
+        Config,
+        State->Transport.ToSharedRef(),
+        CreateOpenPocketBaseSecureStore(),
+        MakeShared<FCustomRouteClock, ESPMode::ThreadSafe>(),
+        Error);
+    if (!TestTrue(TEXT("The JSON-root client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseCustomRouteRequest Request;
+    Request.Path = TEXT("/api/project/items");
+    State->Client->SendCustomRoute(
+        MoveTemp(Request),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+        {
+            if (Result.IsSuccess())
+            {
+                const TSharedPtr<FJsonValue>& Parsed = Result.GetValue().GetParsedJson();
+                State->bArrayRetained = Result.GetValue().bHasJson &&
+                    Result.GetValue().JsonRootType == EOpenPocketBaseJsonRootType::Array &&
+                    Parsed.IsValid() && Parsed->Type == EJson::Array &&
+                    Parsed->AsArray().Num() == 1;
+            }
+            State->bCompleted = true;
+        });
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyCustomRouteJsonRoot(State, this));
     return true;
 }
 
