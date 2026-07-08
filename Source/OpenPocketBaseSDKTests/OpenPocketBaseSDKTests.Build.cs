@@ -16,7 +16,8 @@ public class OpenPocketBaseSDKTests : ModuleRules
                 "HTTP",
                 "Json",
                 "JsonUtilities",
-                "OpenPocketBaseSDK"
+                "OpenPocketBaseSDK",
+                "OpenPocketBaseSDKAdmin"
             });
 
         if (Target.bBuildEditor)

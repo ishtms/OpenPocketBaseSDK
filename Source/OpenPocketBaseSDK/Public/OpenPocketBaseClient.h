@@ -298,6 +298,21 @@ public:
         TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser,
         FOpenPocketBaseError& OutError);
 
+    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> CreateEphemeralAuthenticated(
+        const FOpenPocketBaseClientConfig& Config,
+        FString Token,
+        FString AuthCollection,
+        const FOpenPocketBaseRecord& AuthRecord,
+        FOpenPocketBaseError& OutError);
+
+    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> CreateEphemeralAuthenticated(
+        const FOpenPocketBaseClientConfig& Config,
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+        FString Token,
+        FString AuthCollection,
+        const FOpenPocketBaseRecord& AuthRecord,
+        FOpenPocketBaseError& OutError);
+
     ~FOpenPocketBaseClient();
 
     FOpenPocketBaseCollectionService Collection(FString CollectionName);

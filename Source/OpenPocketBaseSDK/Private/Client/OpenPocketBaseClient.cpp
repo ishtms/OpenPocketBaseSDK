@@ -1641,6 +1641,7 @@ struct FOpenPocketBaseClient::FImpl
             const bool bAuthRejected = Response.bTransportSucceeded &&
                 (Response.HttpStatus == 401 || Response.HttpStatus == 403);
             if (bEligibleRead && !bDidAuthReplay &&
+                Impl->bAuthRefreshAllowed &&
                 Impl->Config.bRetryEligibleReadsAfterAuthRefresh && bAuthRejected &&
                 Impl->IsAuthIdentityCurrent(SentAuthGeneration, SentAuthToken))
             {
@@ -1701,6 +1702,7 @@ struct FOpenPocketBaseClient::FImpl
     TOptional<int64> AuthExpiryUnixSeconds;
     int64 AuthGeneration = 0;
     bool bHasAuthRecord = false;
+    bool bAuthRefreshAllowed = true;
     EOpenPocketBaseSessionPersistenceState PersistenceState =
         EOpenPocketBaseSessionPersistenceState::MemoryOnly;
     TSharedRef<FSessionEventQueue, ESPMode::ThreadSafe> SessionEvents =
@@ -2035,7 +2037,7 @@ struct FOpenPocketBaseClient::FImpl
 
     bool ShouldProactivelyRefresh(const FString& RequestToken) const
     {
-        if (!Config.bProactiveAuthRefresh || RequestToken.IsEmpty())
+        if (!bAuthRefreshAllowed || !Config.bProactiveAuthRefresh || RequestToken.IsEmpty())
         {
             return false;
         }
@@ -3459,6 +3461,78 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
         OutError);
 }
 
+TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>
+FOpenPocketBaseClient::CreateEphemeralAuthenticated(
+    const FOpenPocketBaseClientConfig& Config,
+    FString Token,
+    FString AuthCollection,
+    const FOpenPocketBaseRecord& AuthRecord,
+    FOpenPocketBaseError& OutError)
+{
+    return CreateEphemeralAuthenticated(
+        Config,
+        CreateOpenPocketBaseHttpTransport(),
+        MoveTemp(Token),
+        MoveTemp(AuthCollection),
+        AuthRecord,
+        OutError);
+}
+
+TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>
+FOpenPocketBaseClient::CreateEphemeralAuthenticated(
+    const FOpenPocketBaseClientConfig& Config,
+    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+    FString Token,
+    FString AuthCollection,
+    const FOpenPocketBaseRecord& AuthRecord,
+    FOpenPocketBaseError& OutError)
+{
+    FOpenPocketBaseClientConfig EphemeralConfig = Config;
+    EphemeralConfig.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
+    EphemeralConfig.bEnableAssistedOAuth = false;
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = Create(
+        EphemeralConfig,
+        MoveTemp(Transport),
+        OutError);
+    if (!Client.IsValid())
+    {
+        return nullptr;
+    }
+    if (Token.IsEmpty() || Token.Len() > 8192 || !IsSafePathSegment(AuthCollection) ||
+        AuthRecord.Id.IsEmpty() || AuthRecord.Id.Len() > 255)
+    {
+        Client->Shutdown();
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A bounded token, auth collection, and auth record are required."));
+        return nullptr;
+    }
+    for (const TCHAR Character : Token)
+    {
+        if (FChar::IsControl(Character) || FChar::IsWhitespace(Character))
+        {
+            Client->Shutdown();
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The ephemeral authentication token is invalid."));
+            return nullptr;
+        }
+    }
+    Client->Impl->bAuthRefreshAllowed = false;
+    if (!Client->Impl->StoreAuth(
+            MoveTemp(Token),
+            AuthRecord,
+            MoveTemp(AuthCollection),
+            EOpenPocketBaseSessionChangeReason::LoggedIn,
+            OutError))
+    {
+        Client->Shutdown();
+        return nullptr;
+    }
+    OutError = FOpenPocketBaseError();
+    return Client;
+}
+
 TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
     const FOpenPocketBaseClientConfig& Config,
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
@@ -4028,6 +4102,15 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RefreshAuth(
     FOpenPocketBaseAuthCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
+    if (!Impl->bAuthRefreshAllowed)
+    {
+        DispatchFailure<FOpenPocketBaseAuthResult>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::Unsupported,
+                TEXT("Ephemeral impersonation sessions cannot be refreshed.")));
+        return {};
+    }
     FOpenPocketBaseError OptionsError;
     if (!ValidateRequestOptions(Options, OptionsError))
     {
