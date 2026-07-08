@@ -41,6 +41,22 @@ UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
     return Wrapper;
 }
 
+UOpenPocketBaseClient* UOpenPocketBaseClient::Wrap(
+    UObject* Outer,
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client)
+{
+    if (!Client.IsValid() || Client->IsShutdown())
+    {
+        return nullptr;
+    }
+
+    UOpenPocketBaseClient* Wrapper = NewObject<UOpenPocketBaseClient>(
+        Outer != nullptr ? Outer : GetTransientPackage());
+    Wrapper->NativeClient = MoveTemp(Client);
+    Wrapper->BindNativeSessionEvents();
+    return Wrapper;
+}
+
 TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> UOpenPocketBaseClient::GetNativeClient() const
 {
     return NativeClient;

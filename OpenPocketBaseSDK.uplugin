@@ -22,7 +22,10 @@
     {
       "Name": "OpenPocketBaseSDKAdmin",
       "Type": "Runtime",
-      "LoadingPhase": "None"
+      "LoadingPhase": "None",
+      "TargetConfigurationDenyList": [
+        "Shipping"
+      ]
     },
     {
       "Name": "OpenPocketBaseSDKEditor",

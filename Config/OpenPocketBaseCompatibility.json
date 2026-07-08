@@ -12,7 +12,8 @@
   },
   "fixture": {
     "migration": "Tests/Integration/pb_migrations/1787414400_openpocketbase_fixture.js",
-    "darwinArm64ArchiveSha256": "9da6fbe11e82c5b1704e56f7457b24682e01c510206c29b798a458119fa2be20"
+    "darwinArm64ArchiveSha256": "9da6fbe11e82c5b1704e56f7457b24682e01c510206c29b798a458119fa2be20",
+    "privilegedCredentials": "mode-0600-one-run-file-removed-on-exit"
   },
   "packagedValidation": {
     "macArm64": {
@@ -31,5 +32,29 @@
     "POST /api/collections/{collection}/request-otp",
     "POST /api/collections/{collection}/auth-with-otp",
     "POST /api/collections/{collection}/auth-with-oauth2"
+  ],
+  "privilegedRoutes": [
+    "GET /api/collections",
+    "POST /api/collections",
+    "GET /api/collections/{collection}",
+    "PATCH /api/collections/{collection}",
+    "DELETE /api/collections/{collection}",
+    "PUT /api/collections/import",
+    "GET /api/settings",
+    "PATCH /api/settings",
+    "POST /api/settings/test/s3",
+    "POST /api/settings/test/email",
+    "GET /api/logs",
+    "GET /api/logs/{id}",
+    "GET /api/backups",
+    "POST /api/backups",
+    "POST /api/backups/upload",
+    "GET /api/backups/{key}",
+    "POST /api/backups/{key}/restore",
+    "DELETE /api/backups/{key}",
+    "GET /api/crons",
+    "POST /api/crons/{id}",
+    "POST /api/sql",
+    "POST /api/collections/{collection}/impersonate/{id}"
   ]
 }

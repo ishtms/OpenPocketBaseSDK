@@ -3,8 +3,17 @@
 migrate((app) => {
   const superusers = app.findCollectionByNameOrId("_superusers");
   const fixtureSuperuser = new Record(superusers);
-  fixtureSuperuser.set("email", "openpocketbase-fixture@example.com");
-  fixtureSuperuser.setRandomPassword();
+  const fixtureSuperuserEmail = $os.getenv(
+    "OPENPOCKETBASE_FIXTURE_SUPERUSER_EMAIL",
+  );
+  const fixtureSuperuserPassword = $os.getenv(
+    "OPENPOCKETBASE_FIXTURE_SUPERUSER_PASSWORD",
+  );
+  if (!fixtureSuperuserEmail || fixtureSuperuserPassword.length < 20) {
+    throw new Error("Ephemeral fixture superuser material is unavailable.");
+  }
+  fixtureSuperuser.set("email", fixtureSuperuserEmail);
+  fixtureSuperuser.set("password", fixtureSuperuserPassword);
   app.save(fixtureSuperuser);
 
   const users = new Collection({
@@ -116,7 +125,7 @@ migrate((app) => {
   try {
     const fixtureSuperuser = app.findAuthRecordByEmail(
       "_superusers",
-      "openpocketbase-fixture@example.com",
+      $os.getenv("OPENPOCKETBASE_FIXTURE_SUPERUSER_EMAIL"),
     );
     app.delete(fixtureSuperuser);
   } catch {

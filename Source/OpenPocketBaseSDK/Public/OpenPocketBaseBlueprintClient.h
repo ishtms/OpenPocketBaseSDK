@@ -31,6 +31,10 @@ public:
         TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
         FOpenPocketBaseError& OutError);
 
+    static UOpenPocketBaseClient* Wrap(
+        UObject* Outer,
+        TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client);
+
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> GetNativeClient() const;
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client", meta = (DisplayName = "Is PocketBase Client Ready"))

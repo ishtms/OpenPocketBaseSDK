@@ -144,13 +144,13 @@ bool ValidatePolicy(
             TEXT("Privileged requests require an explicit bounded runtime policy."));
         return false;
     }
-#if UE_BUILD_SHIPPING
-#if !OPENPOCKETBASESDK_ADMIN_SHIPPING_ENABLED
+#if UE_BUILD_SHIPPING && !OPENPOCKETBASESDK_ADMIN_SHIPPING_ENABLED
     OutError = MakeAdminError(
         EOpenPocketBaseErrorKind::Unsupported,
         TEXT("The privileged module is not enabled for Shipping builds."));
     return false;
 #else
+#if UE_BUILD_SHIPPING
     if (!Policy.bAllowInShipping)
     {
         OutError = MakeAdminError(
@@ -159,9 +159,9 @@ bool ValidatePolicy(
         return false;
     }
 #endif
-#endif
     OutError = FOpenPocketBaseError();
     return true;
+#endif
 }
 
 FJsonObjectWrapper WrapAdminObject(const TSharedRef<FJsonObject>& Object)
@@ -457,23 +457,18 @@ bool TryParseAdminRecord(
     return true;
 }
 
-bool IsPotentialSqlWrite(const FString& Query)
+bool IsConservativeReadOnlySql(const FString& Query)
 {
     FString Trimmed = Query;
     Trimmed.TrimStartAndEndInline();
     const FString Upper = Trimmed.ToUpper();
-    static const TCHAR* Prefixes[] = {
-        TEXT("INSERT"), TEXT("CREATE"), TEXT("UPDATE"), TEXT("DELETE"),
-        TEXT("DROP"), TEXT("DETACH"), TEXT("ALTER"), TEXT("REPLACE")
-    };
-    for (const TCHAR* Prefix : Prefixes)
+    if (!Upper.StartsWith(TEXT("SELECT")) ||
+        (Upper.Len() > 6 && !FChar::IsWhitespace(Upper[6])))
     {
-        if (Upper.StartsWith(Prefix))
-        {
-            return true;
-        }
+        return false;
     }
-    return false;
+    const int32 Semicolon = Trimmed.Find(TEXT(";"));
+    return Semicolon == INDEX_NONE || Semicolon == Trimmed.Len() - 1;
 }
 }
 
@@ -1359,7 +1354,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RunSql(
     FString Trimmed = Query;
     Trimmed.TrimStartAndEndInline();
     if (!IsAuthenticated() || Trimmed.IsEmpty() || Trimmed.Len() > 5000 ||
-        (IsPotentialSqlWrite(Trimmed) && !Policy.bAllowSqlWrites))
+        (!Policy.bAllowSqlWrites && !IsConservativeReadOnlySql(Trimmed)))
     {
         return FailAdminRequest<FOpenPocketBaseAdminSqlResult>(MoveTemp(OnComplete),
             TEXT("The raw SQL request is invalid or disabled by policy."));
@@ -1368,10 +1363,28 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RunSql(
     Body.Data.JsonObject = MakeShared<FJsonObject>();
     Body.Data.JsonObject->SetStringField(TEXT("query"), MoveTemp(Trimmed));
     const int32 MaxRows = Policy.MaxSqlRows;
+    FOpenPocketBaseAdminSqlCallback SanitizedComplete =
+        [OnComplete = MoveTemp(OnComplete)](
+            TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>&& Result) mutable
+        {
+            if (!OnComplete)
+            {
+                return;
+            }
+            if (!Result.IsSuccess())
+            {
+                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>::Failure(
+                    SanitizeSensitiveError(
+                        Result.GetError(),
+                        TEXT("The SQL request failed without exposing query or result material."))));
+                return;
+            }
+            OnComplete(MoveTemp(Result));
+        };
     return SendAdminRequest<FOpenPocketBaseAdminSqlResult>(CoreClient,
         MakeAdminJsonRequest(EOpenPocketBaseCustomRouteMethod::Post,
             TEXT("/api/sql"), MoveTemp(Body), MoveTemp(Options), Policy),
-        MoveTemp(OnComplete),
+        MoveTemp(SanitizedComplete),
         [MaxRows](const FOpenPocketBaseCustomRouteResponse& Response)
         {
             FOpenPocketBaseAdminSqlResult Result;

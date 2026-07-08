@@ -78,7 +78,10 @@ struct FAdminTestState
     bool bSucceeded = true;
     bool bSettingsRedacted = false;
     bool bBackupExact = false;
+    bool bSqlErrorSanitized = false;
+    int32 RejectedSqlPolicyCases = 0;
     bool bImpersonationSeparated = false;
+    bool bImpersonationRefreshBlocked = false;
     TArray<FString> Errors;
 };
 
@@ -409,7 +412,46 @@ private:
             {
                 Self->Continue(Result.IsSuccess() && Result.GetValue().RowCount == 1,
                     TEXT("Run SQL"));
-                if (Result.IsSuccess()) Self->Impersonate();
+                if (Result.IsSuccess()) Self->RejectSqlPolicyCase(0);
+            });
+    }
+
+    void RejectSqlPolicyCase(const int32 Index)
+    {
+        const TArray<FString> Queries = {
+            TEXT("WITH target AS (SELECT id FROM sdk_tasks) DELETE FROM sdk_tasks"),
+            TEXT("PRAGMA user_version = 7"),
+            TEXT("SELECT 1; DELETE FROM sdk_tasks")};
+        const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->RunSql(
+            Queries[Index],
+            [Self, Index](TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>&& Result)
+            {
+                const bool bRejected = !Result.IsSuccess() &&
+                    Result.GetError().Kind == EOpenPocketBaseErrorKind::InvalidArgument;
+                Self->Continue(bRejected, TEXT("Reject SQL Write Policy Bypass"));
+                if (!bRejected)
+                {
+                    return;
+                }
+                ++Self->State->RejectedSqlPolicyCases;
+                if (Index + 1 < 3) Self->RejectSqlPolicyCase(Index + 1);
+                else Self->RunSensitiveSqlFailure();
+            });
+    }
+
+    void RunSensitiveSqlFailure()
+    {
+        const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->RunSql(
+            TEXT("SELECT secret_password FROM private_table"),
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>&& Result)
+            {
+                Self->State->bSqlErrorSanitized = !Result.IsSuccess() &&
+                    !Result.GetError().ServerMessage.Contains(TEXT("secret_password"));
+                Self->Continue(Self->State->bSqlErrorSanitized,
+                    TEXT("Sanitize SQL Failure"));
+                if (!Result.IsSuccess()) Self->Impersonate();
             });
     }
 
@@ -425,11 +467,27 @@ private:
                 Self->Continue(Result.IsSuccess(), TEXT("Impersonate"));
                 if (Result.IsSuccess())
                 {
+                    FOpenPocketBaseSessionSnapshot Session;
                     Self->State->bImpersonationSeparated =
                         Result.GetValue().Client.IsValid() &&
                         Result.GetValue().Client != Self->State->Client->GetCoreClient() &&
-                        Result.GetValue().Client->IsAuthenticated();
-                    Self->State->bCompleted = true;
+                        Result.GetValue().Client->IsAuthenticated() &&
+                        Result.GetValue().Client->GetCurrentSession(Session) &&
+                        Session.PersistenceState ==
+                            EOpenPocketBaseSessionPersistenceState::MemoryOnly;
+                    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>
+                        ImpersonatedClient = Result.GetValue().Client;
+                    ImpersonatedClient->RefreshAuth(
+                        [Self, ImpersonatedClient](
+                            TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& RefreshResult)
+                        {
+                            Self->State->bImpersonationRefreshBlocked =
+                                !RefreshResult.IsSuccess() &&
+                                RefreshResult.GetError().Kind ==
+                                    EOpenPocketBaseErrorKind::Unsupported;
+                            ImpersonatedClient->Shutdown();
+                            Self->State->bCompleted = true;
+                        });
                 }
             });
     }
@@ -461,18 +519,24 @@ public:
         Test->TestTrue(TEXT("Every privileged operation succeeds"), State->bSucceeded);
         Test->TestTrue(TEXT("Settings secrets are redacted"), State->bSettingsRedacted);
         Test->TestTrue(TEXT("Backup bytes remain exact"), State->bBackupExact);
+        Test->TestTrue(TEXT("SQL failures do not expose query or result material"),
+            State->bSqlErrorSanitized);
+        Test->TestEqual(TEXT("Default SQL policy rejects non-SELECT and stacked statements"),
+            State->RejectedSqlPolicyCases, 3);
         Test->TestTrue(TEXT("Impersonation uses a separate authenticated client"),
             State->bImpersonationSeparated);
+        Test->TestTrue(TEXT("Impersonation cannot persist or refresh its token"),
+            State->bImpersonationRefreshBlocked);
         Test->TestEqual(TEXT("All pinned privileged requests are sent"),
-            State->Transport->Requests.Num(), 24);
-        if (State->Transport->Requests.Num() == 24)
+            State->Transport->Requests.Num(), 25);
+        if (State->Transport->Requests.Num() == 25)
         {
             const TArray<FString> ExpectedMethods = {
                 TEXT("POST"), TEXT("GET"), TEXT("GET"), TEXT("POST"), TEXT("PATCH"),
                 TEXT("DELETE"), TEXT("PUT"), TEXT("GET"), TEXT("PATCH"), TEXT("POST"),
                 TEXT("POST"), TEXT("GET"), TEXT("GET"), TEXT("GET"), TEXT("POST"),
                 TEXT("POST"), TEXT("POST"), TEXT("GET"), TEXT("POST"), TEXT("DELETE"),
-                TEXT("GET"), TEXT("POST"), TEXT("POST"), TEXT("POST")};
+                TEXT("GET"), TEXT("POST"), TEXT("POST"), TEXT("POST"), TEXT("POST")};
             for (int32 Index = 0; Index < ExpectedMethods.Num(); ++Index)
             {
                 Test->TestEqual(TEXT("The privileged method matches the pinned contract"),
@@ -542,6 +606,10 @@ bool FOpenPocketBaseAdminClientTest::RunTest(const FString& Parameters)
     State->Transport->AddJson(
         TEXT("{\"execTime\":1,\"affectedRows\":0,\"columns\":[{\"name\":\"id\","
              "\"type\":\"TEXT\",\"nullable\":false}],\"rows\":[[\"task00000000001\"]]}"));
+    State->Transport->AddJson(
+        TEXT("{\"status\":400,\"message\":\"query leaked SELECT secret_password\","
+             "\"data\":{}}"),
+        400);
     State->Transport->AddJson(
         TEXT("{\"token\":\"mock-impersonation-token\",\"record\":{"
              "\"id\":\"user00000000001\",\"collectionId\":\"users_collection\","
