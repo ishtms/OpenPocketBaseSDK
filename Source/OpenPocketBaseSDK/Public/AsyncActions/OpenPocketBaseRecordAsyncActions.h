@@ -35,6 +35,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseOAuth2Authorization,
     Authorization);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseExternalAuthsActionSuccess,
+    FOpenPocketBaseExternalAuthList,
+    ExternalAuths);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseMfaRequiredAction,
     FOpenPocketBaseMfaContinuation,
     Continuation);
@@ -747,6 +751,201 @@ protected:
 private:
     FString AuthCollection;
     FOpenPocketBaseAssistedOAuth2Options Options;
+};
+
+enum class EOpenPocketBaseAccountActionKind : uint8
+{
+    RequestPasswordReset,
+    ConfirmPasswordReset,
+    RequestVerification,
+    ConfirmVerification,
+    RequestEmailChange,
+    ConfirmEmailChange,
+    UnlinkExternalAuth
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseAccountAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Request Password Reset"))
+    static UOpenPocketBaseAccountAsyncAction* RequestPasswordReset(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString Email,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Confirm Password Reset"))
+    static UOpenPocketBaseAccountAsyncAction* ConfirmPasswordReset(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString Token,
+        FString Password,
+        FString PasswordConfirm,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Request Email Verification"))
+    static UOpenPocketBaseAccountAsyncAction* RequestVerification(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString Email,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Confirm Email Verification"))
+    static UOpenPocketBaseAccountAsyncAction* ConfirmVerification(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString Token,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Request Email Change"))
+    static UOpenPocketBaseAccountAsyncAction* RequestEmailChange(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString NewEmail,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Confirm Email Change"))
+    static UOpenPocketBaseAccountAsyncAction* ConfirmEmailChange(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString Token,
+        FString Password,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "Unlink External Auth"))
+    static UOpenPocketBaseAccountAsyncAction* UnlinkExternalAuth(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString RecordId,
+        FString Provider,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    static UOpenPocketBaseAccountAsyncAction* CreateAction(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        EOpenPocketBaseAccountActionKind Kind,
+        FString AuthCollection,
+        FString Primary,
+        FString Secondary,
+        FString Tertiary,
+        FOpenPocketBaseRequestOptions Options);
+
+    EOpenPocketBaseAccountActionKind Kind =
+        EOpenPocketBaseAccountActionKind::RequestPasswordReset;
+    FString AuthCollection;
+    FString Primary;
+    FString Secondary;
+    FString Tertiary;
+    FOpenPocketBaseRequestOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseListExternalAuthsAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseExternalAuthsActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionFailed Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseActionCancelled Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            WorldContext = "WorldContextObject",
+            DisplayName = "List Linked External Auths"))
+    static UOpenPocketBaseListExternalAuthsAsyncAction* ListLinkedExternalAuths(
+        const UObject* WorldContextObject,
+        UOpenPocketBaseClient* PocketBaseClient,
+        FString AuthCollection,
+        FString RecordId,
+        FOpenPocketBaseRequestOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FString AuthCollection;
+    FString RecordId;
+    FOpenPocketBaseRequestOptions Options;
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))

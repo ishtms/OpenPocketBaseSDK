@@ -222,6 +222,70 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
         TEXT("Password login exposes an MFA Required terminal delegate"),
         UOpenPocketBasePasswordAuthAsyncAction::StaticClass()->FindPropertyByName(
             TEXT("MfaRequired")));
+    TestNotNull(
+        TEXT("Request Password Reset is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseAccountAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                RequestPasswordReset)));
+    TestNotNull(
+        TEXT("Confirm Password Reset is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseAccountAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                ConfirmPasswordReset)));
+    TestNotNull(
+        TEXT("Request Verification is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseAccountAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                RequestVerification)));
+    TestNotNull(
+        TEXT("Confirm Verification is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseAccountAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                ConfirmVerification)));
+    TestNotNull(
+        TEXT("Request Email Change is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseAccountAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                RequestEmailChange)));
+    TestNotNull(
+        TEXT("Confirm Email Change is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseAccountAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                ConfirmEmailChange)));
+    TestNotNull(
+        TEXT("List Linked External Auths is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseListExternalAuthsAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseListExternalAuthsAsyncAction,
+                ListLinkedExternalAuths)));
+    TestNotNull(
+        TEXT("Unlink External Auth is available as an async Blueprint node"),
+        AddAsyncConsumerNode(
+            Graph,
+            UOpenPocketBaseAccountAsyncAction::StaticClass(),
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                UnlinkExternalAuth)));
 
     UK2Node_CallFunction* FieldNode = NewObject<UK2Node_CallFunction>(Graph);
     FieldNode->SetFromFunction(UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(

@@ -41,6 +41,8 @@ using FOpenPocketBaseAuthAttemptCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&&)>;
 using FOpenPocketBaseOAuth2AuthorizationCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&&)>;
+using FOpenPocketBaseExternalAuthsCallback =
+    TUniqueFunction<void(TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&&)>;
 using FOpenPocketBaseBoolCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<bool>&&)>;
 using FOpenPocketBaseBatchCallback =
@@ -181,6 +183,50 @@ public:
         FOpenPocketBaseAssistedOAuth2Options Options,
         FOpenPocketBaseAuthAttemptCallback OnComplete) const;
 
+    FOpenPocketBaseRequestHandle RequestPasswordReset(
+        FString Email,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle ConfirmPasswordReset(
+        FString Token,
+        FString Password,
+        FString PasswordConfirm,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle RequestVerification(
+        FString Email,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle ConfirmVerification(
+        FString Token,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle RequestEmailChange(
+        FString NewEmail,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle ConfirmEmailChange(
+        FString Token,
+        FString Password,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle ListExternalAuths(
+        FString RecordId,
+        FOpenPocketBaseExternalAuthsCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    FOpenPocketBaseRequestHandle UnlinkExternalAuth(
+        FString RecordId,
+        FString Provider,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
     FOpenPocketBaseSubscriptionHandle SubscribeToRecords(
         FOpenPocketBaseRealtimeCallbacks Callbacks,
         FOpenPocketBaseRealtimeOptions Options,
@@ -195,6 +241,14 @@ public:
     bool IsValid() const;
 
 private:
+    FOpenPocketBaseRequestHandle SendAccountPost(
+        FString Route,
+        TMap<FString, FString> BodyFields,
+        bool bUseAuth,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options,
+        TUniqueFunction<bool(FOpenPocketBaseError&)> OnSucceeded = {}) const;
+
     FOpenPocketBaseCollectionService(
         TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
         FString InCollection);

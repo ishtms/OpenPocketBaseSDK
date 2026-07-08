@@ -220,3 +220,33 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseAssistedOAuth2Options
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Authentication", AdvancedDisplay)
     FOpenPocketBaseRequestOptions RequestOptions;
 };
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseExternalAuth
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FOpenPocketBaseRecord Record;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString CollectionRef;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString RecordRef;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString Provider;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FString ProviderId;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseExternalAuthList
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    TArray<FOpenPocketBaseExternalAuth> Items;
+};

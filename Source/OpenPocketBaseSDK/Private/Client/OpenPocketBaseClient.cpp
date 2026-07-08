@@ -1,5 +1,7 @@
 #include "OpenPocketBaseClient.h"
 
+#include "OpenPocketBaseFilter.h"
+
 #include "Async/Async.h"
 #include "Clock/OpenPocketBaseClock.h"
 #include "Crypto/OpenPocketBaseSha256.h"
@@ -685,13 +687,14 @@ bool TryValidateOAuthCallback(
     return true;
 }
 
-TOptional<int64> TryDecodeJwtExpiry(const FString& Token)
+bool TryDecodeJwtPayload(const FString& Token, TSharedPtr<FJsonObject>& OutPayload)
 {
+    OutPayload.Reset();
     TArray<FString> Segments;
     Token.ParseIntoArray(Segments, TEXT("."), false);
     if (Segments.Num() != 3 || Segments[1].IsEmpty() || Segments[1].Len() > 16384)
     {
-        return {};
+        return false;
     }
 
     FString EncodedPayload = Segments[1].Replace(TEXT("-"), TEXT("+"));
@@ -705,23 +708,47 @@ TOptional<int64> TryDecodeJwtExpiry(const FString& Token)
     if (!FBase64::Decode(EncodedPayload, PayloadBytes) || PayloadBytes.IsEmpty() ||
         PayloadBytes.Num() > 8192)
     {
-        return {};
+        return false;
     }
 
     const FUTF8ToTCHAR Converted(
         reinterpret_cast<const ANSICHAR*>(PayloadBytes.GetData()),
         PayloadBytes.Num());
     const FString PayloadJson(Converted.Length(), Converted.Get());
-    TSharedPtr<FJsonObject> Payload;
     const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(PayloadJson);
+    if (!FJsonSerializer::Deserialize(Reader, OutPayload) || !OutPayload.IsValid())
+    {
+        OutPayload.Reset();
+        return false;
+    }
+    return true;
+}
+
+TOptional<int64> TryDecodeJwtExpiry(const FString& Token)
+{
+    TSharedPtr<FJsonObject> Payload;
     double Expiry = 0;
-    if (!FJsonSerializer::Deserialize(Reader, Payload) || !Payload.IsValid() ||
+    if (!TryDecodeJwtPayload(Token, Payload) ||
         !Payload->TryGetNumberField(TEXT("exp"), Expiry) || !FMath::IsFinite(Expiry) ||
         Expiry < 0 || Expiry > static_cast<double>(MAX_int64))
     {
         return {};
     }
     return static_cast<int64>(Expiry);
+}
+
+bool TryDecodeJwtIdentity(
+    const FString& Token,
+    FString& OutRecordId,
+    FString& OutCollectionId)
+{
+    OutRecordId.Reset();
+    OutCollectionId.Reset();
+    TSharedPtr<FJsonObject> Payload;
+    return TryDecodeJwtPayload(Token, Payload) &&
+        Payload->TryGetStringField(TEXT("id"), OutRecordId) &&
+        Payload->TryGetStringField(TEXT("collectionId"), OutCollectionId) &&
+        IsSafePathSegment(OutRecordId) && IsSafePathSegment(OutCollectionId);
 }
 
 FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
@@ -2031,6 +2058,73 @@ struct FOpenPocketBaseClient::FImpl
         return true;
     }
 
+    bool TryMarkCurrentAuthRecordVerified(
+        const FString& RecordId,
+        const FString& CollectionId,
+        FOpenPocketBaseError& OutError)
+    {
+        FOpenPocketBaseSessionSnapshot Snapshot;
+        bool bUpdated = false;
+        {
+            FScopeLock Lock(&AuthMutex);
+            if (!bHasAuthRecord || AuthRecord.Id != RecordId ||
+                AuthRecord.CollectionId != CollectionId ||
+                !AuthRecord.Data.JsonObject.IsValid())
+            {
+                OutError = FOpenPocketBaseError();
+                return true;
+            }
+
+            FOpenPocketBaseRecord UpdatedRecord = AuthRecord;
+            UpdatedRecord.Data.JsonObject =
+                MakeShared<FJsonObject>(*AuthRecord.Data.JsonObject);
+            UpdatedRecord.Data.JsonObject->SetBoolField(TEXT("verified"), true);
+            if (!TryPersistSessionLocked(
+                    AuthCollection,
+                    AuthToken,
+                    UpdatedRecord,
+                    OutError))
+            {
+                return false;
+            }
+
+            AuthRecord = MoveTemp(UpdatedRecord);
+            ++AuthGeneration;
+            bUpdated = true;
+
+            Snapshot.bAuthenticated = true;
+            Snapshot.AuthCollection = AuthCollection;
+            Snapshot.AuthGeneration = AuthGeneration;
+            Snapshot.PersistenceState = PersistenceState;
+            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::RecordUpdated;
+            Snapshot.AuthRecord = AuthRecord;
+        }
+        if (bUpdated)
+        {
+            SessionEvents->Enqueue(MoveTemp(Snapshot));
+            Realtime->NotifyAuthChanged();
+        }
+        OutError = FOpenPocketBaseError();
+        return true;
+    }
+
+    void TryClearCurrentAuthIdentity(
+        const FString& RecordId,
+        const FString& CollectionId)
+    {
+        FString CurrentCollection;
+        {
+            FScopeLock Lock(&AuthMutex);
+            if (!bHasAuthRecord || AuthRecord.Id != RecordId ||
+                AuthRecord.CollectionId != CollectionId)
+            {
+                return;
+            }
+            CurrentCollection = AuthCollection;
+        }
+        TryClearCurrentAuthRecord(CurrentCollection, RecordId);
+    }
+
     bool TryClearCurrentAuthRecord(
         const FString& Collection,
         const FString& RecordId)
@@ -2843,6 +2937,69 @@ private:
 
 namespace
 {
+class FChainedAccountRequest final
+{
+public:
+    void SetChild(FOpenPocketBaseRequestHandle Handle)
+    {
+        bool bCancel = false;
+        {
+            FScopeLock Lock(&Mutex);
+            bCancel = bCancelled;
+            if (!bCancel)
+            {
+                Child = Handle;
+            }
+        }
+        if (bCancel)
+        {
+            Handle.Cancel();
+        }
+    }
+
+    void Cancel()
+    {
+        FOpenPocketBaseRequestHandle LocalChild;
+        {
+            FScopeLock Lock(&Mutex);
+            bCancelled = true;
+            LocalChild = Child;
+            Child = {};
+        }
+        LocalChild.Cancel();
+    }
+
+private:
+    FCriticalSection Mutex;
+    FOpenPocketBaseRequestHandle Child;
+    bool bCancelled = false;
+};
+
+bool TryMakeExternalAuth(
+    FOpenPocketBaseRecord Record,
+    FOpenPocketBaseExternalAuth& OutExternalAuth)
+{
+    OutExternalAuth = FOpenPocketBaseExternalAuth();
+    if (!Record.Data.JsonObject.IsValid() ||
+        !Record.Data.JsonObject->TryGetStringField(
+            TEXT("collectionRef"), OutExternalAuth.CollectionRef) ||
+        !Record.Data.JsonObject->TryGetStringField(
+            TEXT("recordRef"), OutExternalAuth.RecordRef) ||
+        !Record.Data.JsonObject->TryGetStringField(
+            TEXT("provider"), OutExternalAuth.Provider) ||
+        !Record.Data.JsonObject->TryGetStringField(
+            TEXT("providerId"), OutExternalAuth.ProviderId) ||
+        OutExternalAuth.CollectionRef.Len() > 256 ||
+        OutExternalAuth.RecordRef.Len() > 256 ||
+        OutExternalAuth.Provider.Len() > 128 ||
+        OutExternalAuth.ProviderId.Len() > 4096)
+    {
+        return false;
+    }
+    OutExternalAuth.Record = MoveTemp(Record);
+    return true;
+}
+
 class FOpenPocketBaseFullListOperation final
     : public TSharedFromThis<FOpenPocketBaseFullListOperation, ESPMode::ThreadSafe>
 {
@@ -5234,6 +5391,448 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithO
         Collection,
         MoveTemp(Options),
         MoveTemp(OnComplete));
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::SendAccountPost(
+    FString Route,
+    TMap<FString, FString> BodyFields,
+    const bool bUseAuth,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options,
+    TUniqueFunction<bool(FOpenPocketBaseError&)> OnSucceeded) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A ready client and valid auth collection are required.")));
+        return {};
+    }
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<bool>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+
+    const TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+    for (TPair<FString, FString>& Field : BodyFields)
+    {
+        Body->SetStringField(MoveTemp(Field.Key), MoveTemp(Field.Value));
+    }
+    const TSharedRef<TCompletionState<bool>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<bool>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const FString Path = FString::Printf(
+        TEXT("/api/collections/%s/%s"),
+        *EncodeSegment(Collection),
+        *Route);
+    FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
+        TEXT("POST"),
+        Path,
+        OpenPocketBase::Json::SerializeObject(Body),
+        Options,
+        bUseAuth);
+    return PinnedClient->Impl->Send(
+        MoveTemp(Request),
+        Options,
+        false,
+        [Completion, OnSucceeded = MoveTemp(OnSucceeded)](
+            FOpenPocketBaseHttpResponse&& Response,
+            const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State) mutable
+        {
+            TOpenPocketBaseResult<bool> Result =
+                OpenPocketBase::Json::ParseEmptyResponse(Response);
+            if (Result.IsSuccess() && OnSucceeded)
+            {
+                FOpenPocketBaseError Error;
+                if (!OnSucceeded(Error))
+                {
+                    Result = TOpenPocketBaseResult<bool>::Failure(MoveTemp(Error));
+                }
+            }
+            State->TryComplete(
+                TerminalStateFor(Result.IsSuccess()),
+                [Completion, Result = MoveTemp(Result)]() mutable
+                {
+                    Completion->Invoke(MoveTemp(Result));
+                });
+        },
+        [Completion]()
+        {
+            Completion->Invoke(TOpenPocketBaseResult<bool>::Failure(MakeCancelledError()));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestPasswordReset(
+    FString Email,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    if (!IsSafeOAuthValue(Email, 320))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A bounded email is required.")));
+        return {};
+    }
+    TMap<FString, FString> Body;
+    Body.Add(TEXT("email"), MoveTemp(Email));
+    return SendAccountPost(
+        TEXT("request-password-reset"),
+        MoveTemp(Body),
+        false,
+        MoveTemp(OnComplete),
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmPasswordReset(
+    FString Token,
+    FString Password,
+    FString PasswordConfirm,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    if (!IsSafeOAuthValue(Token, 8192) || !IsSafeOAuthValue(Password, 4096) ||
+        Password != PasswordConfirm)
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A bounded token and matching passwords are required.")));
+        return {};
+    }
+    TMap<FString, FString> Body;
+    Body.Add(TEXT("token"), MoveTemp(Token));
+    Body.Add(TEXT("password"), MoveTemp(Password));
+    Body.Add(TEXT("passwordConfirm"), MoveTemp(PasswordConfirm));
+    return SendAccountPost(
+        TEXT("confirm-password-reset"),
+        MoveTemp(Body),
+        false,
+        MoveTemp(OnComplete),
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestVerification(
+    FString Email,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    if (!IsSafeOAuthValue(Email, 320))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A bounded email is required.")));
+        return {};
+    }
+    TMap<FString, FString> Body;
+    Body.Add(TEXT("email"), MoveTemp(Email));
+    return SendAccountPost(
+        TEXT("request-verification"),
+        MoveTemp(Body),
+        false,
+        MoveTemp(OnComplete),
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmVerification(
+    FString Token,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    if (!IsSafeOAuthValue(Token, 8192))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A bounded verification token is required.")));
+        return {};
+    }
+    FString RecordId;
+    FString CollectionId;
+    TryDecodeJwtIdentity(Token, RecordId, CollectionId);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = Client;
+    TMap<FString, FString> Body;
+    Body.Add(TEXT("token"), MoveTemp(Token));
+    return SendAccountPost(
+        TEXT("confirm-verification"),
+        MoveTemp(Body),
+        false,
+        MoveTemp(OnComplete),
+        MoveTemp(Options),
+        [WeakClient, RecordId = MoveTemp(RecordId), CollectionId = MoveTemp(CollectionId)](
+            FOpenPocketBaseError& OutError)
+        {
+            const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient =
+                WeakClient.Pin();
+            if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+            {
+                OutError = MakeCancelledError();
+                return false;
+            }
+            if (RecordId.IsEmpty() || CollectionId.IsEmpty())
+            {
+                OutError = FOpenPocketBaseError();
+                return true;
+            }
+            return PinnedClient->Impl->TryMarkCurrentAuthRecordVerified(
+                RecordId,
+                CollectionId,
+                OutError);
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestEmailChange(
+    FString NewEmail,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    if (!IsSafeOAuthValue(NewEmail, 320))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A bounded new email is required.")));
+        return {};
+    }
+    TMap<FString, FString> Body;
+    Body.Add(TEXT("newEmail"), MoveTemp(NewEmail));
+    return SendAccountPost(
+        TEXT("request-email-change"),
+        MoveTemp(Body),
+        true,
+        MoveTemp(OnComplete),
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmEmailChange(
+    FString Token,
+    FString Password,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    if (!IsSafeOAuthValue(Token, 8192) || !IsSafeOAuthValue(Password, 4096))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A bounded email-change token and password are required.")));
+        return {};
+    }
+    FString RecordId;
+    FString CollectionId;
+    TryDecodeJwtIdentity(Token, RecordId, CollectionId);
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = Client;
+    TMap<FString, FString> Body;
+    Body.Add(TEXT("token"), MoveTemp(Token));
+    Body.Add(TEXT("password"), MoveTemp(Password));
+    return SendAccountPost(
+        TEXT("confirm-email-change"),
+        MoveTemp(Body),
+        false,
+        MoveTemp(OnComplete),
+        MoveTemp(Options),
+        [WeakClient, RecordId = MoveTemp(RecordId), CollectionId = MoveTemp(CollectionId)](
+            FOpenPocketBaseError& OutError)
+        {
+            const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient =
+                WeakClient.Pin();
+            if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+            {
+                OutError = MakeCancelledError();
+                return false;
+            }
+            if (!RecordId.IsEmpty() && !CollectionId.IsEmpty())
+            {
+                PinnedClient->Impl->TryClearCurrentAuthIdentity(RecordId, CollectionId);
+            }
+            OutError = FOpenPocketBaseError();
+            return true;
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListExternalAuths(
+    FString RecordId,
+    FOpenPocketBaseExternalAuthsCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+        !IsSafePathSegment(RecordId))
+    {
+        DispatchFailure<TArray<FOpenPocketBaseExternalAuth>>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A ready client, auth collection, and record ID are required.")));
+        return {};
+    }
+    FOpenPocketBaseFilterParams Params;
+    Params.AddString(TEXT("id"), RecordId);
+    FString Filter;
+    FOpenPocketBaseError FilterError;
+    if (!FOpenPocketBaseFilter::TryBind(
+            TEXT("recordRef = {:id}"), Params, Filter, FilterError))
+    {
+        DispatchFailure<TArray<FOpenPocketBaseExternalAuth>>(
+            MoveTemp(OnComplete), MoveTemp(FilterError));
+        return {};
+    }
+
+    FOpenPocketBaseListOptions ListOptions;
+    ListOptions.PerPage = 100;
+    ListOptions.Filter = MoveTemp(Filter);
+    ListOptions.bSkipTotal = true;
+    ListOptions.RequestOptions = MoveTemp(Options);
+    return PinnedClient->Collection(TEXT("_externalAuths")).GetList(
+        MoveTemp(ListOptions),
+        [OnComplete = MoveTemp(OnComplete)](
+            TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result) mutable
+        {
+            if (!OnComplete)
+            {
+                return;
+            }
+            if (!Result.IsSuccess())
+            {
+                OnComplete(TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>::Failure(
+                    Result.GetError()));
+                return;
+            }
+
+            TArray<FOpenPocketBaseExternalAuth> ExternalAuths;
+            ExternalAuths.Reserve(Result.GetValue().Items.Num());
+            for (FOpenPocketBaseRecord& Record : Result.GetValue().Items)
+            {
+                FOpenPocketBaseExternalAuth ExternalAuth;
+                if (!TryMakeExternalAuth(MoveTemp(Record), ExternalAuth))
+                {
+                    OnComplete(TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>::Failure(
+                        MakeLocalError(
+                            EOpenPocketBaseErrorKind::Serialization,
+                            TEXT("PocketBase returned an invalid linked external-auth record."))));
+                    return;
+                }
+                ExternalAuths.Add(MoveTemp(ExternalAuth));
+            }
+            OnComplete(TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>::Success(
+                MoveTemp(ExternalAuths)));
+        });
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UnlinkExternalAuth(
+    FString RecordId,
+    FString Provider,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options) const
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+        !IsSafePathSegment(RecordId) || !IsSafeOAuthValue(Provider, 128))
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A ready client, auth collection, record ID, and provider are required.")));
+        return {};
+    }
+    FOpenPocketBaseError OptionsError;
+    if (!ValidateRequestOptions(Options, OptionsError))
+    {
+        DispatchFailure<bool>(MoveTemp(OnComplete), MoveTemp(OptionsError));
+        return {};
+    }
+    FOpenPocketBaseFilterParams Params;
+    Params.AddString(TEXT("recordId"), RecordId);
+    Params.AddString(TEXT("provider"), Provider);
+    FString Filter;
+    FOpenPocketBaseError FilterError;
+    if (!FOpenPocketBaseFilter::TryBind(
+            TEXT("recordRef = {:recordId} && provider = {:provider}"),
+            Params,
+            Filter,
+            FilterError))
+    {
+        DispatchFailure<bool>(MoveTemp(OnComplete), MoveTemp(FilterError));
+        return {};
+    }
+
+    const TSharedRef<TCompletionState<bool>, ESPMode::ThreadSafe> Completion =
+        MakeShared<TCompletionState<bool>, ESPMode::ThreadSafe>(MoveTemp(OnComplete));
+    const TSharedRef<FChainedAccountRequest, ESPMode::ThreadSafe> Chain =
+        MakeShared<FChainedAccountRequest, ESPMode::ThreadSafe>();
+    const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> RequestState =
+        PinnedClient->Impl->CreateCompositeState(
+            [Chain, Completion]()
+            {
+                Chain->Cancel();
+                Completion->Invoke(TOpenPocketBaseResult<bool>::Failure(MakeCancelledError()));
+            });
+    const FOpenPocketBaseRequestHandle Handle =
+        PinnedClient->Impl->MakeRequestHandle(RequestState);
+
+    FOpenPocketBaseRecordOptions FindOptions;
+    FindOptions.RequestOptions = Options;
+    FOpenPocketBaseRequestHandle FindHandle =
+        PinnedClient->Collection(TEXT("_externalAuths")).GetFirstListItem(
+            MoveTemp(Filter),
+            [PinnedClient, Chain, Completion, RequestState, Options](
+                TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result) mutable
+            {
+                if (!RequestState->IsActive())
+                {
+                    return;
+                }
+                if (!Result.IsSuccess())
+                {
+                    const EOpenPocketBaseRequestState Terminal =
+                        Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled
+                            ? EOpenPocketBaseRequestState::Cancelled
+                            : EOpenPocketBaseRequestState::Failed;
+                    RequestState->TryComplete(
+                        Terminal,
+                        [Completion, Error = Result.GetError()]() mutable
+                        {
+                            Completion->Invoke(TOpenPocketBaseResult<bool>::Failure(
+                                MoveTemp(Error)));
+                        });
+                    return;
+                }
+
+                FOpenPocketBaseRequestHandle DeleteHandle =
+                    PinnedClient->Collection(TEXT("_externalAuths")).Delete(
+                        Result.GetValue().Id,
+                        [Completion, RequestState](TOpenPocketBaseResult<bool>&& DeleteResult) mutable
+                        {
+                            if (!RequestState->IsActive())
+                            {
+                                return;
+                            }
+                            const EOpenPocketBaseRequestState Terminal =
+                                !DeleteResult.IsSuccess() &&
+                                    DeleteResult.GetError().Kind ==
+                                        EOpenPocketBaseErrorKind::Cancelled
+                                ? EOpenPocketBaseRequestState::Cancelled
+                                : TerminalStateFor(DeleteResult.IsSuccess());
+                            RequestState->TryComplete(
+                                Terminal,
+                                [Completion, DeleteResult = MoveTemp(DeleteResult)]() mutable
+                                {
+                                    Completion->Invoke(MoveTemp(DeleteResult));
+                                });
+                        },
+                        Options);
+                Chain->SetChild(MoveTemp(DeleteHandle));
+            },
+            MoveTemp(FindOptions));
+    Chain->SetChild(MoveTemp(FindHandle));
+    return Handle;
 }
 
 FOpenPocketBaseSubscriptionHandle FOpenPocketBaseCollectionService::SubscribeToRecords(

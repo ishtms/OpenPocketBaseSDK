@@ -1240,6 +1240,324 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::BroadcastCancelled()
     Cancelled.Broadcast();
 }
 
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateAction(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    const EOpenPocketBaseAccountActionKind InKind,
+    FString InAuthCollection,
+    FString InPrimary,
+    FString InSecondary,
+    FString InTertiary,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseAccountAsyncAction* Action =
+        NewObject<UOpenPocketBaseAccountAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->Kind = InKind;
+    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Primary = MoveTemp(InPrimary);
+    Action->Secondary = MoveTemp(InSecondary);
+    Action->Tertiary = MoveTemp(InTertiary);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPasswordReset(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString AuthCollection,
+    FString Email,
+    FOpenPocketBaseRequestOptions Options)
+{
+    return CreateAction(
+        WorldContextObject,
+        PocketBaseClient,
+        EOpenPocketBaseAccountActionKind::RequestPasswordReset,
+        MoveTemp(AuthCollection),
+        MoveTemp(Email),
+        {},
+        {},
+        MoveTemp(Options));
+}
+
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPasswordReset(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString AuthCollection,
+    FString Token,
+    FString Password,
+    FString PasswordConfirm,
+    FOpenPocketBaseRequestOptions Options)
+{
+    return CreateAction(
+        WorldContextObject,
+        PocketBaseClient,
+        EOpenPocketBaseAccountActionKind::ConfirmPasswordReset,
+        MoveTemp(AuthCollection),
+        MoveTemp(Token),
+        MoveTemp(Password),
+        MoveTemp(PasswordConfirm),
+        MoveTemp(Options));
+}
+
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestVerification(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString AuthCollection,
+    FString Email,
+    FOpenPocketBaseRequestOptions Options)
+{
+    return CreateAction(
+        WorldContextObject,
+        PocketBaseClient,
+        EOpenPocketBaseAccountActionKind::RequestVerification,
+        MoveTemp(AuthCollection),
+        MoveTemp(Email),
+        {},
+        {},
+        MoveTemp(Options));
+}
+
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmVerification(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString AuthCollection,
+    FString Token,
+    FOpenPocketBaseRequestOptions Options)
+{
+    return CreateAction(
+        WorldContextObject,
+        PocketBaseClient,
+        EOpenPocketBaseAccountActionKind::ConfirmVerification,
+        MoveTemp(AuthCollection),
+        MoveTemp(Token),
+        {},
+        {},
+        MoveTemp(Options));
+}
+
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEmailChange(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString AuthCollection,
+    FString NewEmail,
+    FOpenPocketBaseRequestOptions Options)
+{
+    return CreateAction(
+        WorldContextObject,
+        PocketBaseClient,
+        EOpenPocketBaseAccountActionKind::RequestEmailChange,
+        MoveTemp(AuthCollection),
+        MoveTemp(NewEmail),
+        {},
+        {},
+        MoveTemp(Options));
+}
+
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEmailChange(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString AuthCollection,
+    FString Token,
+    FString Password,
+    FOpenPocketBaseRequestOptions Options)
+{
+    return CreateAction(
+        WorldContextObject,
+        PocketBaseClient,
+        EOpenPocketBaseAccountActionKind::ConfirmEmailChange,
+        MoveTemp(AuthCollection),
+        MoveTemp(Token),
+        MoveTemp(Password),
+        {},
+        MoveTemp(Options));
+}
+
+UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::UnlinkExternalAuth(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString AuthCollection,
+    FString RecordId,
+    FString Provider,
+    FOpenPocketBaseRequestOptions Options)
+{
+    return CreateAction(
+        WorldContextObject,
+        PocketBaseClient,
+        EOpenPocketBaseAccountActionKind::UnlinkExternalAuth,
+        MoveTemp(AuthCollection),
+        MoveTemp(RecordId),
+        MoveTemp(Provider),
+        {},
+        MoveTemp(Options));
+}
+
+void UOpenPocketBaseAccountAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseAccountAsyncAction> WeakThis(this);
+    FOpenPocketBaseBoolCallback OnComplete =
+        [WeakThis](TOpenPocketBaseResult<bool>&& Result)
+        {
+            UOpenPocketBaseAccountAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast();
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        };
+
+    FOpenPocketBaseCollectionService Auth = NativeClient->Collection(AuthCollection);
+    switch (Kind)
+    {
+    case EOpenPocketBaseAccountActionKind::RequestPasswordReset:
+        RequestHandle = Auth.RequestPasswordReset(
+            MoveTemp(Primary), MoveTemp(OnComplete), MoveTemp(Options));
+        break;
+    case EOpenPocketBaseAccountActionKind::ConfirmPasswordReset:
+        RequestHandle = Auth.ConfirmPasswordReset(
+            MoveTemp(Primary),
+            MoveTemp(Secondary),
+            MoveTemp(Tertiary),
+            MoveTemp(OnComplete),
+            MoveTemp(Options));
+        break;
+    case EOpenPocketBaseAccountActionKind::RequestVerification:
+        RequestHandle = Auth.RequestVerification(
+            MoveTemp(Primary), MoveTemp(OnComplete), MoveTemp(Options));
+        break;
+    case EOpenPocketBaseAccountActionKind::ConfirmVerification:
+        RequestHandle = Auth.ConfirmVerification(
+            MoveTemp(Primary), MoveTemp(OnComplete), MoveTemp(Options));
+        break;
+    case EOpenPocketBaseAccountActionKind::RequestEmailChange:
+        RequestHandle = Auth.RequestEmailChange(
+            MoveTemp(Primary), MoveTemp(OnComplete), MoveTemp(Options));
+        break;
+    case EOpenPocketBaseAccountActionKind::ConfirmEmailChange:
+        RequestHandle = Auth.ConfirmEmailChange(
+            MoveTemp(Primary),
+            MoveTemp(Secondary),
+            MoveTemp(OnComplete),
+            MoveTemp(Options));
+        break;
+    case EOpenPocketBaseAccountActionKind::UnlinkExternalAuth:
+        RequestHandle = Auth.UnlinkExternalAuth(
+            MoveTemp(Primary),
+            MoveTemp(Secondary),
+            MoveTemp(OnComplete),
+            MoveTemp(Options));
+        break;
+    }
+}
+
+void UOpenPocketBaseAccountAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
+UOpenPocketBaseListExternalAuthsAsyncAction*
+UOpenPocketBaseListExternalAuthsAsyncAction::ListLinkedExternalAuths(
+    const UObject* WorldContextObject,
+    UOpenPocketBaseClient* PocketBaseClient,
+    FString InAuthCollection,
+    FString InRecordId,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseListExternalAuthsAsyncAction* Action =
+        NewObject<UOpenPocketBaseListExternalAuthsAsyncAction>();
+    Action->Client = PocketBaseClient;
+    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->RecordId = MoveTemp(InRecordId);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(WorldContextObject);
+    return Action;
+}
+
+void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Failed.Broadcast(Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TWeakObjectPtr<UOpenPocketBaseListExternalAuthsAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->Collection(AuthCollection).ListExternalAuths(
+        MoveTemp(RecordId),
+        [WeakThis](TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&& Result)
+        {
+            UOpenPocketBaseListExternalAuthsAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    FOpenPocketBaseExternalAuthList ExternalAuths;
+                    ExternalAuths.Items = MoveTemp(Result.GetValue());
+                    Action->Success.Broadcast(ExternalAuths);
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast();
+                }
+                else
+                {
+                    Action->Failed.Broadcast(Result.GetError());
+                }
+            }
+            Action->Finish();
+        },
+        MoveTemp(Options));
+}
+
+void UOpenPocketBaseListExternalAuthsAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast();
+}
+
 UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::LogInWithPassword(
     const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,

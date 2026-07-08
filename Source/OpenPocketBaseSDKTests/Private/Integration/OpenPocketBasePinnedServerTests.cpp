@@ -512,6 +512,302 @@ bool FOpenPocketBasePinnedRemainingAuthTest::RunTest(const FString& Parameters)
 
 namespace
 {
+struct FPinnedAccountOperationsState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> AnonymousClient;
+    bool bCompleted = false;
+    bool bPasswordResetRequested = false;
+    bool bInvalidPasswordResetRejected = false;
+    bool bVerificationRequested = false;
+    bool bInvalidVerificationRejected = false;
+    bool bExternalAuthListed = false;
+    bool bExternalAuthUnlinked = false;
+    bool bUnauthenticatedEmailChangeRejected = false;
+    bool bInvalidEmailChangeRejected = false;
+    TArray<FString> Errors;
+};
+
+class FPinnedAccountOperationsFlow final
+    : public TSharedFromThis<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe>
+{
+public:
+    explicit FPinnedAccountOperationsFlow(
+        TSharedRef<FPinnedAccountOperationsState, ESPMode::ThreadSafe> InState)
+        : State(MoveTemp(InState))
+    {
+    }
+
+    void Start()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+            TEXT("player@example.com"),
+            TEXT("correct-horse-battery"),
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+            {
+                if (!Result.IsSuccess())
+                {
+                    Self->Fail(TEXT("Account operations login"), Result.GetError());
+                    return;
+                }
+                Self->RequestPasswordReset();
+            });
+    }
+
+private:
+    void RequestPasswordReset()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).RequestPasswordReset(
+            TEXT("missing-password-reset@example.invalid"),
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->State->bPasswordResetRequested = Result.IsSuccess();
+                if (!Result.IsSuccess())
+                {
+                    Self->Fail(TEXT("Request password reset"), Result.GetError());
+                    return;
+                }
+                Self->ConfirmInvalidPasswordReset();
+            });
+    }
+
+    void ConfirmInvalidPasswordReset()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).ConfirmPasswordReset(
+            TEXT("invalid-password-reset-token"),
+            TEXT("replacement-password"),
+            TEXT("replacement-password"),
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->State->bInvalidPasswordResetRejected =
+                    !Result.IsSuccess() && Result.GetError().HttpStatus == 400;
+                if (!Self->State->bInvalidPasswordResetRejected)
+                {
+                    Self->RecordUnexpected(TEXT("Confirm invalid password reset"), Result);
+                }
+                Self->RequestVerification();
+            });
+    }
+
+    void RequestVerification()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).RequestVerification(
+            TEXT("missing-verification@example.invalid"),
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->State->bVerificationRequested = Result.IsSuccess();
+                if (!Result.IsSuccess())
+                {
+                    Self->Fail(TEXT("Request verification"), Result.GetError());
+                    return;
+                }
+                Self->ConfirmInvalidVerification();
+            });
+    }
+
+    void ConfirmInvalidVerification()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).ConfirmVerification(
+            TEXT("invalid-verification-token"),
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->State->bInvalidVerificationRejected =
+                    !Result.IsSuccess() && Result.GetError().HttpStatus == 400;
+                if (!Self->State->bInvalidVerificationRejected)
+                {
+                    Self->RecordUnexpected(TEXT("Confirm invalid verification"), Result);
+                }
+                Self->ListExternalAuths();
+            });
+    }
+
+    void ListExternalAuths()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).ListExternalAuths(
+            TEXT("user00000000001"),
+            [Self](TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&& Result)
+            {
+                Self->State->bExternalAuthListed = Result.IsSuccess() &&
+                    Result.GetValue().Num() == 1 &&
+                    Result.GetValue()[0].Provider == TEXT("github");
+                if (!Result.IsSuccess())
+                {
+                    Self->Fail(TEXT("List external auths"), Result.GetError());
+                    return;
+                }
+                if (!Self->State->bExternalAuthListed)
+                {
+                    Self->State->Errors.Add(
+                        TEXT("List external auths returned an unexpected fixture."));
+                }
+                Self->UnlinkExternalAuth();
+            });
+    }
+
+    void UnlinkExternalAuth()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).UnlinkExternalAuth(
+            TEXT("user00000000001"),
+            TEXT("github"),
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->State->bExternalAuthUnlinked = Result.IsSuccess();
+                if (!Result.IsSuccess())
+                {
+                    Self->Fail(TEXT("Unlink external auth"), Result.GetError());
+                    return;
+                }
+                Self->RequestUnauthenticatedEmailChange();
+            });
+    }
+
+    void RequestUnauthenticatedEmailChange()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->AnonymousClient->Collection(TEXT("sdk_users")).RequestEmailChange(
+            TEXT("new-player@example.invalid"),
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->State->bUnauthenticatedEmailChangeRejected =
+                    !Result.IsSuccess() && Result.GetError().HttpStatus == 401;
+                if (!Self->State->bUnauthenticatedEmailChangeRejected)
+                {
+                    Self->RecordUnexpected(TEXT("Unauthenticated email change"), Result);
+                }
+                Self->ConfirmInvalidEmailChange();
+            });
+    }
+
+    void ConfirmInvalidEmailChange()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->Collection(TEXT("sdk_users")).ConfirmEmailChange(
+            TEXT("invalid-email-change-token"),
+            TEXT("correct-horse-battery"),
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->State->bInvalidEmailChangeRejected =
+                    !Result.IsSuccess() && Result.GetError().HttpStatus == 400;
+                if (!Self->State->bInvalidEmailChangeRejected)
+                {
+                    Self->RecordUnexpected(TEXT("Confirm invalid email change"), Result);
+                }
+                Self->State->bCompleted = true;
+            });
+    }
+
+    void Fail(const TCHAR* Operation, const FOpenPocketBaseError& Error)
+    {
+        State->Errors.Add(DescribeIntegrationError(Operation, Error));
+        State->bCompleted = true;
+    }
+
+    void RecordUnexpected(
+        const TCHAR* Operation,
+        const TOpenPocketBaseResult<bool>& Result)
+    {
+        State->Errors.Add(Result.IsSuccess()
+            ? FString::Printf(TEXT("%s unexpectedly succeeded."), Operation)
+            : DescribeIntegrationError(Operation, Result.GetError()));
+    }
+
+    TSharedRef<FPinnedAccountOperationsState, ESPMode::ThreadSafe> State;
+};
+
+class FVerifyPinnedAccountOperations final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPinnedAccountOperations(
+        TSharedRef<FPinnedAccountOperationsState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        for (const FString& Error : State->Errors)
+        {
+            Test->AddError(Error);
+        }
+        Test->TestTrue(TEXT("Password reset request matches v0.39.11"),
+            State->bPasswordResetRequested);
+        Test->TestTrue(TEXT("Invalid password reset is rejected by v0.39.11"),
+            State->bInvalidPasswordResetRejected);
+        Test->TestTrue(TEXT("Verification request matches v0.39.11"),
+            State->bVerificationRequested);
+        Test->TestTrue(TEXT("Invalid verification is rejected by v0.39.11"),
+            State->bInvalidVerificationRejected);
+        Test->TestTrue(TEXT("Linked external auth listing matches v0.39.11"),
+            State->bExternalAuthListed);
+        Test->TestTrue(TEXT("Linked external auth unlinking matches v0.39.11"),
+            State->bExternalAuthUnlinked);
+        Test->TestTrue(TEXT("Email change requires current auth in v0.39.11"),
+            State->bUnauthenticatedEmailChangeRejected);
+        Test->TestTrue(TEXT("Invalid email change is rejected by v0.39.11"),
+            State->bInvalidEmailChangeRejected);
+        State->AnonymousClient->Shutdown();
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPinnedAccountOperationsState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePinnedAccountOperationsTest,
+    "OpenPocketBase.Integration.V03911.AccountOperations",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePinnedAccountOperationsTest::RunTest(const FString& Parameters)
+{
+    const FString BaseUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("OPENPOCKETBASE_TEST_URL"));
+    if (BaseUrl.IsEmpty())
+    {
+        AddInfo(TEXT("OPENPOCKETBASE_TEST_URL is not set; the pinned account test was not requested."));
+        return true;
+    }
+
+    const TSharedRef<FPinnedAccountOperationsState, ESPMode::ThreadSafe> State =
+        MakeShared<FPinnedAccountOperationsState, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = BaseUrl;
+    Config.ProfileName = TEXT("integration-v03911-account");
+    FOpenPocketBaseError Error;
+    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    State->AnonymousClient = FOpenPocketBaseClient::Create(Config, Error);
+    if (!TestNotNull(TEXT("The account integration client is created"), State->Client.Get()) ||
+        !TestNotNull(TEXT("The anonymous integration client is created"),
+            State->AnonymousClient.Get()))
+    {
+        AddError(Error.ServerMessage);
+        return false;
+    }
+
+    const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Flow =
+        MakeShared<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe>(State);
+    Flow->Start();
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedAccountOperations(State, this));
+    return true;
+}
+
+namespace
+{
 struct FPinnedUploadState
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;

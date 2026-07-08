@@ -35,6 +35,15 @@ migrate((app) => {
   player.set("password", "correct-horse-battery");
   app.save(player);
 
+  const externalAuths = app.findCollectionByNameOrId("_externalAuths");
+  const externalAuth = new Record(externalAuths);
+  externalAuth.set("id", "extauth00000001");
+  externalAuth.set("collectionRef", users.id);
+  externalAuth.set("recordRef", player.id);
+  externalAuth.set("provider", "github");
+  externalAuth.set("providerId", "fixture-provider-user");
+  app.save(externalAuth);
+
   const tasks = new Collection({
     type: "base",
     name: "sdk_tasks",
