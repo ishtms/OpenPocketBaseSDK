@@ -6,8 +6,7 @@ bool ContainsWhitespace(const FString& Value)
 {
     for (const TCHAR Character : Value)
     {
-        if (FChar::IsWhitespace(Character))
-        {
+        if (FChar::IsWhitespace(Character)) {
             return true;
         }
     }

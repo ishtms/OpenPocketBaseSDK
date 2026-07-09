@@ -6,6 +6,16 @@ public class OpenPocketBaseSDKEditor : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new[] { "Core", "OpenPocketBaseSDK" });
-        PrivateDependencyModuleNames.Add("UnrealEd");
+        PrivateDependencyModuleNames.AddRange(
+            new[]
+            {
+                "AssetRegistry",
+                "BlueprintGraph",
+                "CoreUObject",
+                "DataValidation",
+                "Engine",
+                "Projects",
+                "UnrealEd"
+            });
     }
 }

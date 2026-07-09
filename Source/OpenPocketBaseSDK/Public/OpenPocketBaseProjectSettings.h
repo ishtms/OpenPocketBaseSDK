@@ -55,6 +55,15 @@ public:
         meta = (DisplayName = "Allow OPENPOCKETBASE_DEVELOPMENT_BASE_URL override"))
     bool bAllowDevelopmentEnvironmentOverride = false;
 
+    UPROPERTY(Config, EditAnywhere, Category = "Validation")
+    bool bRequireRealtimeStreaming = false;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Validation")
+    bool bRequireOfflineModule = false;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Validation")
+    bool bRequirePrivilegedModule = false;
+
     virtual FName GetCategoryName() const override;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Settings")

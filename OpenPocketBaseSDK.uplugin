@@ -8,6 +8,12 @@
   "CreatedBy": "Ishtmeet Singh",
   "CanContainContent": true,
   "Installed": false,
+  "Plugins": [
+    {
+      "Name": "DataValidation",
+      "Enabled": true
+    }
+  ],
   "Modules": [
     {
       "Name": "OpenPocketBaseSDK",
