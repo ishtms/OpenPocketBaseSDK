@@ -11,6 +11,7 @@ public class OpenPocketBaseSDK : ModuleRules
             {
                 "Core",
                 "CoreUObject",
+                "DeveloperSettings",
                 "Engine",
                 "HTTP",
                 "Json",
