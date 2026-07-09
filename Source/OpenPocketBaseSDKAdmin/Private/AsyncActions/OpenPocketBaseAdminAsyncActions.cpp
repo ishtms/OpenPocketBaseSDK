@@ -41,6 +41,13 @@ void UOpenPocketBaseAdminAsyncActionBase::Finish()
     SetReadyToDestroy();
 }
 
+FOpenPocketBaseError UOpenPocketBaseAdminAsyncActionBase::MakeCancelledError()
+{
+    FOpenPocketBaseError Error;
+    Error.Kind = EOpenPocketBaseErrorKind::Cancelled;
+    return Error;
+}
+
 bool UOpenPocketBaseAdminAsyncActionBase::TryGetNativeClient(
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>& OutClient)
 {
@@ -73,7 +80,7 @@ void UOpenPocketBaseAuthenticateSuperuserAsyncAction::Activate()
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
         {
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(FOpenPocketBaseAdminIdentity(), MakeAdminClientNotReadyError());
         }
         Finish();
         return;
@@ -91,10 +98,11 @@ void UOpenPocketBaseAuthenticateSuperuserAsyncAction::Activate()
             }
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast(Result.GetValue());
+                if (Result.IsSuccess())
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
-                else Action->Failed.Broadcast(Result.GetError());
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAdminIdentity(), Result.GetError());
+                else Action->Failed.Broadcast(FOpenPocketBaseAdminIdentity(), Result.GetError());
             }
             Action->Finish();
         },
@@ -103,7 +111,7 @@ void UOpenPocketBaseAuthenticateSuperuserAsyncAction::Activate()
 
 void UOpenPocketBaseAuthenticateSuperuserAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAdminIdentity(), MakeCancelledError());
 }
 
 UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListCollections(
@@ -140,7 +148,7 @@ void UOpenPocketBaseAdminPageAsyncAction::Activate()
     if (!TryGetNativeClient(Native))
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(FOpenPocketBaseAdminPage(), MakeAdminClientNotReadyError());
         Finish();
         return;
     }
@@ -152,10 +160,11 @@ void UOpenPocketBaseAdminPageAsyncAction::Activate()
             if (Action == nullptr || !Action->TryBeginTerminal()) return;
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast(Result.GetValue());
+                if (Result.IsSuccess())
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
-                else Action->Failed.Broadcast(Result.GetError());
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAdminPage(), Result.GetError());
+                else Action->Failed.Broadcast(FOpenPocketBaseAdminPage(), Result.GetError());
             }
             Action->Finish();
         };
@@ -166,7 +175,7 @@ void UOpenPocketBaseAdminPageAsyncAction::Activate()
 
 void UOpenPocketBaseAdminPageAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAdminPage(), MakeCancelledError());
 }
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::GetCollection(
@@ -271,7 +280,7 @@ void UOpenPocketBaseAdminDocumentAsyncAction::Activate()
     if (!TryGetNativeClient(Native))
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(FOpenPocketBaseAdminDocument(), MakeAdminClientNotReadyError());
         Finish();
         return;
     }
@@ -283,10 +292,11 @@ void UOpenPocketBaseAdminDocumentAsyncAction::Activate()
             if (Action == nullptr || !Action->TryBeginTerminal()) return;
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast(Result.GetValue());
+                if (Result.IsSuccess())
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
-                else Action->Failed.Broadcast(Result.GetError());
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAdminDocument(), Result.GetError());
+                else Action->Failed.Broadcast(FOpenPocketBaseAdminDocument(), Result.GetError());
             }
             Action->Finish();
         };
@@ -320,7 +330,7 @@ void UOpenPocketBaseAdminDocumentAsyncAction::Activate()
 
 void UOpenPocketBaseAdminDocumentAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAdminDocument(), MakeCancelledError());
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::DeleteCollection(
@@ -485,9 +495,9 @@ void UOpenPocketBaseAdminCommandAsyncAction::Activate()
             if (Action == nullptr || !Action->TryBeginTerminal()) return;
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast();
+                if (Result.IsSuccess()) Action->Success.Broadcast(FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(Result.GetError());
                 else Action->Failed.Broadcast(Result.GetError());
             }
             Action->Finish();
@@ -535,7 +545,7 @@ void UOpenPocketBaseAdminCommandAsyncAction::Activate()
 
 void UOpenPocketBaseAdminCommandAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(MakeCancelledError());
 }
 
 UOpenPocketBaseAdminBackupListAsyncAction*
@@ -558,7 +568,7 @@ void UOpenPocketBaseAdminBackupListAsyncAction::Activate()
     if (!TryGetNativeClient(Native))
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(FOpenPocketBaseAdminBackupList(), MakeAdminClientNotReadyError());
         Finish();
         return;
     }
@@ -570,10 +580,11 @@ void UOpenPocketBaseAdminBackupListAsyncAction::Activate()
             if (Action == nullptr || !Action->TryBeginTerminal()) return;
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast(Result.GetValue());
+                if (Result.IsSuccess())
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
-                else Action->Failed.Broadcast(Result.GetError());
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAdminBackupList(), Result.GetError());
+                else Action->Failed.Broadcast(FOpenPocketBaseAdminBackupList(), Result.GetError());
             }
             Action->Finish();
         },
@@ -582,7 +593,7 @@ void UOpenPocketBaseAdminBackupListAsyncAction::Activate()
 
 void UOpenPocketBaseAdminBackupListAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAdminBackupList(), MakeCancelledError());
 }
 
 UOpenPocketBaseAdminBackupDownloadAsyncAction*
@@ -607,7 +618,7 @@ void UOpenPocketBaseAdminBackupDownloadAsyncAction::Activate()
     if (!TryGetNativeClient(Native))
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(FOpenPocketBaseAdminBackupDownload(), MakeAdminClientNotReadyError());
         Finish();
         return;
     }
@@ -620,10 +631,11 @@ void UOpenPocketBaseAdminBackupDownloadAsyncAction::Activate()
             if (Action == nullptr || !Action->TryBeginTerminal()) return;
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast(Result.GetValue());
+                if (Result.IsSuccess())
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
-                else Action->Failed.Broadcast(Result.GetError());
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAdminBackupDownload(), Result.GetError());
+                else Action->Failed.Broadcast(FOpenPocketBaseAdminBackupDownload(), Result.GetError());
             }
             Action->Finish();
         },
@@ -632,7 +644,7 @@ void UOpenPocketBaseAdminBackupDownloadAsyncAction::Activate()
 
 void UOpenPocketBaseAdminBackupDownloadAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAdminBackupDownload(), MakeCancelledError());
 }
 
 UOpenPocketBaseAdminDocumentListAsyncAction*
@@ -655,7 +667,7 @@ void UOpenPocketBaseAdminDocumentListAsyncAction::Activate()
     if (!TryGetNativeClient(Native))
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(FOpenPocketBaseAdminDocumentList(), MakeAdminClientNotReadyError());
         Finish();
         return;
     }
@@ -667,10 +679,11 @@ void UOpenPocketBaseAdminDocumentListAsyncAction::Activate()
             if (Action == nullptr || !Action->TryBeginTerminal()) return;
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast(Result.GetValue());
+                if (Result.IsSuccess())
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
-                else Action->Failed.Broadcast(Result.GetError());
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAdminDocumentList(), Result.GetError());
+                else Action->Failed.Broadcast(FOpenPocketBaseAdminDocumentList(), Result.GetError());
             }
             Action->Finish();
         },
@@ -679,7 +692,7 @@ void UOpenPocketBaseAdminDocumentListAsyncAction::Activate()
 
 void UOpenPocketBaseAdminDocumentListAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAdminDocumentList(), MakeCancelledError());
 }
 
 UOpenPocketBaseAdminSqlAsyncAction* UOpenPocketBaseAdminSqlAsyncAction::RunSql(
@@ -703,7 +716,7 @@ void UOpenPocketBaseAdminSqlAsyncAction::Activate()
     if (!TryGetNativeClient(Native))
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(FOpenPocketBaseAdminSqlResult(), MakeAdminClientNotReadyError());
         Finish();
         return;
     }
@@ -716,10 +729,11 @@ void UOpenPocketBaseAdminSqlAsyncAction::Activate()
             if (Action == nullptr || !Action->TryBeginTerminal()) return;
             if (Action->ShouldBroadcastDelegates())
             {
-                if (Result.IsSuccess()) Action->Success.Broadcast(Result.GetValue());
+                if (Result.IsSuccess())
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
-                    Action->Cancelled.Broadcast();
-                else Action->Failed.Broadcast(Result.GetError());
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAdminSqlResult(), Result.GetError());
+                else Action->Failed.Broadcast(FOpenPocketBaseAdminSqlResult(), Result.GetError());
             }
             Action->Finish();
         },
@@ -728,7 +742,7 @@ void UOpenPocketBaseAdminSqlAsyncAction::Activate()
 
 void UOpenPocketBaseAdminSqlAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAdminSqlResult(), MakeCancelledError());
 }
 
 UOpenPocketBaseAdminImpersonateAsyncAction*
@@ -757,7 +771,10 @@ void UOpenPocketBaseAdminImpersonateAsyncAction::Activate()
     if (!TryGetNativeClient(Native))
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
-            Failed.Broadcast(MakeAdminClientNotReadyError());
+            Failed.Broadcast(
+                nullptr,
+                FOpenPocketBaseRecord(),
+                MakeAdminClientNotReadyError());
         Finish();
         return;
     }
@@ -779,23 +796,32 @@ void UOpenPocketBaseAdminImpersonateAsyncAction::Activate()
                         Result.GetValue().Client);
                     if (Client != nullptr)
                     {
-                        Action->Success.Broadcast(Client, Result.GetValue().Record);
+                        Action->Success.Broadcast(
+                            Client,
+                            Result.GetValue().Record,
+                            FOpenPocketBaseError());
                     }
                     else
                     {
                         FOpenPocketBaseError Error;
                         Error.Kind = EOpenPocketBaseErrorKind::Internal;
                         Error.ServerMessage = TEXT("The impersonated client could not be wrapped.");
-                        Action->Failed.Broadcast(Error);
+                        Action->Failed.Broadcast(nullptr, FOpenPocketBaseRecord(), Error);
                     }
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        nullptr,
+                        FOpenPocketBaseRecord(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        nullptr,
+                        FOpenPocketBaseRecord(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -805,5 +831,5 @@ void UOpenPocketBaseAdminImpersonateAsyncAction::Activate()
 
 void UOpenPocketBaseAdminImpersonateAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(nullptr, FOpenPocketBaseRecord(), MakeCancelledError());
 }

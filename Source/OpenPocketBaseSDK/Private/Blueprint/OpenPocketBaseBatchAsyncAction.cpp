@@ -25,7 +25,7 @@ void UOpenPocketBaseSendBatchAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseBatchResult(), Error);
         }
         Finish();
         return;
@@ -46,15 +46,15 @@ void UOpenPocketBaseSendBatchAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseBatchResult(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseBatchResult(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -64,5 +64,5 @@ void UOpenPocketBaseSendBatchAsyncAction::Activate()
 
 void UOpenPocketBaseSendBatchAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseBatchResult(), MakeCancelledError());
 }

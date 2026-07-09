@@ -68,12 +68,16 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
         UEdGraphSchema_K2::StaticClass());
     FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
 
+    UK2Node_AsyncAction* HealthNode = AddAsyncConsumerNode(
+        Graph,
+        UOpenPocketBaseHealthAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseHealthAsyncAction, CheckHealth));
     TestNotNull(
         TEXT("Check Health is available as an async Blueprint node"),
-        AddAsyncConsumerNode(
-            Graph,
-            UOpenPocketBaseHealthAsyncAction::StaticClass(),
-            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseHealthAsyncAction, CheckHealth)));
+        HealthNode);
+    TestNotNull(
+        TEXT("Check Health exposes the failure error"),
+        HealthNode != nullptr ? HealthNode->FindPin(TEXT("Error"), EGPD_Output) : nullptr);
     TestNotNull(
         TEXT("Send Custom Route is available as an async Blueprint node"),
         AddAsyncConsumerNode(
@@ -353,6 +357,21 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     TestNotNull(
         TEXT("Blueprint clients publish session changes"),
         UOpenPocketBaseClient::StaticClass()->FindPropertyByName(TEXT("SessionChanged")));
+
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        UK2Node_AsyncAction* AsyncNode = Cast<UK2Node_AsyncAction>(Node);
+        if (AsyncNode == nullptr)
+        {
+            continue;
+        }
+
+        TestNotNull(
+            *FString::Printf(
+                TEXT("%s exposes the failure error"),
+                *AsyncNode->GetNodeTitle(ENodeTitleType::ListView).ToString()),
+            AsyncNode->FindPin(TEXT("Error"), EGPD_Output));
+    }
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);

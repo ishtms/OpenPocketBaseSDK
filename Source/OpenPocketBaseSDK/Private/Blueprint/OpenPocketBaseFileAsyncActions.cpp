@@ -25,7 +25,7 @@ void UOpenPocketBaseGetFileTokenAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseFileToken(), Error);
         }
         Finish();
         return;
@@ -45,15 +45,15 @@ void UOpenPocketBaseGetFileTokenAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseFileToken(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseFileToken(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -63,7 +63,7 @@ void UOpenPocketBaseGetFileTokenAsyncAction::Activate()
 
 void UOpenPocketBaseGetFileTokenAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseFileToken(), MakeCancelledError());
 }
 
 UOpenPocketBaseDownloadFileAsyncAction* UOpenPocketBaseDownloadFileAsyncAction::DownloadFile(
@@ -98,7 +98,10 @@ void UOpenPocketBaseDownloadFileAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(
+                FOpenPocketBaseFileDownloadResult(),
+                FOpenPocketBaseTransferProgress(),
+                Error);
         }
         Finish();
         return;
@@ -122,15 +125,24 @@ void UOpenPocketBaseDownloadFileAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(
+                        Result.GetValue(),
+                        FOpenPocketBaseTransferProgress(),
+                        FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        FOpenPocketBaseFileDownloadResult(),
+                        FOpenPocketBaseTransferProgress(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        FOpenPocketBaseFileDownloadResult(),
+                        FOpenPocketBaseTransferProgress(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -141,12 +153,18 @@ void UOpenPocketBaseDownloadFileAsyncAction::Activate()
             UOpenPocketBaseDownloadFileAsyncAction* Action = WeakThis.Get();
             if (Action != nullptr && !Action->bTerminal && Action->ShouldBroadcastDelegates())
             {
-                Action->Progress.Broadcast(TransferProgress);
+                Action->Progress.Broadcast(
+                    FOpenPocketBaseFileDownloadResult(),
+                    TransferProgress,
+                    FOpenPocketBaseError());
             }
         });
 }
 
 void UOpenPocketBaseDownloadFileAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(
+        FOpenPocketBaseFileDownloadResult(),
+        FOpenPocketBaseTransferProgress(),
+        MakeCancelledError());
 }

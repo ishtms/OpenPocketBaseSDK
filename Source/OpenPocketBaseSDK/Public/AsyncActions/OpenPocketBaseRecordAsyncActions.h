@@ -6,64 +6,92 @@
 
 #include "OpenPocketBaseRecordAsyncActions.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseRecordActionSuccess,
     FOpenPocketBaseRecord,
-    Record);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseRecordPageActionSuccess,
-    FOpenPocketBaseRecordPage,
-    Page);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseFullListActionSuccess,
-    FOpenPocketBaseFullListResult,
-    Result);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseAuthActionSuccess,
-    FOpenPocketBaseAuthResult,
-    AuthResult);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseAuthMethodsActionSuccess,
-    FOpenPocketBaseAuthMethods,
-    AuthMethods);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseOtpRequestActionSuccess,
-    FOpenPocketBaseOtpRequest,
-    OtpRequest);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseOAuth2AuthorizationActionSuccess,
-    FOpenPocketBaseOAuth2Authorization,
-    Authorization);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseExternalAuthsActionSuccess,
-    FOpenPocketBaseExternalAuthList,
-    ExternalAuths);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseHealthActionSuccess,
-    FOpenPocketBaseHealthResult,
-    HealthResult);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseCustomRouteActionSuccess,
-    FOpenPocketBaseCustomRouteResponse,
-    Response);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseMfaRequiredAction,
-    FOpenPocketBaseMfaContinuation,
-    Continuation);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseSessionRestoreActionSuccess,
-    FOpenPocketBaseSessionRestoreResult,
-    RestoreResult);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseActionSuccess);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseActionFailed,
+    Record,
     FOpenPocketBaseError,
     Error);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseActionCancelled);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseTransferProgressAction,
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
+    FOpenPocketBaseRecordTransferActionOutput,
+    FOpenPocketBaseRecord,
+    Record,
     FOpenPocketBaseTransferProgress,
-    TransferProgress);
+    TransferProgress,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseRecordPageActionSuccess,
+    FOpenPocketBaseRecordPage,
+    Page,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseFullListActionSuccess,
+    FOpenPocketBaseFullListResult,
+    Result,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseAuthActionSuccess,
+    FOpenPocketBaseAuthResult,
+    AuthResult,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
+    FOpenPocketBaseAuthMfaActionOutput,
+    FOpenPocketBaseAuthResult,
+    AuthResult,
+    FOpenPocketBaseMfaContinuation,
+    MfaContinuation,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseAuthMethodsActionSuccess,
+    FOpenPocketBaseAuthMethods,
+    AuthMethods,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseOtpRequestActionSuccess,
+    FOpenPocketBaseOtpRequest,
+    OtpRequest,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseOAuth2AuthorizationActionSuccess,
+    FOpenPocketBaseOAuth2Authorization,
+    Authorization,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseExternalAuthsActionSuccess,
+    FOpenPocketBaseExternalAuthList,
+    ExternalAuths,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseHealthActionSuccess,
+    FOpenPocketBaseHealthResult,
+    HealthResult,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseCustomRouteActionSuccess,
+    FOpenPocketBaseCustomRouteResponse,
+    Response,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOpenPocketBaseSessionRestoreActionSuccess,
+    FOpenPocketBaseSessionRestoreResult,
+    RestoreResult,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseActionSuccess,
+    FOpenPocketBaseError,
+    Error);
 
 UCLASS(Abstract)
 class OPENPOCKETBASESDK_API UOpenPocketBaseAsyncActionBase : public UCancellableAsyncAction
@@ -77,6 +105,7 @@ protected:
     virtual void BroadcastCancelled() PURE_VIRTUAL(UOpenPocketBaseAsyncActionBase::BroadcastCancelled, );
     bool TryBeginTerminal();
     void Finish();
+    static FOpenPocketBaseError MakeCancelledError();
 
     UPROPERTY(Transient)
     TObjectPtr<UOpenPocketBaseClient> Client;
@@ -96,10 +125,10 @@ public:
     FOpenPocketBaseHealthActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseHealthActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseHealthActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -134,10 +163,10 @@ public:
     FOpenPocketBaseCustomRouteActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseCustomRouteActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseCustomRouteActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -171,10 +200,10 @@ public:
     FOpenPocketBaseRecordActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseRecordActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseRecordActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -212,10 +241,10 @@ public:
     FOpenPocketBaseRecordActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseRecordActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseRecordActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -253,10 +282,10 @@ public:
     FOpenPocketBaseRecordActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseRecordActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseRecordActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -291,16 +320,16 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseCreateRecordWithFilesAsyncAction fina
 
 public:
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseRecordActionSuccess Success;
+    FOpenPocketBaseRecordTransferActionOutput Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseTransferProgressAction Progress;
+    FOpenPocketBaseRecordTransferActionOutput Progress;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseRecordTransferActionOutput Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseRecordTransferActionOutput Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -344,10 +373,10 @@ public:
     FOpenPocketBaseRecordActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseRecordActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseRecordActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -384,16 +413,16 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseUpdateRecordWithFilesAsyncAction fina
 
 public:
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseRecordActionSuccess Success;
+    FOpenPocketBaseRecordTransferActionOutput Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseTransferProgressAction Progress;
+    FOpenPocketBaseRecordTransferActionOutput Progress;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseRecordTransferActionOutput Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseRecordTransferActionOutput Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -439,10 +468,10 @@ public:
     FOpenPocketBaseActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -480,10 +509,10 @@ public:
     FOpenPocketBaseRecordPageActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseRecordPageActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseRecordPageActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -519,10 +548,10 @@ public:
     FOpenPocketBaseFullListActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseFullListActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseFullListActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -558,10 +587,10 @@ public:
     FOpenPocketBaseAuthActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseAuthActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseAuthActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -595,10 +624,10 @@ public:
     FOpenPocketBaseAuthMethodsActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseAuthMethodsActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseAuthMethodsActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -634,10 +663,10 @@ public:
     FOpenPocketBaseOtpRequestActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseOtpRequestActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseOtpRequestActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -672,16 +701,16 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseOtpAuthAsyncAction final
 
 public:
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAuthActionSuccess Success;
+    FOpenPocketBaseAuthMfaActionOutput Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseMfaRequiredAction MfaRequired;
+    FOpenPocketBaseAuthMfaActionOutput MfaRequired;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseAuthMfaActionOutput Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseAuthMfaActionOutput Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -724,10 +753,10 @@ public:
     FOpenPocketBaseOAuth2AuthorizationActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseOAuth2AuthorizationActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseOAuth2AuthorizationActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -760,16 +789,16 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseCompleteOAuth2AsyncAction final
 
 public:
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAuthActionSuccess Success;
+    FOpenPocketBaseAuthMfaActionOutput Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseMfaRequiredAction MfaRequired;
+    FOpenPocketBaseAuthMfaActionOutput MfaRequired;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseAuthMfaActionOutput Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseAuthMfaActionOutput Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -802,16 +831,16 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseAssistedOAuth2AsyncAction final
 
 public:
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAuthActionSuccess Success;
+    FOpenPocketBaseAuthMfaActionOutput Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseMfaRequiredAction MfaRequired;
+    FOpenPocketBaseAuthMfaActionOutput MfaRequired;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseAuthMfaActionOutput Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseAuthMfaActionOutput Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -858,10 +887,10 @@ public:
     FOpenPocketBaseActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -1001,10 +1030,10 @@ public:
     FOpenPocketBaseExternalAuthsActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseExternalAuthsActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseExternalAuthsActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -1042,10 +1071,10 @@ public:
     FOpenPocketBaseSessionRestoreActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseSessionRestoreActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseSessionRestoreActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -1078,16 +1107,16 @@ class OPENPOCKETBASESDK_API UOpenPocketBasePasswordAuthAsyncAction final
 
 public:
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAuthActionSuccess Success;
+    FOpenPocketBaseAuthMfaActionOutput Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseMfaRequiredAction MfaRequired;
+    FOpenPocketBaseAuthMfaActionOutput MfaRequired;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseAuthMfaActionOutput Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseAuthMfaActionOutput Cancelled;
 
     UFUNCTION(
         BlueprintCallable,

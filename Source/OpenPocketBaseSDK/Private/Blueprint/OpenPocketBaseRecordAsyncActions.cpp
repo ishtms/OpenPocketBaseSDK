@@ -31,6 +31,13 @@ void UOpenPocketBaseAsyncActionBase::Finish()
     SetReadyToDestroy();
 }
 
+FOpenPocketBaseError UOpenPocketBaseAsyncActionBase::MakeCancelledError()
+{
+    FOpenPocketBaseError Error;
+    Error.Kind = EOpenPocketBaseErrorKind::Cancelled;
+    return Error;
+}
+
 UOpenPocketBaseHealthAsyncAction* UOpenPocketBaseHealthAsyncAction::CheckHealth(
     const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
@@ -55,7 +62,7 @@ void UOpenPocketBaseHealthAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseHealthResult(), Error);
         }
         Finish();
         return;
@@ -74,15 +81,15 @@ void UOpenPocketBaseHealthAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseHealthResult(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseHealthResult(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -92,7 +99,7 @@ void UOpenPocketBaseHealthAsyncAction::Activate()
 
 void UOpenPocketBaseHealthAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseHealthResult(), MakeCancelledError());
 }
 
 UOpenPocketBaseCustomRouteAsyncAction*
@@ -120,7 +127,7 @@ void UOpenPocketBaseCustomRouteAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseCustomRouteResponse(), Error);
         }
         Finish();
         return;
@@ -140,15 +147,15 @@ void UOpenPocketBaseCustomRouteAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseCustomRouteResponse(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseCustomRouteResponse(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -157,7 +164,7 @@ void UOpenPocketBaseCustomRouteAsyncAction::Activate()
 
 void UOpenPocketBaseCustomRouteAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseCustomRouteResponse(), MakeCancelledError());
 }
 
 UOpenPocketBaseGetRecordAsyncAction* UOpenPocketBaseGetRecordAsyncAction::GetRecord(
@@ -187,7 +194,7 @@ void UOpenPocketBaseGetRecordAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
         return;
@@ -208,15 +215,15 @@ void UOpenPocketBaseGetRecordAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -226,7 +233,7 @@ void UOpenPocketBaseGetRecordAsyncAction::Activate()
 
 void UOpenPocketBaseGetRecordAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseRecord(), MakeCancelledError());
 }
 
 UOpenPocketBaseGetFirstRecordAsyncAction* UOpenPocketBaseGetFirstRecordAsyncAction::GetFirstRecord(
@@ -256,7 +263,7 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
         return;
@@ -277,15 +284,15 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -295,7 +302,7 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::Activate()
 
 void UOpenPocketBaseGetFirstRecordAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseRecord(), MakeCancelledError());
 }
 
 UOpenPocketBaseCreateRecordAsyncAction* UOpenPocketBaseCreateRecordAsyncAction::CreateRecord(
@@ -325,7 +332,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
         return;
@@ -346,15 +353,15 @@ void UOpenPocketBaseCreateRecordAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -364,7 +371,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::Activate()
 
 void UOpenPocketBaseCreateRecordAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseRecord(), MakeCancelledError());
 }
 
 UOpenPocketBaseCreateRecordWithFilesAsyncAction*
@@ -400,7 +407,10 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(
+                FOpenPocketBaseRecord(),
+                FOpenPocketBaseTransferProgress(),
+                Error);
         }
         Finish();
         return;
@@ -422,15 +432,24 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(
+                        Result.GetValue(),
+                        FOpenPocketBaseTransferProgress(),
+                        FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        FOpenPocketBaseRecord(),
+                        FOpenPocketBaseTransferProgress(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        FOpenPocketBaseRecord(),
+                        FOpenPocketBaseTransferProgress(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -442,14 +461,20 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
             UOpenPocketBaseCreateRecordWithFilesAsyncAction* Action = WeakThis.Get();
             if (Action != nullptr && !Action->bTerminal && Action->ShouldBroadcastDelegates())
             {
-                Action->Progress.Broadcast(TransferProgress);
+                Action->Progress.Broadcast(
+                    FOpenPocketBaseRecord(),
+                    TransferProgress,
+                    FOpenPocketBaseError());
             }
         });
 }
 
 void UOpenPocketBaseCreateRecordWithFilesAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(
+        FOpenPocketBaseRecord(),
+        FOpenPocketBaseTransferProgress(),
+        MakeCancelledError());
 }
 
 UOpenPocketBaseUpdateRecordAsyncAction* UOpenPocketBaseUpdateRecordAsyncAction::UpdateRecord(
@@ -481,7 +506,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
         return;
@@ -503,15 +528,15 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -521,7 +546,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
 
 void UOpenPocketBaseUpdateRecordAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseRecord(), MakeCancelledError());
 }
 
 UOpenPocketBaseUpdateRecordWithFilesAsyncAction*
@@ -559,7 +584,10 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(
+                FOpenPocketBaseRecord(),
+                FOpenPocketBaseTransferProgress(),
+                Error);
         }
         Finish();
         return;
@@ -582,15 +610,24 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(
+                        Result.GetValue(),
+                        FOpenPocketBaseTransferProgress(),
+                        FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        FOpenPocketBaseRecord(),
+                        FOpenPocketBaseTransferProgress(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        FOpenPocketBaseRecord(),
+                        FOpenPocketBaseTransferProgress(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -602,14 +639,20 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
             UOpenPocketBaseUpdateRecordWithFilesAsyncAction* Action = WeakThis.Get();
             if (Action != nullptr && !Action->bTerminal && Action->ShouldBroadcastDelegates())
             {
-                Action->Progress.Broadcast(TransferProgress);
+                Action->Progress.Broadcast(
+                    FOpenPocketBaseRecord(),
+                    TransferProgress,
+                    FOpenPocketBaseError());
             }
         });
 }
 
 void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(
+        FOpenPocketBaseRecord(),
+        FOpenPocketBaseTransferProgress(),
+        MakeCancelledError());
 }
 
 UOpenPocketBaseDeleteRecordAsyncAction* UOpenPocketBaseDeleteRecordAsyncAction::DeleteRecord(
@@ -660,11 +703,11 @@ void UOpenPocketBaseDeleteRecordAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast();
+                    Action->Success.Broadcast(FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(Result.GetError());
                 }
                 else
                 {
@@ -678,7 +721,7 @@ void UOpenPocketBaseDeleteRecordAsyncAction::Activate()
 
 void UOpenPocketBaseDeleteRecordAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(MakeCancelledError());
 }
 
 UOpenPocketBaseListRecordsAsyncAction* UOpenPocketBaseListRecordsAsyncAction::ListRecords(
@@ -706,7 +749,7 @@ void UOpenPocketBaseListRecordsAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseRecordPage(), Error);
         }
         Finish();
         return;
@@ -727,15 +770,15 @@ void UOpenPocketBaseListRecordsAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseRecordPage(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseRecordPage(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -744,7 +787,7 @@ void UOpenPocketBaseListRecordsAsyncAction::Activate()
 
 void UOpenPocketBaseListRecordsAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseRecordPage(), MakeCancelledError());
 }
 
 UOpenPocketBaseGetFullListAsyncAction* UOpenPocketBaseGetFullListAsyncAction::GetFullList(
@@ -772,7 +815,7 @@ void UOpenPocketBaseGetFullListAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseFullListResult(), Error);
         }
         Finish();
         return;
@@ -793,15 +836,15 @@ void UOpenPocketBaseGetFullListAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseFullListResult(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseFullListResult(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -810,7 +853,7 @@ void UOpenPocketBaseGetFullListAsyncAction::Activate()
 
 void UOpenPocketBaseGetFullListAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseFullListResult(), MakeCancelledError());
 }
 
 UOpenPocketBaseRefreshAuthAsyncAction* UOpenPocketBaseRefreshAuthAsyncAction::RefreshAuth(
@@ -836,7 +879,7 @@ void UOpenPocketBaseRefreshAuthAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseAuthResult(), Error);
         }
         Finish();
         return;
@@ -856,15 +899,15 @@ void UOpenPocketBaseRefreshAuthAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAuthResult(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseAuthResult(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -874,7 +917,7 @@ void UOpenPocketBaseRefreshAuthAsyncAction::Activate()
 
 void UOpenPocketBaseRefreshAuthAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAuthResult(), MakeCancelledError());
 }
 
 UOpenPocketBaseRestoreSessionAsyncAction* UOpenPocketBaseRestoreSessionAsyncAction::RestoreSession(
@@ -903,7 +946,7 @@ void UOpenPocketBaseRestoreSessionAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseSessionRestoreResult(), Error);
         }
         Finish();
         return;
@@ -924,15 +967,15 @@ void UOpenPocketBaseRestoreSessionAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseSessionRestoreResult(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseSessionRestoreResult(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -942,7 +985,7 @@ void UOpenPocketBaseRestoreSessionAsyncAction::Activate()
 
 void UOpenPocketBaseRestoreSessionAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseSessionRestoreResult(), MakeCancelledError());
 }
 
 UOpenPocketBaseListAuthMethodsAsyncAction*
@@ -972,7 +1015,7 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseAuthMethods(), Error);
         }
         Finish();
         return;
@@ -991,15 +1034,15 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseAuthMethods(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseAuthMethods(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -1009,7 +1052,7 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::Activate()
 
 void UOpenPocketBaseListAuthMethodsAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseAuthMethods(), MakeCancelledError());
 }
 
 UOpenPocketBaseRequestOtpAsyncAction* UOpenPocketBaseRequestOtpAsyncAction::RequestOneTimePassword(
@@ -1039,7 +1082,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseOtpRequest(), Error);
         }
         Finish();
         return;
@@ -1059,15 +1102,15 @@ void UOpenPocketBaseRequestOtpAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseOtpRequest(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseOtpRequest(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -1077,7 +1120,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::Activate()
 
 void UOpenPocketBaseRequestOtpAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseOtpRequest(), MakeCancelledError());
 }
 
 UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithOneTimePassword(
@@ -1111,7 +1154,10 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(
+                FOpenPocketBaseAuthResult(),
+                FOpenPocketBaseMfaContinuation(),
+                Error);
         }
         Finish();
         return;
@@ -1134,19 +1180,31 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
                 if (Result.IsSuccess() &&
                     Result.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::Authenticated)
                 {
-                    Action->Success.Broadcast(Result.GetValue().Authentication);
+                    Action->Success.Broadcast(
+                        Result.GetValue().Authentication,
+                        FOpenPocketBaseMfaContinuation(),
+                        FOpenPocketBaseError());
                 }
                 else if (Result.IsSuccess())
                 {
-                    Action->MfaRequired.Broadcast(Result.GetValue().Mfa);
+                    Action->MfaRequired.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        Result.GetValue().Mfa,
+                        FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -1156,7 +1214,10 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
 
 void UOpenPocketBaseOtpAuthAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(
+        FOpenPocketBaseAuthResult(),
+        FOpenPocketBaseMfaContinuation(),
+        MakeCancelledError());
 }
 
 UOpenPocketBaseBeginOAuth2AsyncAction* UOpenPocketBaseBeginOAuth2AsyncAction::BeginManualOAuth2(
@@ -1185,7 +1246,7 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseOAuth2Authorization(), Error);
         }
         Finish();
         return;
@@ -1205,15 +1266,15 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast(Result.GetValue());
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseOAuth2Authorization(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseOAuth2Authorization(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -1222,7 +1283,7 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::Activate()
 
 void UOpenPocketBaseBeginOAuth2AsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseOAuth2Authorization(), MakeCancelledError());
 }
 
 UOpenPocketBaseCompleteOAuth2AsyncAction*
@@ -1252,7 +1313,10 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(
+                FOpenPocketBaseAuthResult(),
+                FOpenPocketBaseMfaContinuation(),
+                Error);
         }
         Finish();
         return;
@@ -1273,19 +1337,31 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::Activate()
                 if (Result.IsSuccess() &&
                     Result.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::Authenticated)
                 {
-                    Action->Success.Broadcast(Result.GetValue().Authentication);
+                    Action->Success.Broadcast(
+                        Result.GetValue().Authentication,
+                        FOpenPocketBaseMfaContinuation(),
+                        FOpenPocketBaseError());
                 }
                 else if (Result.IsSuccess())
                 {
-                    Action->MfaRequired.Broadcast(Result.GetValue().Mfa);
+                    Action->MfaRequired.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        Result.GetValue().Mfa,
+                        FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -1294,7 +1370,10 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::Activate()
 
 void UOpenPocketBaseCompleteOAuth2AsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(
+        FOpenPocketBaseAuthResult(),
+        FOpenPocketBaseMfaContinuation(),
+        MakeCancelledError());
 }
 
 UOpenPocketBaseAssistedOAuth2AsyncAction*
@@ -1324,7 +1403,10 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(
+                FOpenPocketBaseAuthResult(),
+                FOpenPocketBaseMfaContinuation(),
+                Error);
         }
         Finish();
         return;
@@ -1345,19 +1427,31 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
                 if (Result.IsSuccess() &&
                     Result.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::Authenticated)
                 {
-                    Action->Success.Broadcast(Result.GetValue().Authentication);
+                    Action->Success.Broadcast(
+                        Result.GetValue().Authentication,
+                        FOpenPocketBaseMfaContinuation(),
+                        FOpenPocketBaseError());
                 }
                 else if (Result.IsSuccess())
                 {
-                    Action->MfaRequired.Broadcast(Result.GetValue().Mfa);
+                    Action->MfaRequired.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        Result.GetValue().Mfa,
+                        FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -1366,7 +1460,10 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
 
 void UOpenPocketBaseAssistedOAuth2AsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(
+        FOpenPocketBaseAuthResult(),
+        FOpenPocketBaseMfaContinuation(),
+        MakeCancelledError());
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateAction(
@@ -1552,11 +1649,11 @@ void UOpenPocketBaseAccountAsyncAction::Activate()
             {
                 if (Result.IsSuccess())
                 {
-                    Action->Success.Broadcast();
+                    Action->Success.Broadcast(FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(Result.GetError());
                 }
                 else
                 {
@@ -1612,7 +1709,7 @@ void UOpenPocketBaseAccountAsyncAction::Activate()
 
 void UOpenPocketBaseAccountAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(MakeCancelledError());
 }
 
 UOpenPocketBaseListExternalAuthsAsyncAction*
@@ -1644,7 +1741,7 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(FOpenPocketBaseExternalAuthList(), Error);
         }
         Finish();
         return;
@@ -1666,15 +1763,15 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
                 {
                     FOpenPocketBaseExternalAuthList ExternalAuths;
                     ExternalAuths.Items = MoveTemp(Result.GetValue());
-                    Action->Success.Broadcast(ExternalAuths);
+                    Action->Success.Broadcast(ExternalAuths, FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(FOpenPocketBaseExternalAuthList(), Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(FOpenPocketBaseExternalAuthList(), Result.GetError());
                 }
             }
             Action->Finish();
@@ -1684,7 +1781,7 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
 
 void UOpenPocketBaseListExternalAuthsAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(FOpenPocketBaseExternalAuthList(), MakeCancelledError());
 }
 
 UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::LogInWithPassword(
@@ -1716,7 +1813,10 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.ServerMessage = TEXT("A ready PocketBase client is required.");
-            Failed.Broadcast(Error);
+            Failed.Broadcast(
+                FOpenPocketBaseAuthResult(),
+                FOpenPocketBaseMfaContinuation(),
+                Error);
         }
         Finish();
         return;
@@ -1739,19 +1839,31 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
                 if (Result.IsSuccess() &&
                     Result.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::Authenticated)
                 {
-                    Action->Success.Broadcast(Result.GetValue().Authentication);
+                    Action->Success.Broadcast(
+                        Result.GetValue().Authentication,
+                        FOpenPocketBaseMfaContinuation(),
+                        FOpenPocketBaseError());
                 }
                 else if (Result.IsSuccess())
                 {
-                    Action->MfaRequired.Broadcast(Result.GetValue().Mfa);
+                    Action->MfaRequired.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        Result.GetValue().Mfa,
+                        FOpenPocketBaseError());
                 }
                 else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
                 {
-                    Action->Cancelled.Broadcast();
+                    Action->Cancelled.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
                 else
                 {
-                    Action->Failed.Broadcast(Result.GetError());
+                    Action->Failed.Broadcast(
+                        FOpenPocketBaseAuthResult(),
+                        FOpenPocketBaseMfaContinuation(),
+                        Result.GetError());
                 }
             }
             Action->Finish();
@@ -1761,5 +1873,8 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
 
 void UOpenPocketBasePasswordAuthAsyncAction::BroadcastCancelled()
 {
-    Cancelled.Broadcast();
+    Cancelled.Broadcast(
+        FOpenPocketBaseAuthResult(),
+        FOpenPocketBaseMfaContinuation(),
+        MakeCancelledError());
 }

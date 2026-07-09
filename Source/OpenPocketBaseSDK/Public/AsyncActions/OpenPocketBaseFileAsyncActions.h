@@ -5,14 +5,20 @@
 
 #include "OpenPocketBaseFileAsyncActions.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseFileTokenActionSuccess,
     FOpenPocketBaseFileToken,
-    Token);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseFileDownloadActionSuccess,
+    Token,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
+    FOpenPocketBaseFileDownloadActionOutput,
     FOpenPocketBaseFileDownloadResult,
-    Result);
+    Result,
+    FOpenPocketBaseTransferProgress,
+    TransferProgress,
+    FOpenPocketBaseError,
+    Error);
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
 class OPENPOCKETBASESDK_API UOpenPocketBaseGetFileTokenAsyncAction final
@@ -25,10 +31,10 @@ public:
     FOpenPocketBaseFileTokenActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseFileTokenActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseFileTokenActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -60,16 +66,16 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseDownloadFileAsyncAction final
 
 public:
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseFileDownloadActionSuccess Success;
+    FOpenPocketBaseFileDownloadActionOutput Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseTransferProgressAction Progress;
+    FOpenPocketBaseFileDownloadActionOutput Progress;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseFileDownloadActionOutput Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseFileDownloadActionOutput Cancelled;
 
     UFUNCTION(
         BlueprintCallable,

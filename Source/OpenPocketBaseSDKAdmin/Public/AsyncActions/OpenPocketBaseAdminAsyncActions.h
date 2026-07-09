@@ -7,46 +7,60 @@
 
 #include "OpenPocketBaseAdminAsyncActions.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseAdminIdentityActionSuccess,
     FOpenPocketBaseAdminIdentity,
-    Identity);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    Identity,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseAdminDocumentActionSuccess,
     FOpenPocketBaseAdminDocument,
-    Document);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    Document,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseAdminPageActionSuccess,
     FOpenPocketBaseAdminPage,
-    Page);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    Page,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseAdminDocumentListActionSuccess,
     FOpenPocketBaseAdminDocumentList,
-    Documents);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    Documents,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseAdminBackupListActionSuccess,
     FOpenPocketBaseAdminBackupList,
-    Backups);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    Backups,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseAdminBackupDownloadActionSuccess,
     FOpenPocketBaseAdminBackupDownload,
-    Backup);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    Backup,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseAdminSqlActionSuccess,
     FOpenPocketBaseAdminSqlResult,
-    Result);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    Result,
+    FOpenPocketBaseError,
+    Error);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
     FOpenPocketBaseAdminImpersonationActionSuccess,
     UOpenPocketBaseClient*,
     Client,
     FOpenPocketBaseRecord,
-    Record);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseAdminActionSuccess);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-    FOpenPocketBaseAdminActionFailed,
+    Record,
     FOpenPocketBaseError,
     Error);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOpenPocketBaseAdminActionCancelled);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FOpenPocketBaseAdminActionSuccess,
+    FOpenPocketBaseError,
+    Error);
 
 UCLASS(Abstract)
 class OPENPOCKETBASESDKADMIN_API UOpenPocketBaseAdminAsyncActionBase
@@ -62,6 +76,7 @@ protected:
         UOpenPocketBaseAdminAsyncActionBase::BroadcastCancelled, );
     bool TryBeginTerminal();
     void Finish();
+    static FOpenPocketBaseError MakeCancelledError();
     bool TryGetNativeClient(
         TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>& OutClient);
 
@@ -83,10 +98,10 @@ public:
     FOpenPocketBaseAdminIdentityActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminIdentityActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminIdentityActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -126,10 +141,10 @@ public:
     FOpenPocketBaseAdminPageActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminPageActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminPageActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,
@@ -184,10 +199,10 @@ public:
     FOpenPocketBaseAdminDocumentActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminDocumentActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminDocumentActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
@@ -282,10 +297,10 @@ public:
     FOpenPocketBaseAdminActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
@@ -414,10 +429,10 @@ public:
     FOpenPocketBaseAdminBackupListActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminBackupListActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminBackupListActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
@@ -448,10 +463,10 @@ public:
     FOpenPocketBaseAdminBackupDownloadActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminBackupDownloadActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminBackupDownloadActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
@@ -484,10 +499,10 @@ public:
     FOpenPocketBaseAdminDocumentListActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminDocumentListActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminDocumentListActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
@@ -518,10 +533,10 @@ public:
     FOpenPocketBaseAdminSqlActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminSqlActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminSqlActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
@@ -554,10 +569,10 @@ public:
     FOpenPocketBaseAdminImpersonationActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionFailed Failed;
+    FOpenPocketBaseAdminImpersonationActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseAdminActionCancelled Cancelled;
+    FOpenPocketBaseAdminImpersonationActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",

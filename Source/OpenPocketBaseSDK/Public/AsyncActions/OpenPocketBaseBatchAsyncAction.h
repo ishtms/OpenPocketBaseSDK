@@ -6,10 +6,12 @@
 
 #include "OpenPocketBaseBatchAsyncAction.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FOpenPocketBaseBatchActionSuccess,
     FOpenPocketBaseBatchResult,
-    Result);
+    Result,
+    FOpenPocketBaseError,
+    Error);
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
 class OPENPOCKETBASESDK_API UOpenPocketBaseSendBatchAsyncAction final
@@ -22,10 +24,10 @@ public:
     FOpenPocketBaseBatchActionSuccess Success;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionFailed Failed;
+    FOpenPocketBaseBatchActionSuccess Failed;
 
     UPROPERTY(BlueprintAssignable)
-    FOpenPocketBaseActionCancelled Cancelled;
+    FOpenPocketBaseBatchActionSuccess Cancelled;
 
     UFUNCTION(
         BlueprintCallable,

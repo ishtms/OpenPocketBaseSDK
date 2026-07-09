@@ -121,10 +121,18 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
     FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
     for (const FExpectedFunction& Function : Functions)
     {
+        UK2Node_AsyncAction* AsyncNode = AddAdminAsyncNode(
+            Graph,
+            Function.Owner,
+            Function.Name);
         TestNotNull(
             *FString::Printf(TEXT("%s compiles as an async Blueprint node"),
                 *Function.Name.ToString()),
-            AddAdminAsyncNode(Graph, Function.Owner, Function.Name));
+            AsyncNode);
+        TestNotNull(
+            *FString::Printf(TEXT("%s exposes the failure error"),
+                *Function.Name.ToString()),
+            AsyncNode != nullptr ? AsyncNode->FindPin(TEXT("Error"), EGPD_Output) : nullptr);
     }
     FKismetEditorUtilities::CompileBlueprint(
         Blueprint,
