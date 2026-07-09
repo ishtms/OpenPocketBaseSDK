@@ -1,3 +1,5 @@
+#if PLATFORM_MAC
+
 #include "OAuth/OpenPocketBaseMacOAuthBrowser.h"
 
 #include "CoreGlobals.h"
@@ -60,3 +62,5 @@ CreateOpenPocketBaseMacOAuthBrowser()
 {
     return MakeShared<FMacOAuthBrowser, ESPMode::ThreadSafe>();
 }
+
+#endif
