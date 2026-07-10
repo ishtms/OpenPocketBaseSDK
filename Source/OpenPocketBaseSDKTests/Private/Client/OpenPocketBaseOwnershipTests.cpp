@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseClientLibrary.h"
 #include "OpenPocketBaseSubsystem.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
@@ -146,26 +147,49 @@ bool FOpenPocketBaseGameInstanceOwnershipTest::RunTest(const FString& Parameters
     GameInstance->AddToRoot();
     GameInstance->InitializeStandalone(TEXT("OpenPocketBaseOwnershipTest"));
 
-    UOpenPocketBaseSubsystem* Subsystem = GameInstance->GetSubsystem<UOpenPocketBaseSubsystem>();
-    if (!TestNotNull(TEXT("The Game Instance creates the subsystem"), Subsystem))
-    {
-        GameInstance->Shutdown();
-        GameInstance->RemoveFromRoot();
-        return false;
-    }
-
     FOpenPocketBaseClientConfig DefaultConfig;
     DefaultConfig.BaseUrl = TEXT("https://default.example.com");
     FOpenPocketBaseClientConfig NamedConfig;
     NamedConfig.BaseUrl = TEXT("https://named.example.com");
     FOpenPocketBaseError Error;
-    UOpenPocketBaseClient* DefaultClient = Subsystem->CreateClient(NAME_None, DefaultConfig, Error);
-    UOpenPocketBaseClient* NamedClient = Subsystem->CreateClient(TEXT("secondary"), NamedConfig, Error);
+    UOpenPocketBaseClient* DefaultClient = nullptr;
+    UOpenPocketBaseClient* NamedClient = nullptr;
+    TestTrue(
+        TEXT("The default client initializes directly from the Game Instance"),
+        UOpenPocketBaseClientLibrary::InitializePocketBaseWithConfig(
+            GameInstance,
+            DefaultConfig,
+            DefaultClient,
+            Error));
+    TestTrue(
+        TEXT("A named client initializes through the advanced entry point"),
+        UOpenPocketBaseClientLibrary::CreateNamedPocketBaseClient(
+            GameInstance,
+            TEXT("secondary"),
+            NamedConfig,
+            NamedClient,
+            Error));
 
     TestNotNull(TEXT("The default client is created"), DefaultClient);
     TestNotNull(TEXT("The named client is created"), NamedClient);
-    TestEqual(TEXT("The default client is returned by identity"), Subsystem->GetDefaultClient(), DefaultClient);
-    TestEqual(TEXT("The named client is returned by identity"), Subsystem->GetClient(TEXT("secondary")), NamedClient);
+    TestEqual(
+        TEXT("The default client is returned without a name"),
+        UOpenPocketBaseClientLibrary::GetPocketBaseClient(GameInstance),
+        DefaultClient);
+    TestEqual(
+        TEXT("The named client is returned by identity"),
+        UOpenPocketBaseClientLibrary::GetNamedPocketBaseClient(GameInstance, TEXT("secondary")),
+        NamedClient);
+
+    UOpenPocketBaseClient* ReusedClient = nullptr;
+    TestTrue(
+        TEXT("Repeated initialization for the same server is safe"),
+        UOpenPocketBaseClientLibrary::InitializePocketBase(
+            GameInstance,
+            TEXT("https://default.example.com/"),
+            ReusedClient,
+            Error));
+    TestEqual(TEXT("Repeated initialization returns the existing client"), ReusedClient, DefaultClient);
 
     GameInstance->Shutdown();
     TestFalse(TEXT("Game Instance teardown shuts down the default client"), DefaultClient->IsReady());

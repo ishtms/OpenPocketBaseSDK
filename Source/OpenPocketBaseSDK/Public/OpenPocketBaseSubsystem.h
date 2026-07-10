@@ -12,19 +12,15 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseSubsystem final : public UGameInstanc
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Client", meta = (DisplayName = "Create PocketBase Client"))
     UOpenPocketBaseClient* CreateClient(
         FName ClientName,
         const FOpenPocketBaseClientConfig& Config,
         FOpenPocketBaseError& OutError);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client", meta = (DisplayName = "Get PocketBase Client"))
     UOpenPocketBaseClient* GetClient(FName ClientName) const;
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client")
     UOpenPocketBaseClient* GetDefaultClient() const;
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Client")
     bool RemoveClient(FName ClientName);
 
     virtual void Deinitialize() override;

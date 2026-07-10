@@ -11,10 +11,12 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseFilterLibrary.h"
+#include "OpenPocketBaseClientLibrary.h"
 #include "OpenPocketBaseFileLibrary.h"
 #include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "OpenPocketBaseRecord.h"
+#include "OpenPocketBaseSubsystem.h"
 #include "UObject/Field.h"
 #include "UObject/Package.h"
 
@@ -101,6 +103,64 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintClientEntryApiTest,
+    "OpenPocketBase.Blueprint.Client.UsesDirectEntryPoints",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintClientEntryApiTest::RunTest(const FString& Parameters)
+{
+    UClass* Library = FindObject<UClass>(
+        nullptr,
+        TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseClientLibrary"));
+    if (!TestNotNull(TEXT("The Blueprint client library exists"), Library))
+    {
+        return false;
+    }
+
+    const UFunction* Initialize = Library->FindFunctionByName(TEXT("InitializePocketBase"));
+    TestNotNull(TEXT("Initialize PocketBase exists"), Initialize);
+    if (Initialize != nullptr)
+    {
+        TestEqual(
+            TEXT("Initialize PocketBase expands into success and failure execution paths"),
+            Initialize->GetMetaData(TEXT("ExpandBoolAsExecs")),
+            FString(TEXT("ReturnValue")));
+        TestEqual(
+            TEXT("Initialize PocketBase resolves its world automatically"),
+            Initialize->GetMetaData(TEXT("WorldContext")),
+            FString(TEXT("WorldContextObject")));
+        TestEqual(
+            TEXT("Initialize PocketBase hides its world pin"),
+            Initialize->GetMetaData(TEXT("HidePin")),
+            FString(TEXT("WorldContextObject")));
+    }
+
+    const UFunction* GetClient = Library->FindFunctionByName(TEXT("GetPocketBaseClient"));
+    TestNotNull(TEXT("Get PocketBase Client exists"), GetClient);
+    if (GetClient != nullptr)
+    {
+        TestTrue(
+            TEXT("Get PocketBase Client is pure"),
+            GetClient->HasAnyFunctionFlags(FUNC_BlueprintPure));
+    }
+
+    TestNotNull(
+        TEXT("Advanced named client creation remains available"),
+        Library->FindFunctionByName(TEXT("CreateNamedPocketBaseClient")));
+    TestNotNull(
+        TEXT("Advanced named client lookup remains available"),
+        Library->FindFunctionByName(TEXT("GetNamedPocketBaseClient")));
+
+    TestNull(
+        TEXT("The subsystem no longer exposes client construction nodes"),
+        UOpenPocketBaseSubsystem::StaticClass()->FindFunctionByName(TEXT("CreateClient")));
+    TestNull(
+        TEXT("The subsystem no longer exposes name-sensitive lookup nodes"),
+        UOpenPocketBaseSubsystem::StaticClass()->FindFunctionByName(TEXT("GetClient")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseBlueprintConsumerTest,
     "OpenPocketBase.Blueprint.Consumer.CompilesPublicNodes",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -128,6 +188,22 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
         UEdGraph::StaticClass(),
         UEdGraphSchema_K2::StaticClass());
     FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
+
+    UK2Node_CallFunction* InitializeNode = NewObject<UK2Node_CallFunction>(Graph);
+    InitializeNode->SetFromFunction(UOpenPocketBaseClientLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClientLibrary, InitializePocketBase)));
+    InitializeNode->CreateNewGuid();
+    InitializeNode->PostPlacedNewNode();
+    InitializeNode->AllocateDefaultPins();
+    Graph->AddNode(InitializeNode, true, false);
+
+    UK2Node_CallFunction* GetClientNode = NewObject<UK2Node_CallFunction>(Graph);
+    GetClientNode->SetFromFunction(UOpenPocketBaseClientLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClientLibrary, GetPocketBaseClient)));
+    GetClientNode->CreateNewGuid();
+    GetClientNode->PostPlacedNewNode();
+    GetClientNode->AllocateDefaultPins();
+    Graph->AddNode(GetClientNode, true, false);
 
     UK2Node_AsyncAction* HealthNode = AddAsyncConsumerNode(
         Graph,
