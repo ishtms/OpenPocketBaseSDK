@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "OpenPocketBaseBatch.h"
+#include "OpenPocketBaseBlueprintClient.h"
 
 #include "OpenPocketBaseBatchLibrary.generated.h"
 
@@ -12,37 +13,52 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseBatchLibrary final : public UBlueprin
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Batch")
-    static void AddCreate(
-        UPARAM(ref) FOpenPocketBaseBatchRequest& Batch,
-        const FString& Collection,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "New Batch", NativeMakeFunc))
+    static FOpenPocketBaseBatchRequest NewBatch();
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "With Create", Keywords = "batch add record"))
+    static FOpenPocketBaseBatchRequest WithCreate(
+        FOpenPocketBaseBatchRequest Batch,
+        FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         const TArray<FString>& Expand,
         const TArray<FString>& Fields);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Batch")
-    static void AddUpdate(
-        UPARAM(ref) FOpenPocketBaseBatchRequest& Batch,
-        const FString& Collection,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "With Update", Keywords = "batch add record"))
+    static FOpenPocketBaseBatchRequest WithUpdate(
+        FOpenPocketBaseBatchRequest Batch,
+        FOpenPocketBaseCollection Collection,
         const FString& RecordId,
         FOpenPocketBaseRecordBody Body,
         const TArray<FString>& Expand,
         const TArray<FString>& Fields);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Batch")
-    static void AddUpsert(
-        UPARAM(ref) FOpenPocketBaseBatchRequest& Batch,
-        const FString& Collection,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "With Upsert", Keywords = "batch add record"))
+    static FOpenPocketBaseBatchRequest WithUpsert(
+        FOpenPocketBaseBatchRequest Batch,
+        FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         const TArray<FString>& Expand,
         const TArray<FString>& Fields);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Batch")
-    static void AddDelete(
-        UPARAM(ref) FOpenPocketBaseBatchRequest& Batch,
-        const FString& Collection,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "With Delete", Keywords = "batch add remove record"))
+    static FOpenPocketBaseBatchRequest WithDelete(
+        FOpenPocketBaseBatchRequest Batch,
+        FOpenPocketBaseCollection Collection,
         const FString& RecordId);
-
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Batch")
-    static void Clear(UPARAM(ref) FOpenPocketBaseBatchRequest& Batch);
 };

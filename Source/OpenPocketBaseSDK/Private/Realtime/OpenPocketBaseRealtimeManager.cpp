@@ -455,7 +455,8 @@ bool FConnectionManager::BuildWireTopic(
     FOpenPocketBaseError& OutError) const
 {
     if (Topic.IsEmpty() || !IsSafeValue(Topic, 2048) || Options.QueryParameters.Num() > 32 ||
-        Options.Headers.Num() > 32 || !IsSafeValue(Options.Filter, 4096))
+        Options.Headers.Num() > 32 || !Options.Filter.IsValid() ||
+        !IsSafeValue(Options.Filter.ToString(), 4096))
     {
         OutError = MakeRealtimeError(
             EOpenPocketBaseErrorKind::InvalidArgument,
@@ -466,7 +467,7 @@ bool FConnectionManager::BuildWireTopic(
     TMap<FString, FString> Query = Options.QueryParameters;
     if (!Options.Filter.IsEmpty())
     {
-        Query.Add(TEXT("filter"), Options.Filter);
+        Query.Add(TEXT("filter"), Options.Filter.ToString());
     }
     if (!Options.Expand.IsEmpty())
     {

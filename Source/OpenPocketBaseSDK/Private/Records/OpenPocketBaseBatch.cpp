@@ -1,6 +1,6 @@
 #include "OpenPocketBaseBatch.h"
 
-void FOpenPocketBaseBatchRequest::AddCreate(
+FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddCreate(
     FString Collection,
     FOpenPocketBaseRecordBody Body,
     TArray<FString> Expand,
@@ -13,9 +13,10 @@ void FOpenPocketBaseBatchRequest::AddCreate(
     Entry.Expand = MoveTemp(Expand);
     Entry.Fields = MoveTemp(Fields);
     Entries.Add(MoveTemp(Entry));
+    return *this;
 }
 
-void FOpenPocketBaseBatchRequest::AddUpdate(
+FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddUpdate(
     FString Collection,
     FString RecordId,
     FOpenPocketBaseRecordBody Body,
@@ -30,9 +31,10 @@ void FOpenPocketBaseBatchRequest::AddUpdate(
     Entry.Expand = MoveTemp(Expand);
     Entry.Fields = MoveTemp(Fields);
     Entries.Add(MoveTemp(Entry));
+    return *this;
 }
 
-void FOpenPocketBaseBatchRequest::AddUpsert(
+FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddUpsert(
     FString Collection,
     FOpenPocketBaseRecordBody Body,
     TArray<FString> Expand,
@@ -45,13 +47,17 @@ void FOpenPocketBaseBatchRequest::AddUpsert(
     Entry.Expand = MoveTemp(Expand);
     Entry.Fields = MoveTemp(Fields);
     Entries.Add(MoveTemp(Entry));
+    return *this;
 }
 
-void FOpenPocketBaseBatchRequest::AddDelete(FString Collection, FString RecordId)
+FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddDelete(
+    FString Collection,
+    FString RecordId)
 {
     FOpenPocketBaseBatchEntry Entry;
     Entry.Operation = EOpenPocketBaseBatchOperation::Delete;
     Entry.Collection = MoveTemp(Collection);
     Entry.RecordId = MoveTemp(RecordId);
     Entries.Add(MoveTemp(Entry));
+    return *this;
 }

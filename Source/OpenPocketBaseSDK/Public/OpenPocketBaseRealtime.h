@@ -57,7 +57,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRealtimeOptions
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Realtime")
-    FString Filter;
+    FOpenPocketBaseFilter Filter;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Realtime")
     TArray<FString> Expand;

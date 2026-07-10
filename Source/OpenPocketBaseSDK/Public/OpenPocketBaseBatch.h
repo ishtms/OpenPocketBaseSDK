@@ -46,26 +46,26 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchRequest
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
     TArray<FOpenPocketBaseBatchEntry> Entries;
 
-    void AddCreate(
+    FOpenPocketBaseBatchRequest& AddCreate(
         FString Collection,
         FOpenPocketBaseRecordBody Body,
         TArray<FString> Expand = {},
         TArray<FString> Fields = {});
 
-    void AddUpdate(
+    FOpenPocketBaseBatchRequest& AddUpdate(
         FString Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         TArray<FString> Expand = {},
         TArray<FString> Fields = {});
 
-    void AddUpsert(
+    FOpenPocketBaseBatchRequest& AddUpsert(
         FString Collection,
         FOpenPocketBaseRecordBody Body,
         TArray<FString> Expand = {},
         TArray<FString> Fields = {});
 
-    void AddDelete(FString Collection, FString RecordId);
+    FOpenPocketBaseBatchRequest& AddDelete(FString Collection, FString RecordId);
 };
 
 USTRUCT(BlueprintType)

@@ -1,45 +1,54 @@
 #include "OpenPocketBaseBatchLibrary.h"
 
-void UOpenPocketBaseBatchLibrary::AddCreate(
-    FOpenPocketBaseBatchRequest& Batch,
-    const FString& Collection,
+FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::NewBatch()
+{
+    return {};
+}
+
+FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithCreate(
+    FOpenPocketBaseBatchRequest Batch,
+    FOpenPocketBaseCollection Collection,
     FOpenPocketBaseRecordBody Body,
     const TArray<FString>& Expand,
     const TArray<FString>& Fields)
 {
-    Batch.AddCreate(Collection, MoveTemp(Body), Expand, Fields);
+    Batch.AddCreate(MoveTemp(Collection.Name), MoveTemp(Body), Expand, Fields);
+    return Batch;
 }
 
-void UOpenPocketBaseBatchLibrary::AddUpdate(
-    FOpenPocketBaseBatchRequest& Batch,
-    const FString& Collection,
+FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpdate(
+    FOpenPocketBaseBatchRequest Batch,
+    FOpenPocketBaseCollection Collection,
     const FString& RecordId,
     FOpenPocketBaseRecordBody Body,
     const TArray<FString>& Expand,
     const TArray<FString>& Fields)
 {
-    Batch.AddUpdate(Collection, RecordId, MoveTemp(Body), Expand, Fields);
+    Batch.AddUpdate(
+        MoveTemp(Collection.Name),
+        RecordId,
+        MoveTemp(Body),
+        Expand,
+        Fields);
+    return Batch;
 }
 
-void UOpenPocketBaseBatchLibrary::AddUpsert(
-    FOpenPocketBaseBatchRequest& Batch,
-    const FString& Collection,
+FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpsert(
+    FOpenPocketBaseBatchRequest Batch,
+    FOpenPocketBaseCollection Collection,
     FOpenPocketBaseRecordBody Body,
     const TArray<FString>& Expand,
     const TArray<FString>& Fields)
 {
-    Batch.AddUpsert(Collection, MoveTemp(Body), Expand, Fields);
+    Batch.AddUpsert(MoveTemp(Collection.Name), MoveTemp(Body), Expand, Fields);
+    return Batch;
 }
 
-void UOpenPocketBaseBatchLibrary::AddDelete(
-    FOpenPocketBaseBatchRequest& Batch,
-    const FString& Collection,
+FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithDelete(
+    FOpenPocketBaseBatchRequest Batch,
+    FOpenPocketBaseCollection Collection,
     const FString& RecordId)
 {
-    Batch.AddDelete(Collection, RecordId);
-}
-
-void UOpenPocketBaseBatchLibrary::Clear(FOpenPocketBaseBatchRequest& Batch)
-{
-    Batch.Entries.Reset();
+    Batch.AddDelete(MoveTemp(Collection.Name), RecordId);
+    return Batch;
 }

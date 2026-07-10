@@ -78,6 +78,12 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithNullField"));
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithStringArrayField"));
 
+    TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("NewBatch"));
+    TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("WithCreate"));
+    TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("WithUpdate"));
+    TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("WithUpsert"));
+    TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("WithDelete"));
+
     TestNull(
         TEXT("The mutable filter accumulator is no longer exposed"),
         UOpenPocketBaseFilterLibrary::StaticClass()->FindFunctionByName(TEXT("AddBooleanParameter")));
@@ -87,6 +93,12 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestNull(
         TEXT("Record body mutation is no longer exposed"),
         UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("SetRecordBodyStringField")));
+    TestNull(
+        TEXT("Batch mutation is no longer exposed"),
+        UOpenPocketBaseBatchLibrary::StaticClass()->FindFunctionByName(TEXT("AddCreate")));
+    TestNull(
+        TEXT("Batch reset is unnecessary for value flows"),
+        UOpenPocketBaseBatchLibrary::StaticClass()->FindFunctionByName(TEXT("Clear")));
 
     const FProperty* FilterProperty =
         FOpenPocketBaseListOptions::StaticStruct()->FindPropertyByName(TEXT("Filter"));
@@ -97,6 +109,19 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
         TestEqual(
             TEXT("List options use the Open PocketBase filter type"),
             FilterStructProperty->Struct->GetFName(),
+            FName(TEXT("OpenPocketBaseFilter")));
+    }
+
+    const FProperty* RealtimeFilterProperty =
+        FOpenPocketBaseRealtimeOptions::StaticStruct()->FindPropertyByName(TEXT("Filter"));
+    const FStructProperty* RealtimeFilterStructProperty =
+        CastField<FStructProperty>(RealtimeFilterProperty);
+    TestNotNull(TEXT("Realtime options accept a filter value"), RealtimeFilterStructProperty);
+    if (RealtimeFilterStructProperty != nullptr)
+    {
+        TestEqual(
+            TEXT("Realtime options use the Open PocketBase filter type"),
+            RealtimeFilterStructProperty->Struct->GetFName(),
             FName(TEXT("OpenPocketBaseFilter")));
     }
     return true;
@@ -511,7 +536,7 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
 
     UK2Node_CallFunction* BatchNode = NewObject<UK2Node_CallFunction>(Graph);
     BatchNode->SetFromFunction(UOpenPocketBaseBatchLibrary::StaticClass()->FindFunctionByName(
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseBatchLibrary, AddCreate)));
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseBatchLibrary, WithCreate)));
     BatchNode->CreateNewGuid();
     BatchNode->PostPlacedNewNode();
     BatchNode->AllocateDefaultPins();

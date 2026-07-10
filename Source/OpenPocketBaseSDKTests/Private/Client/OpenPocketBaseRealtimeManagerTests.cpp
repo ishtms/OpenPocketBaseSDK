@@ -411,7 +411,10 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
     FOpenPocketBaseRealtimeOptions Options;
-    Options.Filter = TEXT("done = false");
+    Options.Filter = FOpenPocketBaseFilter::Boolean(
+        TEXT("done"),
+        EOpenPocketBaseBooleanComparison::Equals,
+        false);
     Options.Expand = {TEXT("owner")};
     Options.Fields = {TEXT("id"), TEXT("title")};
     Options.QueryParameters.Add(TEXT("locale"), TEXT("en-GB"));

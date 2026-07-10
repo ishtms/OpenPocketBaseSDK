@@ -3,6 +3,7 @@
 #include "Dom/JsonObject.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseBatch.h"
+#include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseClient.h"
 #include "OpenPocketBaseScriptedTransport.h"
 #include "Serialization/JsonReader.h"
@@ -192,12 +193,54 @@ FOpenPocketBaseBatchRequest MakeCompleteBatch()
     UpsertBody.SetStringField(TEXT("title"), TEXT("Upsert"));
 
     FOpenPocketBaseBatchRequest Batch;
-    Batch.AddCreate(TEXT("tasks"), MoveTemp(CreateBody));
-    Batch.AddUpdate(TEXT("tasks"), TEXT("task00000000001"), MoveTemp(UpdateBody));
-    Batch.AddUpsert(TEXT("tasks"), MoveTemp(UpsertBody));
-    Batch.AddDelete(TEXT("tasks"), TEXT("task00000000002"));
+    Batch
+        .AddCreate(TEXT("tasks"), MoveTemp(CreateBody))
+        .AddUpdate(TEXT("tasks"), TEXT("task00000000001"), MoveTemp(UpdateBody))
+        .AddUpsert(TEXT("tasks"), MoveTemp(UpsertBody))
+        .AddDelete(TEXT("tasks"), TEXT("task00000000002"));
     return Batch;
 }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintBatchValueTest,
+    "OpenPocketBase.Blueprint.Batch.BuildsImmutableValues",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseCollection Collection;
+    Collection.Name = TEXT("tasks");
+    FOpenPocketBaseRecordBody Body;
+    Body.SetStringField(TEXT("title"), TEXT("Create"));
+
+    const FOpenPocketBaseBatchRequest Empty = UOpenPocketBaseBatchLibrary::NewBatch();
+    const FOpenPocketBaseBatchRequest WithCreate = UOpenPocketBaseBatchLibrary::WithCreate(
+        Empty,
+        Collection,
+        Body,
+        {},
+        {});
+    const FOpenPocketBaseBatchRequest WithDelete = UOpenPocketBaseBatchLibrary::WithDelete(
+        WithCreate,
+        Collection,
+        TEXT("task00000000001"));
+
+    TestEqual(TEXT("The original batch remains empty"), Empty.Entries.Num(), 0);
+    TestEqual(TEXT("The create value has one entry"), WithCreate.Entries.Num(), 1);
+    TestEqual(TEXT("The next value retains both entries"), WithDelete.Entries.Num(), 2);
+    if (WithDelete.Entries.Num() == 2)
+    {
+        TestEqual(
+            TEXT("The first operation remains create"),
+            WithDelete.Entries[0].Operation,
+            EOpenPocketBaseBatchOperation::Create);
+        TestEqual(
+            TEXT("The second operation is delete"),
+            WithDelete.Entries[1].Operation,
+            EOpenPocketBaseBatchOperation::Delete);
+    }
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
