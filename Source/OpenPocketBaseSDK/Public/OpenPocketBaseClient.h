@@ -111,7 +111,7 @@ public:
         FOpenPocketBaseFullListCallback OnComplete) const;
 
     FOpenPocketBaseRequestHandle GetFirstListItem(
-        FString Filter,
+        FOpenPocketBaseFilter Filter,
         FOpenPocketBaseRecordCallback OnComplete,
         FOpenPocketBaseRecordOptions Options = {}) const;
 

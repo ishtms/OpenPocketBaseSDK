@@ -18,36 +18,57 @@ public:
         int32 MaxLength,
         bool bWithEllipsis = false);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
-    static void SetRecordBodyStringField(
-        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body",
+        meta = (DisplayName = "New Record Body", NativeMakeFunc))
+    static FOpenPocketBaseRecordBody NewRecordBody();
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body",
+        meta = (DisplayName = "With String Field", Keywords = "record body set add"))
+    static FOpenPocketBaseRecordBody WithStringField(
+        FOpenPocketBaseRecordBody Body,
         const FString& FieldName,
         const FString& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
-    static void SetRecordBodyNumberField(
-        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body",
+        meta = (DisplayName = "With Number Field", Keywords = "record body set add"))
+    static FOpenPocketBaseRecordBody WithNumberField(
+        FOpenPocketBaseRecordBody Body,
         const FString& FieldName,
         double Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
-    static void SetRecordBodyBooleanField(
-        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body",
+        meta = (DisplayName = "With Boolean Field", Keywords = "record body set add bool true false"))
+    static FOpenPocketBaseRecordBody WithBooleanField(
+        FOpenPocketBaseRecordBody Body,
         const FString& FieldName,
         bool bValue,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
-    static void SetRecordBodyNullField(
-        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body",
+        meta = (DisplayName = "With Null Field", Keywords = "record body set add empty"))
+    static FOpenPocketBaseRecordBody WithNullField(
+        FOpenPocketBaseRecordBody Body,
         const FString& FieldName,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records")
-    static void SetRecordBodyStringArrayField(
-        UPARAM(ref) FOpenPocketBaseRecordBody& Body,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body",
+        meta = (DisplayName = "With String Array Field", Keywords = "record body set add list"))
+    static FOpenPocketBaseRecordBody WithStringArrayField(
+        FOpenPocketBaseRecordBody Body,
         const FString& FieldName,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);

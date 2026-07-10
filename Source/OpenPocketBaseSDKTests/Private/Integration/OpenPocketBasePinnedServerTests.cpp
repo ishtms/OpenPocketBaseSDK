@@ -136,15 +136,10 @@ void DeleteIntegrationRecord(
 void GetFirstIntegrationRecord(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
-    FOpenPocketBaseFilterParams FilterParams;
-    FilterParams.AddString(TEXT("id"), TEXT("task00000000002"));
-    FString Filter;
-    FOpenPocketBaseError FilterError;
-    if (!FOpenPocketBaseFilter::TryBind(TEXT("id = {:id}"), FilterParams, Filter, FilterError))
-    {
-        CompleteCrudFailure(State, TEXT("Bind Filter"), FilterError);
-        return;
-    }
+    FOpenPocketBaseFilter Filter = FOpenPocketBaseFilter::String(
+        TEXT("id"),
+        EOpenPocketBaseStringComparison::Equals,
+        TEXT("task00000000002"));
 
     FOpenPocketBaseRecordOptions Options;
     Options.Fields = {TEXT("id"), TEXT("title:excerpt(12,true)"), TEXT("score")};

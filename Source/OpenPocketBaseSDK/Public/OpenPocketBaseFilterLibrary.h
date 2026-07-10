@@ -12,60 +12,69 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseFilterLibrary final : public UBluepri
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddStringParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "String Filter", Keywords = "where query equals contains"))
+    static FOpenPocketBaseFilter StringFilter(
+        const FString& Field,
+        EOpenPocketBaseStringComparison Comparison,
         const FString& Value);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddNumberParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "Number Filter", Keywords = "where query compare"))
+    static FOpenPocketBaseFilter NumberFilter(
+        const FString& Field,
+        EOpenPocketBaseNumberComparison Comparison,
         double Value);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddBooleanParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "Boolean Filter", Keywords = "where query bool true false"))
+    static FOpenPocketBaseFilter BooleanFilter(
+        const FString& Field,
+        EOpenPocketBaseBooleanComparison Comparison,
         bool bValue);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddDateParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name,
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "Date Filter", Keywords = "where query time compare"))
+    static FOpenPocketBaseFilter DateFilter(
+        const FString& Field,
+        EOpenPocketBaseDateComparison Comparison,
         FDateTime Value);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddNullParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name);
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "Null Filter", Keywords = "where query empty null"))
+    static FOpenPocketBaseFilter NullFilter(
+        const FString& Field,
+        EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddStringArrayParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name,
-        const TArray<FString>& Value);
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "And Filters", Keywords = "where query combine"))
+    static FOpenPocketBaseFilter AndFilters(
+        const FOpenPocketBaseFilter& A,
+        const FOpenPocketBaseFilter& B);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddNumberArrayParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name,
-        const TArray<double>& Value);
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "Or Filters", Keywords = "where query combine"))
+    static FOpenPocketBaseFilter OrFilters(
+        const FOpenPocketBaseFilter& A,
+        const FOpenPocketBaseFilter& B);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static bool AddBooleanArrayParameter(
-        UPARAM(ref) FOpenPocketBaseFilterParams& Params,
-        const FString& Name,
-        const TArray<bool>& Value);
-
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Records|Filters")
-    static void ClearParameters(UPARAM(ref) FOpenPocketBaseFilterParams& Params);
-
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Filters")
-    static bool BindFilter(
-        const FString& Expression,
-        const FOpenPocketBaseFilterParams& Params,
-        FString& OutFilter,
-        FOpenPocketBaseError& OutError);
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters|Advanced",
+        meta = (DisplayName = "Raw Filter (Advanced)", Keywords = "where query expression"))
+    static FOpenPocketBaseFilter RawFilter(const FString& Expression);
 };

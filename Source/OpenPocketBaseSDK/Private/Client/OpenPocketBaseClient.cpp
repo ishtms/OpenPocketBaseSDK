@@ -1048,7 +1048,7 @@ FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
     TArray<FString> Parts;
     Parts.Add(FString::Printf(TEXT("page=%d"), Options.Page));
     Parts.Add(FString::Printf(TEXT("perPage=%d"), Options.PerPage));
-    AddQueryValue(Parts, TEXT("filter"), Options.Filter);
+    AddQueryValue(Parts, TEXT("filter"), Options.Filter.ToString());
     AddQueryValue(Parts, TEXT("sort"), FString::Join(Options.Sort, TEXT(",")));
     AddQueryValue(Parts, TEXT("expand"), FString::Join(Options.Expand, TEXT(",")));
     AddQueryValue(Parts, TEXT("fields"), FString::Join(Options.Fields, TEXT(",")));
@@ -4872,11 +4872,16 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
     FOpenPocketBaseRecordPageCallback OnComplete) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || Options.Page < 1 || Options.PerPage < 1)
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || Options.Page < 1 ||
+        Options.PerPage < 1 || !Options.Filter.IsValid())
     {
         DispatchFailure<FOpenPocketBaseRecordPage>(
             MoveTemp(OnComplete),
-            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument, TEXT("Client, collection, page, and per-page values are required.")));
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                Options.Filter.IsValid()
+                    ? TEXT("Client, collection, page, and per-page values are required.")
+                    : *Options.Filter.ErrorMessage));
         return {};
     }
 
@@ -4968,7 +4973,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFullList(
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFirstListItem(
-    FString Filter,
+    FOpenPocketBaseFilter Filter,
     FOpenPocketBaseRecordCallback OnComplete,
     FOpenPocketBaseRecordOptions Options) const
 {
@@ -6368,7 +6373,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListExternalAuths
     }
     FOpenPocketBaseFilterParams Params;
     Params.AddString(TEXT("id"), RecordId);
-    FString Filter;
+    FOpenPocketBaseFilter Filter;
     FOpenPocketBaseError FilterError;
     if (!FOpenPocketBaseFilter::TryBind(
             TEXT("recordRef = {:id}"), Params, Filter, FilterError))
@@ -6444,7 +6449,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UnlinkExternalAut
     FOpenPocketBaseFilterParams Params;
     Params.AddString(TEXT("recordId"), RecordId);
     Params.AddString(TEXT("provider"), Provider);
-    FString Filter;
+    FOpenPocketBaseFilter Filter;
     FOpenPocketBaseError FilterError;
     if (!FOpenPocketBaseFilter::TryBind(
             TEXT("recordRef = {:recordId} && provider = {:provider}"),

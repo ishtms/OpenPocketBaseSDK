@@ -48,48 +48,58 @@ FString UOpenPocketBaseRecordLibrary::MakeExcerptField(
         bWithEllipsis ? TEXT("true") : TEXT("false"));
 }
 
-void UOpenPocketBaseRecordLibrary::SetRecordBodyStringField(
-    FOpenPocketBaseRecordBody& Body,
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::NewRecordBody()
+{
+    return {};
+}
+
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithStringField(
+    FOpenPocketBaseRecordBody Body,
     const FString& FieldName,
     const FString& Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
     Body.SetStringField(FieldName, Value, Modifier);
+    return Body;
 }
 
-void UOpenPocketBaseRecordLibrary::SetRecordBodyNumberField(
-    FOpenPocketBaseRecordBody& Body,
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithNumberField(
+    FOpenPocketBaseRecordBody Body,
     const FString& FieldName,
     const double Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
     Body.SetNumberField(FieldName, Value, Modifier);
+    return Body;
 }
 
-void UOpenPocketBaseRecordLibrary::SetRecordBodyBooleanField(
-    FOpenPocketBaseRecordBody& Body,
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithBooleanField(
+    FOpenPocketBaseRecordBody Body,
     const FString& FieldName,
     const bool bValue,
     const EOpenPocketBaseFieldModifier Modifier)
 {
     Body.SetBooleanField(FieldName, bValue, Modifier);
+    return Body;
 }
 
-void UOpenPocketBaseRecordLibrary::SetRecordBodyNullField(
-    FOpenPocketBaseRecordBody& Body,
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithNullField(
+    FOpenPocketBaseRecordBody Body,
     const FString& FieldName,
     const EOpenPocketBaseFieldModifier Modifier)
 {
     Body.SetNullField(FieldName, Modifier);
+    return Body;
 }
 
-void UOpenPocketBaseRecordLibrary::SetRecordBodyStringArrayField(
-    FOpenPocketBaseRecordBody& Body,
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithStringArrayField(
+    FOpenPocketBaseRecordBody Body,
     const FString& FieldName,
     const TArray<FString>& Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
     Body.SetStringArrayField(FieldName, Value, Modifier);
+    return Body;
 }
 
 bool UOpenPocketBaseRecordLibrary::HasField(

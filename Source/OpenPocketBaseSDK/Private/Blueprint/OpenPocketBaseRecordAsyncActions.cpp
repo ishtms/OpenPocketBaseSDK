@@ -240,7 +240,7 @@ UOpenPocketBaseGetFirstRecordAsyncAction* UOpenPocketBaseGetFirstRecordAsyncActi
     const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
     FString InCollection,
-    FString InFilter,
+    FOpenPocketBaseFilter InFilter,
     FOpenPocketBaseRecordOptions InOptions)
 {
     UOpenPocketBaseGetFirstRecordAsyncAction* Action = NewObject<UOpenPocketBaseGetFirstRecordAsyncAction>();

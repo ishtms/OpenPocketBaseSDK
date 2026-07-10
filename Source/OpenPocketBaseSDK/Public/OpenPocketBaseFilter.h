@@ -5,11 +5,74 @@
 
 #include "OpenPocketBaseFilter.generated.h"
 
-USTRUCT(BlueprintType)
-struct OPENPOCKETBASESDK_API FOpenPocketBaseFilterParams
+UENUM(BlueprintType)
+enum class EOpenPocketBaseStringComparison : uint8
 {
-    GENERATED_BODY()
+    Equals,
+    NotEquals UMETA(DisplayName = "Does Not Equal"),
+    Contains,
+    DoesNotContain UMETA(DisplayName = "Does Not Contain"),
+    AnyEquals UMETA(DisplayName = "Any Equals"),
+    AnyNotEquals UMETA(DisplayName = "Any Does Not Equal"),
+    AnyContains UMETA(DisplayName = "Any Contains"),
+    AnyDoesNotContain UMETA(DisplayName = "Any Does Not Contain")
+};
 
+UENUM(BlueprintType)
+enum class EOpenPocketBaseNumberComparison : uint8
+{
+    Equals,
+    NotEquals UMETA(DisplayName = "Does Not Equal"),
+    GreaterThan,
+    GreaterThanOrEqual UMETA(DisplayName = "Greater Than or Equal"),
+    LessThan,
+    LessThanOrEqual UMETA(DisplayName = "Less Than or Equal"),
+    AnyEquals UMETA(DisplayName = "Any Equals"),
+    AnyNotEquals UMETA(DisplayName = "Any Does Not Equal"),
+    AnyGreaterThan UMETA(DisplayName = "Any Greater Than"),
+    AnyGreaterThanOrEqual UMETA(DisplayName = "Any Greater Than or Equal"),
+    AnyLessThan UMETA(DisplayName = "Any Less Than"),
+    AnyLessThanOrEqual UMETA(DisplayName = "Any Less Than or Equal")
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseBooleanComparison : uint8
+{
+    Equals,
+    NotEquals UMETA(DisplayName = "Does Not Equal"),
+    AnyEquals UMETA(DisplayName = "Any Equals"),
+    AnyNotEquals UMETA(DisplayName = "Any Does Not Equal")
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseDateComparison : uint8
+{
+    Equals,
+    NotEquals UMETA(DisplayName = "Does Not Equal"),
+    After UMETA(DisplayName = "Is After"),
+    OnOrAfter UMETA(DisplayName = "Is On or After"),
+    Before UMETA(DisplayName = "Is Before"),
+    OnOrBefore UMETA(DisplayName = "Is On or Before"),
+    AnyEquals UMETA(DisplayName = "Any Equals"),
+    AnyNotEquals UMETA(DisplayName = "Any Does Not Equal"),
+    AnyAfter UMETA(DisplayName = "Any Is After"),
+    AnyOnOrAfter UMETA(DisplayName = "Any Is On or After"),
+    AnyBefore UMETA(DisplayName = "Any Is Before"),
+    AnyOnOrBefore UMETA(DisplayName = "Any Is On or Before")
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseNullComparison : uint8
+{
+    IsNull UMETA(DisplayName = "Is Null"),
+    IsNotNull UMETA(DisplayName = "Is Not Null"),
+    AnyIsNull UMETA(DisplayName = "Any Is Null"),
+    AnyIsNotNull UMETA(DisplayName = "Any Is Not Null")
+};
+
+class OPENPOCKETBASESDK_API FOpenPocketBaseFilterParams
+{
+public:
     bool AddString(const FString& Name, const FString& Value);
     bool AddNumber(const FString& Name, double Value);
     bool AddBoolean(const FString& Name, bool bValue);
@@ -26,15 +89,53 @@ private:
 
     TMap<FString, FString> EncodedValues;
 
-    friend class FOpenPocketBaseFilter;
+    friend struct FOpenPocketBaseFilter;
 };
 
-class OPENPOCKETBASESDK_API FOpenPocketBaseFilter final
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
 {
-public:
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Filters")
+    FString Expression;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Filters")
+    bool bValid = true;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Filters")
+    FString ErrorMessage;
+
+    static FOpenPocketBaseFilter String(
+        FString Field,
+        EOpenPocketBaseStringComparison Comparison,
+        const FString& Value);
+    static FOpenPocketBaseFilter Number(
+        FString Field,
+        EOpenPocketBaseNumberComparison Comparison,
+        double Value);
+    static FOpenPocketBaseFilter Boolean(
+        FString Field,
+        EOpenPocketBaseBooleanComparison Comparison,
+        bool bValue);
+    static FOpenPocketBaseFilter Date(
+        FString Field,
+        EOpenPocketBaseDateComparison Comparison,
+        const FDateTime& Value);
+    static FOpenPocketBaseFilter Null(
+        FString Field,
+        EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
+    static FOpenPocketBaseFilter Raw(FString Expression);
+
+    FOpenPocketBaseFilter And(const FOpenPocketBaseFilter& Other) const;
+    FOpenPocketBaseFilter Or(const FOpenPocketBaseFilter& Other) const;
+    bool IsEmpty() const;
+    bool IsValid() const;
+    const FString& ToString() const;
+
     static bool TryBind(
         const FString& Expression,
         const FOpenPocketBaseFilterParams& Params,
-        FString& OutFilter,
+        FOpenPocketBaseFilter& OutFilter,
         FOpenPocketBaseError& OutError);
 };

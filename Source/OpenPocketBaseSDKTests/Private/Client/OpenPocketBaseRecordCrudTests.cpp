@@ -248,7 +248,10 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
         });
 
     State->Client->Collection(TEXT("tasks")).GetFirstListItem(
-        TEXT("status = 'open'"),
+        FOpenPocketBaseFilter::String(
+            TEXT("status"),
+            EOpenPocketBaseStringComparison::Equals,
+            TEXT("open")),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
             State->bFirstSucceeded = Result.IsSuccess();

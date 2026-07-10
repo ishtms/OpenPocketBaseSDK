@@ -14,6 +14,8 @@
 #include "OpenPocketBaseFileLibrary.h"
 #include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
+#include "OpenPocketBaseRecord.h"
+#include "UObject/Field.h"
 #include "UObject/Package.h"
 
 namespace
@@ -37,6 +39,65 @@ UK2Node_AsyncAction* AddAsyncConsumerNode(
     Graph->AddNode(Node, true, false);
     return Node;
 }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintValueApiTest,
+    "OpenPocketBase.Blueprint.Values.UsesComposablePureNodes",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
+{
+    const auto TestPureFunction = [this](UClass* Library, const FName Name)
+    {
+        const UFunction* Function = Library->FindFunctionByName(Name);
+        TestNotNull(*FString::Printf(TEXT("%s exists"), *Name.ToString()), Function);
+        if (Function != nullptr)
+        {
+            TestTrue(
+                *FString::Printf(TEXT("%s is pure"), *Name.ToString()),
+                Function->HasAnyFunctionFlags(FUNC_BlueprintPure));
+        }
+    };
+
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("StringFilter"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("NumberFilter"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("BooleanFilter"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("DateFilter"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("NullFilter"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("AndFilters"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("OrFilters"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("RawFilter"));
+
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("NewRecordBody"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithStringField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithNumberField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithBooleanField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithNullField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithStringArrayField"));
+
+    TestNull(
+        TEXT("The mutable filter accumulator is no longer exposed"),
+        UOpenPocketBaseFilterLibrary::StaticClass()->FindFunctionByName(TEXT("AddBooleanParameter")));
+    TestNull(
+        TEXT("Manual filter binding is no longer part of the normal Blueprint flow"),
+        UOpenPocketBaseFilterLibrary::StaticClass()->FindFunctionByName(TEXT("BindFilter")));
+    TestNull(
+        TEXT("Record body mutation is no longer exposed"),
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("SetRecordBodyStringField")));
+
+    const FProperty* FilterProperty =
+        FOpenPocketBaseListOptions::StaticStruct()->FindPropertyByName(TEXT("Filter"));
+    const FStructProperty* FilterStructProperty = CastField<FStructProperty>(FilterProperty);
+    TestNotNull(TEXT("List options accept a filter value"), FilterStructProperty);
+    if (FilterStructProperty != nullptr)
+    {
+        TestEqual(
+            TEXT("List options use the Open PocketBase filter type"),
+            FilterStructProperty->Struct->GetFName(),
+            FName(TEXT("OpenPocketBaseFilter")));
+    }
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -316,7 +377,7 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
 
     UK2Node_CallFunction* BodyNode = NewObject<UK2Node_CallFunction>(Graph);
     BodyNode->SetFromFunction(UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, SetRecordBodyStringField)));
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithStringField)));
     BodyNode->CreateNewGuid();
     BodyNode->PostPlacedNewNode();
     BodyNode->AllocateDefaultPins();
@@ -324,7 +385,7 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
 
     UK2Node_CallFunction* FilterNode = NewObject<UK2Node_CallFunction>(Graph);
     FilterNode->SetFromFunction(UOpenPocketBaseFilterLibrary::StaticClass()->FindFunctionByName(
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFilterLibrary, BindFilter)));
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFilterLibrary, BooleanFilter)));
     FilterNode->CreateNewGuid();
     FilterNode->PostPlacedNewNode();
     FilterNode->AllocateDefaultPins();

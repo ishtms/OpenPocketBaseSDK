@@ -1,78 +1,59 @@
 #include "OpenPocketBaseFilterLibrary.h"
 
-bool UOpenPocketBaseFilterLibrary::AddStringParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name,
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::StringFilter(
+    const FString& Field,
+    const EOpenPocketBaseStringComparison Comparison,
     const FString& Value)
 {
-    return Params.AddString(Name, Value);
+    return FOpenPocketBaseFilter::String(Field, Comparison, Value);
 }
 
-bool UOpenPocketBaseFilterLibrary::AddNumberParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name,
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::NumberFilter(
+    const FString& Field,
+    const EOpenPocketBaseNumberComparison Comparison,
     const double Value)
 {
-    return Params.AddNumber(Name, Value);
+    return FOpenPocketBaseFilter::Number(Field, Comparison, Value);
 }
 
-bool UOpenPocketBaseFilterLibrary::AddBooleanParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name,
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::BooleanFilter(
+    const FString& Field,
+    const EOpenPocketBaseBooleanComparison Comparison,
     const bool bValue)
 {
-    return Params.AddBoolean(Name, bValue);
+    return FOpenPocketBaseFilter::Boolean(Field, Comparison, bValue);
 }
 
-bool UOpenPocketBaseFilterLibrary::AddDateParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name,
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::DateFilter(
+    const FString& Field,
+    const EOpenPocketBaseDateComparison Comparison,
     const FDateTime Value)
 {
-    return Params.AddDate(Name, Value);
+    return FOpenPocketBaseFilter::Date(Field, Comparison, Value);
 }
 
-bool UOpenPocketBaseFilterLibrary::AddNullParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name)
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::NullFilter(
+    const FString& Field,
+    const EOpenPocketBaseNullComparison Comparison)
 {
-    return Params.AddNull(Name);
+    return FOpenPocketBaseFilter::Null(Field, Comparison);
 }
 
-bool UOpenPocketBaseFilterLibrary::AddStringArrayParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name,
-    const TArray<FString>& Value)
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::AndFilters(
+    const FOpenPocketBaseFilter& A,
+    const FOpenPocketBaseFilter& B)
 {
-    return Params.AddStringArray(Name, Value);
+    return A.And(B);
 }
 
-bool UOpenPocketBaseFilterLibrary::AddNumberArrayParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name,
-    const TArray<double>& Value)
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::OrFilters(
+    const FOpenPocketBaseFilter& A,
+    const FOpenPocketBaseFilter& B)
 {
-    return Params.AddNumberArray(Name, Value);
+    return A.Or(B);
 }
 
-bool UOpenPocketBaseFilterLibrary::AddBooleanArrayParameter(
-    FOpenPocketBaseFilterParams& Params,
-    const FString& Name,
-    const TArray<bool>& Value)
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::RawFilter(const FString& Expression)
 {
-    return Params.AddBooleanArray(Name, Value);
-}
-
-void UOpenPocketBaseFilterLibrary::ClearParameters(FOpenPocketBaseFilterParams& Params)
-{
-    Params.Reset();
-}
-
-bool UOpenPocketBaseFilterLibrary::BindFilter(
-    const FString& Expression,
-    const FOpenPocketBaseFilterParams& Params,
-    FString& OutFilter,
-    FOpenPocketBaseError& OutError)
-{
-    return FOpenPocketBaseFilter::TryBind(Expression, Params, OutFilter, OutError);
+    return FOpenPocketBaseFilter::Raw(Expression);
 }

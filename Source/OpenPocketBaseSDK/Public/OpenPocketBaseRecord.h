@@ -4,6 +4,7 @@
 #include "JsonObjectConverter.h"
 #include "JsonObjectWrapper.h"
 #include "OpenPocketBaseError.h"
+#include "OpenPocketBaseFilter.h"
 
 #include "OpenPocketBaseRecord.generated.h"
 
@@ -31,30 +32,34 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
     GENERATED_BODY()
 
     FOpenPocketBaseRecordBody();
+    FOpenPocketBaseRecordBody(const FOpenPocketBaseRecordBody& Other);
+    FOpenPocketBaseRecordBody& operator=(const FOpenPocketBaseRecordBody& Other);
+    FOpenPocketBaseRecordBody(FOpenPocketBaseRecordBody&& Other) = default;
+    FOpenPocketBaseRecordBody& operator=(FOpenPocketBaseRecordBody&& Other) = default;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
     FJsonObjectWrapper Data;
 
-    void SetStringField(
+    FOpenPocketBaseRecordBody& SetStringField(
         const FString& FieldName,
         const FString& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    void SetNumberField(
+    FOpenPocketBaseRecordBody& SetNumberField(
         const FString& FieldName,
         double Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    void SetBooleanField(
+    FOpenPocketBaseRecordBody& SetBooleanField(
         const FString& FieldName,
         bool bValue,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    void SetNullField(
+    FOpenPocketBaseRecordBody& SetNullField(
         const FString& FieldName,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    void SetStringArrayField(
+    FOpenPocketBaseRecordBody& SetStringArrayField(
         const FString& FieldName,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
@@ -183,6 +188,10 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordOptions
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", AdvancedDisplay)
     FOpenPocketBaseRequestOptions RequestOptions;
+
+    FOpenPocketBaseRecordOptions& WithExpand(TArray<FString> InExpand);
+    FOpenPocketBaseRecordOptions& WithFields(TArray<FString> InFields);
+    FOpenPocketBaseRecordOptions& WithRequestOptions(FOpenPocketBaseRequestOptions InOptions);
 };
 
 USTRUCT(BlueprintType)
@@ -197,7 +206,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
     int32 PerPage = 30;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
-    FString Filter;
+    FOpenPocketBaseFilter Filter;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
     TArray<FString> Sort;
@@ -213,6 +222,15 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", AdvancedDisplay)
     FOpenPocketBaseRequestOptions RequestOptions;
+
+    FOpenPocketBaseListOptions& AtPage(int32 InPage);
+    FOpenPocketBaseListOptions& PageSize(int32 InPerPage);
+    FOpenPocketBaseListOptions& Where(FOpenPocketBaseFilter InFilter);
+    FOpenPocketBaseListOptions& WithSort(TArray<FString> InSort);
+    FOpenPocketBaseListOptions& WithExpand(TArray<FString> InExpand);
+    FOpenPocketBaseListOptions& WithFields(TArray<FString> InFields);
+    FOpenPocketBaseListOptions& SkipTotals(bool bInSkipTotal = true);
+    FOpenPocketBaseListOptions& WithRequestOptions(FOpenPocketBaseRequestOptions InOptions);
 };
 
 USTRUCT(BlueprintType)
@@ -228,6 +246,10 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFullListOptions
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", meta = (ClampMin = "0", ClampMax = "10000"))
     int32 MaxPages = 0;
+
+    FOpenPocketBaseFullListOptions& WithListOptions(FOpenPocketBaseListOptions InOptions);
+    FOpenPocketBaseFullListOptions& LimitItems(int32 InMaxItems);
+    FOpenPocketBaseFullListOptions& LimitPages(int32 InMaxPages);
 };
 
 USTRUCT(BlueprintType)

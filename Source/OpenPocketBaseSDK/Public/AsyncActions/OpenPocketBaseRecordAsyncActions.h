@@ -257,7 +257,7 @@ public:
         const UObject* WorldContextObject,
         UOpenPocketBaseClient* PocketBaseClient,
         FString Collection,
-        FString Filter,
+        FOpenPocketBaseFilter Filter,
         FOpenPocketBaseRecordOptions Options);
 
     virtual void Activate() override;
@@ -267,7 +267,7 @@ protected:
 
 private:
     FString Collection;
-    FString Filter;
+    FOpenPocketBaseFilter Filter;
     FOpenPocketBaseRecordOptions Options;
 };
 

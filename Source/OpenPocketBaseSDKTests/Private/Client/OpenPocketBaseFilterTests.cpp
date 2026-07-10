@@ -29,12 +29,12 @@ bool FOpenPocketBaseTypedFilterBindingTest::RunTest(const FString& Parameters)
     const FString Expression =
         TEXT("title = {:text} && score >= {:score} && done = {:done} && created >= {:created} && ")
         TEXT("owner = {:owner} && labels ?= {:labels} && score ?= {:scores} && done ?= {:states}");
-    FString Bound;
+    FOpenPocketBaseFilter Bound;
     FOpenPocketBaseError Error;
     TestTrue(TEXT("A complete typed filter binds"), FOpenPocketBaseFilter::TryBind(Expression, Params, Bound, Error));
     TestEqual(
         TEXT("Typed values use the PocketBase JavaScript SDK wire encoding"),
-        Bound,
+        Bound.ToString(),
         FString(
             TEXT("title = \"x\\\" || true || title = \\\"y\" && score >= 12.5 && done = false && ")
             TEXT("created >= \"2026-08-22 10:11:12.345Z\" && owner = null && ")
@@ -46,7 +46,10 @@ bool FOpenPocketBaseTypedFilterBindingTest::RunTest(const FString& Parameters)
     TestTrue(
         TEXT("Encoded values are not rescanned as placeholders"),
         FOpenPocketBaseFilter::TryBind(TEXT("name = {:value}"), RecursiveParams, Bound, Error));
-    TestEqual(TEXT("Placeholder-like input stays quoted"), Bound, FString(TEXT("name = \"{:admin}\"")));
+    TestEqual(
+        TEXT("Placeholder-like input stays quoted"),
+        Bound.ToString(),
+        FString(TEXT("name = \"{:admin}\"")));
     return true;
 }
 
@@ -64,7 +67,7 @@ bool FOpenPocketBaseFilterValidationTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Invalid placeholder names are rejected"), Params.AddString(TEXT("bad-name"), TEXT("value")));
     TestTrue(TEXT("Valid placeholder names are accepted"), Params.AddString(TEXT("status"), TEXT("open")));
 
-    FString Bound;
+    FOpenPocketBaseFilter Bound;
     FOpenPocketBaseError Error;
     TestFalse(
         TEXT("Unknown placeholders are rejected"),
@@ -77,6 +80,51 @@ bool FOpenPocketBaseFilterValidationTest::RunTest(const FString& Parameters)
     TestFalse(
         TEXT("Unclosed placeholders are rejected"),
         FOpenPocketBaseFilter::TryBind(TEXT("status = {:status"), Params, Bound, Error));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseComposableFilterTest,
+    "OpenPocketBase.Client.Filters.ComposesTypedValues",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseComposableFilterTest::RunTest(const FString& Parameters)
+{
+    const FOpenPocketBaseFilter Filter = FOpenPocketBaseFilter::Boolean(
+        TEXT("done"),
+        EOpenPocketBaseBooleanComparison::Equals,
+        false).And(FOpenPocketBaseFilter::String(
+            TEXT("owner.name"),
+            EOpenPocketBaseStringComparison::Contains,
+            TEXT("x\"") TEXT(" || true")));
+
+    TestTrue(TEXT("Typed filters are valid"), Filter.IsValid());
+    TestEqual(
+        TEXT("Typed filters escape values and preserve grouping"),
+        Filter.ToString(),
+        FString(TEXT("(done = false) && (owner.name ~ \"x\\\" || true\")")));
+
+    const FOpenPocketBaseFilter Empty;
+    TestEqual(
+        TEXT("An empty optional filter does not add a group"),
+        Empty.Or(Filter).ToString(),
+        Filter.ToString());
+
+    const FOpenPocketBaseFilter Invalid = FOpenPocketBaseFilter::String(
+        TEXT("done || true"),
+        EOpenPocketBaseStringComparison::Equals,
+        TEXT("value"));
+    TestFalse(TEXT("Invalid field paths are rejected"), Invalid.IsValid());
+    TestFalse(TEXT("Invalid filters remain invalid when composed"), Invalid.And(Filter).IsValid());
+
+    const FOpenPocketBaseFilter Date = FOpenPocketBaseFilter::Date(
+        TEXT("updated"),
+        EOpenPocketBaseDateComparison::OnOrAfter,
+        FDateTime(2026, 8, 23, 10, 30, 0));
+    TestEqual(
+        TEXT("Date filters use readable comparisons and PocketBase timestamps"),
+        Date.ToString(),
+        FString(TEXT("updated >= \"2026-08-23 10:30:00.000Z\"")));
     return true;
 }
 

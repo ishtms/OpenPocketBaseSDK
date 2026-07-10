@@ -96,8 +96,8 @@ public:
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (File URL Options)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseFileUrlOptionsToString(const FOpenPocketBaseFileUrlOptions& Value);
 
-    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Filter Params)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
-    static FString Conv_OpenPocketBaseFilterParamsToString(const FOpenPocketBaseFilterParams& Value);
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Filter)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseFilterToString(const FOpenPocketBaseFilter& Value);
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Full List Options)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseFullListOptionsToString(const FOpenPocketBaseFullListOptions& Value);
@@ -203,6 +203,21 @@ public:
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Field State)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseFieldStateToString(EOpenPocketBaseFieldState Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (String Comparison)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseStringComparisonToString(EOpenPocketBaseStringComparison Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Number Comparison)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseNumberComparisonToString(EOpenPocketBaseNumberComparison Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Boolean Comparison)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseBooleanComparisonToString(EOpenPocketBaseBooleanComparison Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Date Comparison)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseDateComparisonToString(EOpenPocketBaseDateComparison Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Null Comparison)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseNullComparisonToString(EOpenPocketBaseNullComparison Value);
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (File Download Target)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseFileDownloadTargetToString(EOpenPocketBaseFileDownloadTarget Value);
