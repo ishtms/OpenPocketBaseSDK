@@ -1,0 +1,23 @@
+#include "OpenPocketBaseAdminStringLibrary.h"
+
+#include "OpenPocketBaseStringLibrary.h"
+
+#define OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(Suffix, Type) \
+    FString UOpenPocketBaseAdminStringLibrary::Conv_##Suffix##ToString(const Type& Value) \
+    { \
+        return UOpenPocketBaseStringLibrary::FormatStruct(Type::StaticStruct(), &Value); \
+    }
+
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminBackup, FOpenPocketBaseAdminBackup)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminBackupDownload, FOpenPocketBaseAdminBackupDownload)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminBackupList, FOpenPocketBaseAdminBackupList)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminDocument, FOpenPocketBaseAdminDocument)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminDocumentList, FOpenPocketBaseAdminDocumentList)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminIdentity, FOpenPocketBaseAdminIdentity)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminListOptions, FOpenPocketBaseAdminListOptions)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminPage, FOpenPocketBaseAdminPage)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminPolicy, FOpenPocketBaseAdminPolicy)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminSqlColumn, FOpenPocketBaseAdminSqlColumn)
+OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(OpenPocketBaseAdminSqlResult, FOpenPocketBaseAdminSqlResult)
+
+#undef OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING
