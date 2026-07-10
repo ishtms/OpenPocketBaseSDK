@@ -224,12 +224,46 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
                 UOpenPocketBaseCustomRouteAsyncAction,
                 SendCustomRoute)));
 
+    UK2Node_AsyncAction* GetRecordNode = AddAsyncConsumerNode(
+        Graph,
+        UOpenPocketBaseGetRecordAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetRecordAsyncAction, GetRecord));
     TestNotNull(
         TEXT("Get Record is available as an async Blueprint node"),
-        AddAsyncConsumerNode(
-            Graph,
-            UOpenPocketBaseGetRecordAsyncAction::StaticClass(),
-            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetRecordAsyncAction, GetRecord)));
+        GetRecordNode);
+    UEdGraphPin* CollectionPin =
+        GetRecordNode != nullptr ? GetRecordNode->FindPin(TEXT("Collection"), EGPD_Input) : nullptr;
+    TestNotNull(TEXT("Record actions accept a collection value"), CollectionPin);
+    TestTrue(
+        TEXT("Record actions use the Open PocketBase collection type"),
+            CollectionPin != nullptr &&
+            CollectionPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Struct &&
+            CollectionPin->PinType.PinSubCategoryObject != nullptr &&
+            CollectionPin->PinType.PinSubCategoryObject->GetName() == TEXT("OpenPocketBaseCollection"));
+    TestNull(
+        TEXT("Record actions do not repeat the client pin"),
+        GetRecordNode != nullptr
+            ? GetRecordNode->FindPin(TEXT("PocketBaseClient"), EGPD_Input)
+            : nullptr);
+
+    UK2Node_CallFunction* CollectionNode = NewObject<UK2Node_CallFunction>(Graph);
+    CollectionNode->SetFromFunction(UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, Collection)));
+    CollectionNode->CreateNewGuid();
+    CollectionNode->PostPlacedNewNode();
+    CollectionNode->AllocateDefaultPins();
+    Graph->AddNode(CollectionNode, true, false);
+    const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+    TestTrue(
+        TEXT("A retrieved client connects directly to Collection"),
+        Schema->TryCreateConnection(
+            GetClientNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+            CollectionNode->FindPin(UEdGraphSchema_K2::PN_Self, EGPD_Input)));
+    TestTrue(
+        TEXT("A Collection value connects directly to record actions"),
+        Schema->TryCreateConnection(
+            CollectionNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+            CollectionPin));
     TestNotNull(
         TEXT("List Records is available as an async Blueprint node"),
         AddAsyncConsumerNode(
@@ -508,6 +542,11 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
                 TEXT("%s exposes the failure error"),
                 *AsyncNode->GetNodeTitle(ENodeTitleType::ListView).ToString()),
             AsyncNode->FindPin(TEXT("Error"), EGPD_Output));
+        TestNull(
+            *FString::Printf(
+                TEXT("%s resolves its Game Instance from the client"),
+                *AsyncNode->GetNodeTitle(ENodeTitleType::ListView).ToString()),
+            AsyncNode->FindPin(TEXT("WorldContextObject"), EGPD_Input));
     }
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);

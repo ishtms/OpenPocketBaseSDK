@@ -2,6 +2,11 @@
 
 #include "UObject/Package.h"
 
+bool FOpenPocketBaseCollection::IsValid() const
+{
+    return Client != nullptr && Client->IsReady() && !Name.IsEmpty();
+}
+
 UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
     UObject* Outer,
     const FOpenPocketBaseClientConfig& Config,
@@ -57,6 +62,11 @@ UOpenPocketBaseClient* UOpenPocketBaseClient::Wrap(
     return Wrapper;
 }
 
+UWorld* UOpenPocketBaseClient::GetWorld() const
+{
+    return GetOuter() != nullptr ? GetOuter()->GetWorld() : nullptr;
+}
+
 TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> UOpenPocketBaseClient::GetNativeClient() const
 {
     return NativeClient;
@@ -70,6 +80,15 @@ bool UOpenPocketBaseClient::IsReady() const
 FString UOpenPocketBaseClient::GetBaseUrl() const
 {
     return NativeClient.IsValid() ? NativeClient->GetBaseUrl() : FString();
+}
+
+FOpenPocketBaseCollection UOpenPocketBaseClient::Collection(FString Name)
+{
+    Name.TrimStartAndEndInline();
+    FOpenPocketBaseCollection Collection;
+    Collection.Client = this;
+    Collection.Name = MoveTemp(Name);
+    return Collection;
 }
 
 FOpenPocketBaseCapabilityInfo UOpenPocketBaseClient::GetCapability(

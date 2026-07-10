@@ -2,7 +2,6 @@
 
 UOpenPocketBaseGetFileTokenAsyncAction*
 UOpenPocketBaseGetFileTokenAsyncAction::GetProtectedFileToken(
-    const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -10,7 +9,7 @@ UOpenPocketBaseGetFileTokenAsyncAction::GetProtectedFileToken(
         NewObject<UOpenPocketBaseGetFileTokenAsyncAction>();
     Action->Client = PocketBaseClient;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -67,9 +66,7 @@ void UOpenPocketBaseGetFileTokenAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseDownloadFileAsyncAction* UOpenPocketBaseDownloadFileAsyncAction::DownloadFile(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FString InFileName,
     FOpenPocketBaseFileDownloadOptions InOptions,
@@ -77,13 +74,13 @@ UOpenPocketBaseDownloadFileAsyncAction* UOpenPocketBaseDownloadFileAsyncAction::
 {
     UOpenPocketBaseDownloadFileAsyncAction* Action =
         NewObject<UOpenPocketBaseDownloadFileAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->FileName = MoveTemp(InFileName);
     Action->Options = MoveTemp(InOptions);
     Action->Token = MoveTemp(InToken);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 

@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "OpenPocketBaseAuthentication.h"
 #include "OpenPocketBaseBatch.h"
+#include "OpenPocketBaseBlueprintClient.h"
 #include "OpenPocketBaseCapability.h"
 #include "OpenPocketBaseClientConfig.h"
 #include "OpenPocketBaseCustomRoute.h"
@@ -62,6 +63,9 @@ public:
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Client Config)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseClientConfigToString(const FOpenPocketBaseClientConfig& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Collection)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseCollectionToString(const FOpenPocketBaseCollection& Value);
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Custom Route Request)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseCustomRouteRequestToString(const FOpenPocketBaseCustomRouteRequest& Value);

@@ -1,8 +1,7 @@
 #include "OpenPocketBaseFileLibrary.h"
 
 bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
-    UOpenPocketBaseClient* Client,
-    FString Collection,
+    FOpenPocketBaseCollection Collection,
     FString RecordId,
     FString FileName,
     FOpenPocketBaseFileUrlOptions Options,
@@ -10,7 +9,7 @@ bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
     FOpenPocketBaseError& Error)
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
-        Client != nullptr ? Client->GetNativeClient() : nullptr;
+        Collection.Client != nullptr ? Collection.Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
         Url.Reset();
@@ -21,7 +20,7 @@ bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
     }
 
     return NativeClient->Files().TryBuildUrl(
-        MoveTemp(Collection),
+        MoveTemp(Collection.Name),
         MoveTemp(RecordId),
         MoveTemp(FileName),
         MoveTemp(Options),

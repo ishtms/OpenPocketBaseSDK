@@ -6,6 +6,22 @@
 
 #include "OpenPocketBaseBlueprintClient.generated.h"
 
+class UOpenPocketBaseClient;
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseCollection
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    TObjectPtr<UOpenPocketBaseClient> Client;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    FString Name;
+
+    bool IsValid() const;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseBlueprintSessionChanged,
     FOpenPocketBaseSessionSnapshot,
@@ -35,6 +51,8 @@ public:
         UObject* Outer,
         TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client);
 
+    virtual UWorld* GetWorld() const override;
+
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> GetNativeClient() const;
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client", meta = (DisplayName = "Is PocketBase Client Ready"))
@@ -42,6 +60,12 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client")
     FString GetBaseUrl() const;
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (DisplayName = "Collection", Keywords = "records auth table"))
+    FOpenPocketBaseCollection Collection(FString Name);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
     FOpenPocketBaseCapabilityInfo GetCapability(EOpenPocketBaseCapability Capability) const;

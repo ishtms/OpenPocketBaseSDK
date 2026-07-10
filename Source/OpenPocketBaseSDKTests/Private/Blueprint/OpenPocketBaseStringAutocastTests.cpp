@@ -147,7 +147,7 @@ bool FOpenPocketBaseStringAutocastTest::RunTest(const FString& Parameters)
         AdminStructs,
         Missing);
 
-    TestEqual(TEXT("Every core struct is covered"), CoreStructs.Num(), 50);
+    TestEqual(TEXT("Every core struct is covered"), CoreStructs.Num(), 51);
     TestEqual(TEXT("Every core enum is covered"), CoreEnums.Num(), 24);
     TestEqual(TEXT("Every admin struct is covered"), AdminStructs.Num(), 11);
     TestTrue(

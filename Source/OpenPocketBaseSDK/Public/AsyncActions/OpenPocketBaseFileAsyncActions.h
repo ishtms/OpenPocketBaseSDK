@@ -41,11 +41,9 @@ public:
         Category = "Open PocketBase|Files",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Get Protected File Token",
             AdvancedDisplay = "Options"))
     static UOpenPocketBaseGetFileTokenAsyncAction* GetProtectedFileToken(
-        const UObject* WorldContextObject,
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseRequestOptions Options);
 
@@ -82,13 +80,10 @@ public:
         Category = "Open PocketBase|Files",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Download File",
             AdvancedDisplay = "Token"))
     static UOpenPocketBaseDownloadFileAsyncAction* DownloadFile(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FString RecordId,
         FString FileName,
         FOpenPocketBaseFileDownloadOptions Options,

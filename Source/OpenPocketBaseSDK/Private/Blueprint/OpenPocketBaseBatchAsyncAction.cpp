@@ -1,7 +1,6 @@
 #include "AsyncActions/OpenPocketBaseBatchAsyncAction.h"
 
 UOpenPocketBaseSendBatchAsyncAction* UOpenPocketBaseSendBatchAsyncAction::SendBatch(
-    const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
     FOpenPocketBaseBatchRequest InBatch,
     FOpenPocketBaseBatchOptions InOptions)
@@ -10,7 +9,7 @@ UOpenPocketBaseSendBatchAsyncAction* UOpenPocketBaseSendBatchAsyncAction::SendBa
     Action->Client = PocketBaseClient;
     Action->Batch = MoveTemp(InBatch);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 

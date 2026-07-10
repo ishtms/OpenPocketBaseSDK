@@ -181,6 +181,11 @@ bool FOpenPocketBaseGameInstanceOwnershipTest::RunTest(const FString& Parameters
         UOpenPocketBaseClientLibrary::GetNamedPocketBaseClient(GameInstance, TEXT("secondary")),
         NamedClient);
 
+    const FOpenPocketBaseCollection Collection = DefaultClient->Collection(TEXT(" sdk_tasks "));
+    TestTrue(TEXT("A ready client creates a valid collection value"), Collection.IsValid());
+    TestEqual(TEXT("Collection names are trimmed"), Collection.Name, FString(TEXT("sdk_tasks")));
+    TestEqual(TEXT("Collection values retain their client"), Collection.Client.Get(), DefaultClient);
+
     UOpenPocketBaseClient* ReusedClient = nullptr;
     TestTrue(
         TEXT("Repeated initialization for the same server is safe"),

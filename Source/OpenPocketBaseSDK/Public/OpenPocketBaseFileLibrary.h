@@ -18,8 +18,7 @@ public:
         Category = "Open PocketBase|Files",
         meta = (DisplayName = "Try Build File URL", AutoCreateRefTerm = "Options"))
     static bool TryBuildFileUrl(
-        UOpenPocketBaseClient* Client,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FString RecordId,
         FString FileName,
         FOpenPocketBaseFileUrlOptions Options,

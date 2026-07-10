@@ -39,7 +39,6 @@ FOpenPocketBaseError UOpenPocketBaseAsyncActionBase::MakeCancelledError()
 }
 
 UOpenPocketBaseHealthAsyncAction* UOpenPocketBaseHealthAsyncAction::CheckHealth(
-    const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -47,7 +46,7 @@ UOpenPocketBaseHealthAsyncAction* UOpenPocketBaseHealthAsyncAction::CheckHealth(
         NewObject<UOpenPocketBaseHealthAsyncAction>();
     Action->Client = PocketBaseClient;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -104,7 +103,6 @@ void UOpenPocketBaseHealthAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseCustomRouteAsyncAction*
 UOpenPocketBaseCustomRouteAsyncAction::SendCustomRoute(
-    const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
     FOpenPocketBaseCustomRouteRequest InRequest)
 {
@@ -112,7 +110,7 @@ UOpenPocketBaseCustomRouteAsyncAction::SendCustomRoute(
         NewObject<UOpenPocketBaseCustomRouteAsyncAction>();
     Action->Client = PocketBaseClient;
     Action->Request = MoveTemp(InRequest);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -168,18 +166,16 @@ void UOpenPocketBaseCustomRouteAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseGetRecordAsyncAction* UOpenPocketBaseGetRecordAsyncAction::GetRecord(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRecordOptions InOptions)
 {
     UOpenPocketBaseGetRecordAsyncAction* Action = NewObject<UOpenPocketBaseGetRecordAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -237,18 +233,16 @@ void UOpenPocketBaseGetRecordAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseGetFirstRecordAsyncAction* UOpenPocketBaseGetFirstRecordAsyncAction::GetFirstRecord(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FOpenPocketBaseFilter InFilter,
     FOpenPocketBaseRecordOptions InOptions)
 {
     UOpenPocketBaseGetFirstRecordAsyncAction* Action = NewObject<UOpenPocketBaseGetFirstRecordAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->Filter = MoveTemp(InFilter);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -306,18 +300,16 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseCreateRecordAsyncAction* UOpenPocketBaseCreateRecordAsyncAction::CreateRecord(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FOpenPocketBaseRecordBody InBody,
     FOpenPocketBaseRecordOptions InOptions)
 {
     UOpenPocketBaseCreateRecordAsyncAction* Action = NewObject<UOpenPocketBaseCreateRecordAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -376,9 +368,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseCreateRecordWithFilesAsyncAction*
 UOpenPocketBaseCreateRecordWithFilesAsyncAction::CreateRecordWithFiles(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FOpenPocketBaseRecordBody InBody,
     TArray<FOpenPocketBaseFileInput> InFiles,
     FOpenPocketBaseRecordOptions InOptions,
@@ -386,13 +376,13 @@ UOpenPocketBaseCreateRecordWithFilesAsyncAction::CreateRecordWithFiles(
 {
     UOpenPocketBaseCreateRecordWithFilesAsyncAction* Action =
         NewObject<UOpenPocketBaseCreateRecordWithFilesAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->Body = MoveTemp(InBody);
     Action->Files = MoveTemp(InFiles);
     Action->Options = MoveTemp(InOptions);
     Action->Limits = MoveTemp(InLimits);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -478,20 +468,18 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseUpdateRecordAsyncAction* UOpenPocketBaseUpdateRecordAsyncAction::UpdateRecord(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRecordBody InBody,
     FOpenPocketBaseRecordOptions InOptions)
 {
     UOpenPocketBaseUpdateRecordAsyncAction* Action = NewObject<UOpenPocketBaseUpdateRecordAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -551,9 +539,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseUpdateRecordWithFilesAsyncAction*
 UOpenPocketBaseUpdateRecordWithFilesAsyncAction::UpdateRecordWithFiles(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRecordBody InBody,
     TArray<FOpenPocketBaseFileInput> InFiles,
@@ -562,14 +548,14 @@ UOpenPocketBaseUpdateRecordWithFilesAsyncAction::UpdateRecordWithFiles(
 {
     UOpenPocketBaseUpdateRecordWithFilesAsyncAction* Action =
         NewObject<UOpenPocketBaseUpdateRecordWithFilesAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Body = MoveTemp(InBody);
     Action->Files = MoveTemp(InFiles);
     Action->Options = MoveTemp(InOptions);
     Action->Limits = MoveTemp(InLimits);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -656,18 +642,16 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseDeleteRecordAsyncAction* UOpenPocketBaseDeleteRecordAsyncAction::DeleteRecord(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseDeleteRecordAsyncAction* Action = NewObject<UOpenPocketBaseDeleteRecordAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -725,16 +709,14 @@ void UOpenPocketBaseDeleteRecordAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseListRecordsAsyncAction* UOpenPocketBaseListRecordsAsyncAction::ListRecords(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FOpenPocketBaseListOptions InOptions)
 {
     UOpenPocketBaseListRecordsAsyncAction* Action = NewObject<UOpenPocketBaseListRecordsAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -791,16 +773,14 @@ void UOpenPocketBaseListRecordsAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseGetFullListAsyncAction* UOpenPocketBaseGetFullListAsyncAction::GetFullList(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InCollection,
+    FOpenPocketBaseCollection InCollection,
     FOpenPocketBaseFullListOptions InOptions)
 {
     UOpenPocketBaseGetFullListAsyncAction* Action = NewObject<UOpenPocketBaseGetFullListAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->Collection = MoveTemp(InCollection);
+    Action->Client = InCollection.Client;
+    Action->Collection = MoveTemp(InCollection.Name);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -857,14 +837,13 @@ void UOpenPocketBaseGetFullListAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseRefreshAuthAsyncAction* UOpenPocketBaseRefreshAuthAsyncAction::RefreshAuth(
-    const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseRefreshAuthAsyncAction* Action = NewObject<UOpenPocketBaseRefreshAuthAsyncAction>();
     Action->Client = PocketBaseClient;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -921,7 +900,6 @@ void UOpenPocketBaseRefreshAuthAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseRestoreSessionAsyncAction* UOpenPocketBaseRestoreSessionAsyncAction::RestoreSession(
-    const UObject* WorldContextObject,
     UOpenPocketBaseClient* PocketBaseClient,
     const bool bInVerifyWithServer,
     FOpenPocketBaseRequestOptions InOptions)
@@ -931,7 +909,7 @@ UOpenPocketBaseRestoreSessionAsyncAction* UOpenPocketBaseRestoreSessionAsyncActi
     Action->Client = PocketBaseClient;
     Action->bVerifyWithServer = bInVerifyWithServer;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -990,17 +968,15 @@ void UOpenPocketBaseRestoreSessionAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseListAuthMethodsAsyncAction*
 UOpenPocketBaseListAuthMethodsAsyncAction::ListAuthenticationMethods(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseListAuthMethodsAsyncAction* Action =
         NewObject<UOpenPocketBaseListAuthMethodsAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -1056,18 +1032,16 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseRequestOtpAsyncAction* UOpenPocketBaseRequestOtpAsyncAction::RequestOneTimePassword(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InEmail,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseRequestOtpAsyncAction* Action = NewObject<UOpenPocketBaseRequestOtpAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->Email = MoveTemp(InEmail);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -1124,22 +1098,20 @@ void UOpenPocketBaseRequestOtpAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithOneTimePassword(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InOtpId,
     FString InPassword,
     FOpenPocketBaseMfaContinuation InMfa,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseOtpAuthAsyncAction* Action = NewObject<UOpenPocketBaseOtpAuthAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->OtpId = MoveTemp(InOtpId);
     Action->Password = MoveTemp(InPassword);
     Action->Mfa = MoveTemp(InMfa);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -1221,17 +1193,15 @@ void UOpenPocketBaseOtpAuthAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseBeginOAuth2AsyncAction* UOpenPocketBaseBeginOAuth2AsyncAction::BeginManualOAuth2(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseOAuth2StartOptions InOptions)
 {
     UOpenPocketBaseBeginOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseBeginOAuth2AsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -1288,17 +1258,15 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseCompleteOAuth2AsyncAction*
 UOpenPocketBaseCompleteOAuth2AsyncAction::CompleteManualOAuth2(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseOAuth2Callback InCallback)
 {
     UOpenPocketBaseCompleteOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseCompleteOAuth2AsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->Callback = MoveTemp(InCallback);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -1378,17 +1346,15 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAssistedOAuth2AsyncAction*
 UOpenPocketBaseAssistedOAuth2AsyncAction::LogInWithOAuth2(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseAssistedOAuth2Options InOptions)
 {
     UOpenPocketBaseAssistedOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseAssistedOAuth2AsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -1467,10 +1433,8 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateAction(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
     const EOpenPocketBaseAccountActionKind InKind,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InPrimary,
     FString InSecondary,
     FString InTertiary,
@@ -1478,27 +1442,23 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateActi
 {
     UOpenPocketBaseAccountAsyncAction* Action =
         NewObject<UOpenPocketBaseAccountAsyncAction>();
-    Action->Client = PocketBaseClient;
+    Action->Client = InAuthCollection.Client;
     Action->Kind = InKind;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->Primary = MoveTemp(InPrimary);
     Action->Secondary = MoveTemp(InSecondary);
     Action->Tertiary = MoveTemp(InTertiary);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPasswordReset(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Email,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
-        WorldContextObject,
-        PocketBaseClient,
         EOpenPocketBaseAccountActionKind::RequestPasswordReset,
         MoveTemp(AuthCollection),
         MoveTemp(Email),
@@ -1508,17 +1468,13 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPas
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPasswordReset(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Token,
     FString Password,
     FString PasswordConfirm,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
-        WorldContextObject,
-        PocketBaseClient,
         EOpenPocketBaseAccountActionKind::ConfirmPasswordReset,
         MoveTemp(AuthCollection),
         MoveTemp(Token),
@@ -1528,15 +1484,11 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPas
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestVerification(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Email,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
-        WorldContextObject,
-        PocketBaseClient,
         EOpenPocketBaseAccountActionKind::RequestVerification,
         MoveTemp(AuthCollection),
         MoveTemp(Email),
@@ -1546,15 +1498,11 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestVer
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmVerification(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Token,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
-        WorldContextObject,
-        PocketBaseClient,
         EOpenPocketBaseAccountActionKind::ConfirmVerification,
         MoveTemp(AuthCollection),
         MoveTemp(Token),
@@ -1564,15 +1512,11 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmVer
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEmailChange(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString NewEmail,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
-        WorldContextObject,
-        PocketBaseClient,
         EOpenPocketBaseAccountActionKind::RequestEmailChange,
         MoveTemp(AuthCollection),
         MoveTemp(NewEmail),
@@ -1582,16 +1526,12 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEma
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEmailChange(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Token,
     FString Password,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
-        WorldContextObject,
-        PocketBaseClient,
         EOpenPocketBaseAccountActionKind::ConfirmEmailChange,
         MoveTemp(AuthCollection),
         MoveTemp(Token),
@@ -1601,16 +1541,12 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEma
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::UnlinkExternalAuth(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString RecordId,
     FString Provider,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
-        WorldContextObject,
-        PocketBaseClient,
         EOpenPocketBaseAccountActionKind::UnlinkExternalAuth,
         MoveTemp(AuthCollection),
         MoveTemp(RecordId),
@@ -1714,19 +1650,17 @@ void UOpenPocketBaseAccountAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseListExternalAuthsAsyncAction*
 UOpenPocketBaseListExternalAuthsAsyncAction::ListLinkedExternalAuths(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InRecordId,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseListExternalAuthsAsyncAction* Action =
         NewObject<UOpenPocketBaseListExternalAuthsAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 
@@ -1785,20 +1719,18 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::LogInWithPassword(
-    const UObject* WorldContextObject,
-    UOpenPocketBaseClient* PocketBaseClient,
-    FString InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InIdentity,
     FString InPassword,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBasePasswordAuthAsyncAction* Action = NewObject<UOpenPocketBasePasswordAuthAsyncAction>();
-    Action->Client = PocketBaseClient;
-    Action->AuthCollection = MoveTemp(InAuthCollection);
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->Identity = MoveTemp(InIdentity);
     Action->Password = MoveTemp(InPassword);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->Client);
     return Action;
 }
 

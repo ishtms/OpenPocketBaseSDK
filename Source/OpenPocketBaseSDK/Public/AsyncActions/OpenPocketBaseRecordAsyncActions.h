@@ -135,11 +135,9 @@ public:
         Category = "Open PocketBase|Utilities",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Check Health",
             AdvancedDisplay = "Options"))
     static UOpenPocketBaseHealthAsyncAction* CheckHealth(
-        const UObject* WorldContextObject,
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseRequestOptions Options);
 
@@ -173,10 +171,8 @@ public:
         Category = "Open PocketBase|Utilities",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Send Custom Route"))
     static UOpenPocketBaseCustomRouteAsyncAction* SendCustomRoute(
-        const UObject* WorldContextObject,
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseCustomRouteRequest Request);
 
@@ -210,12 +206,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Get Record"))
     static UOpenPocketBaseGetRecordAsyncAction* GetRecord(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FString RecordId,
         FOpenPocketBaseRecordOptions Options);
 
@@ -251,12 +244,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Get First Record"))
     static UOpenPocketBaseGetFirstRecordAsyncAction* GetFirstRecord(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FOpenPocketBaseFilter Filter,
         FOpenPocketBaseRecordOptions Options);
 
@@ -292,12 +282,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Create Record"))
     static UOpenPocketBaseCreateRecordAsyncAction* CreateRecord(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions Options);
 
@@ -336,14 +323,11 @@ public:
         Category = "Open PocketBase|Files",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Create Record with Files",
             AutoCreateRefTerm = "Files",
             AdvancedDisplay = "Options,Limits"))
     static UOpenPocketBaseCreateRecordWithFilesAsyncAction* CreateRecordWithFiles(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         TArray<FOpenPocketBaseFileInput> Files,
         FOpenPocketBaseRecordOptions Options,
@@ -383,12 +367,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Update Record"))
     static UOpenPocketBaseUpdateRecordAsyncAction* UpdateRecord(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions Options);
@@ -429,14 +410,11 @@ public:
         Category = "Open PocketBase|Files",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Update Record with Files",
             AutoCreateRefTerm = "Files",
             AdvancedDisplay = "Options,Limits"))
     static UOpenPocketBaseUpdateRecordWithFilesAsyncAction* UpdateRecordWithFiles(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         TArray<FOpenPocketBaseFileInput> Files,
@@ -478,12 +456,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Delete Record"))
     static UOpenPocketBaseDeleteRecordAsyncAction* DeleteRecord(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FString RecordId,
         FOpenPocketBaseRequestOptions Options);
 
@@ -519,12 +494,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "List Records"))
     static UOpenPocketBaseListRecordsAsyncAction* ListRecords(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FOpenPocketBaseListOptions Options);
 
     virtual void Activate() override;
@@ -558,12 +530,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Get Full Record List"))
     static UOpenPocketBaseGetFullListAsyncAction* GetFullList(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString Collection,
+        FOpenPocketBaseCollection Collection,
         FOpenPocketBaseFullListOptions Options);
 
     virtual void Activate() override;
@@ -597,10 +566,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Refresh Auth"))
     static UOpenPocketBaseRefreshAuthAsyncAction* RefreshAuth(
-        const UObject* WorldContextObject,
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseRequestOptions Options);
 
@@ -634,12 +601,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "List Authentication Methods"))
     static UOpenPocketBaseListAuthMethodsAsyncAction* ListAuthenticationMethods(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseRequestOptions Options);
 
     virtual void Activate() override;
@@ -673,12 +637,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Request One-Time Password"))
     static UOpenPocketBaseRequestOtpAsyncAction* RequestOneTimePassword(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Email,
         FOpenPocketBaseRequestOptions Options);
 
@@ -717,13 +678,10 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Log In with One-Time Password",
             AdvancedDisplay = "Mfa,Options"))
     static UOpenPocketBaseOtpAuthAsyncAction* LogInWithOneTimePassword(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString OtpId,
         FString Password,
         FOpenPocketBaseMfaContinuation Mfa,
@@ -763,12 +721,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Begin Manual OAuth2"))
     static UOpenPocketBaseBeginOAuth2AsyncAction* BeginManualOAuth2(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseOAuth2StartOptions Options);
 
     virtual void Activate() override;
@@ -805,12 +760,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Complete Manual OAuth2"))
     static UOpenPocketBaseCompleteOAuth2AsyncAction* CompleteManualOAuth2(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseOAuth2Callback Callback);
 
     virtual void Activate() override;
@@ -847,12 +799,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Log In with OAuth2"))
     static UOpenPocketBaseAssistedOAuth2AsyncAction* LogInWithOAuth2(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseAssistedOAuth2Options Options);
 
     virtual void Activate() override;
@@ -897,12 +846,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Request Password Reset"))
     static UOpenPocketBaseAccountAsyncAction* RequestPasswordReset(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Email,
         FOpenPocketBaseRequestOptions Options);
 
@@ -911,12 +857,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Confirm Password Reset"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmPasswordReset(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Token,
         FString Password,
         FString PasswordConfirm,
@@ -927,12 +870,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Request Email Verification"))
     static UOpenPocketBaseAccountAsyncAction* RequestVerification(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Email,
         FOpenPocketBaseRequestOptions Options);
 
@@ -941,12 +881,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Confirm Email Verification"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmVerification(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Token,
         FOpenPocketBaseRequestOptions Options);
 
@@ -955,12 +892,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Request Email Change"))
     static UOpenPocketBaseAccountAsyncAction* RequestEmailChange(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString NewEmail,
         FOpenPocketBaseRequestOptions Options);
 
@@ -969,12 +903,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Confirm Email Change"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmEmailChange(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Token,
         FString Password,
         FOpenPocketBaseRequestOptions Options);
@@ -984,12 +915,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Unlink External Auth"))
     static UOpenPocketBaseAccountAsyncAction* UnlinkExternalAuth(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString RecordId,
         FString Provider,
         FOpenPocketBaseRequestOptions Options);
@@ -1001,10 +929,8 @@ protected:
 
 private:
     static UOpenPocketBaseAccountAsyncAction* CreateAction(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
         EOpenPocketBaseAccountActionKind Kind,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Primary,
         FString Secondary,
         FString Tertiary,
@@ -1040,12 +966,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "List Linked External Auths"))
     static UOpenPocketBaseListExternalAuthsAsyncAction* ListLinkedExternalAuths(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString RecordId,
         FOpenPocketBaseRequestOptions Options);
 
@@ -1081,10 +1004,8 @@ public:
         Category = "Open PocketBase|Session",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Restore Session"))
     static UOpenPocketBaseRestoreSessionAsyncAction* RestoreSession(
-        const UObject* WorldContextObject,
         UOpenPocketBaseClient* PocketBaseClient,
         bool bVerifyWithServer,
         FOpenPocketBaseRequestOptions Options);
@@ -1123,12 +1044,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Log In with Password"))
     static UOpenPocketBasePasswordAuthAsyncAction* LogInWithPassword(
-        const UObject* WorldContextObject,
-        UOpenPocketBaseClient* PocketBaseClient,
-        FString AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Identity,
         FString Password,
         FOpenPocketBaseRequestOptions Options);
