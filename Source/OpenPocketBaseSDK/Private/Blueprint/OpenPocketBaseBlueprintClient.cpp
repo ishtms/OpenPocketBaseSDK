@@ -12,18 +12,14 @@ UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
     const FOpenPocketBaseClientConfig& Config,
     FOpenPocketBaseError& OutError)
 {
-    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, OutError);
-    if (!Client.IsValid())
+    FOpenPocketBaseClientResult Result = FOpenPocketBaseClient::Create(Config);
+    if (!Result.IsSuccess())
     {
+        OutError = Result.GetError();
         return nullptr;
     }
-
-    UOpenPocketBaseClient* Wrapper = NewObject<UOpenPocketBaseClient>(
-        Outer != nullptr ? Outer : GetTransientPackage());
-    Wrapper->NativeClient = Client;
-    Wrapper->BindNativeSessionEvents();
-    return Wrapper;
+    OutError = {};
+    return Wrap(Outer, Result.TakeValue());
 }
 
 UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
@@ -32,18 +28,17 @@ UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
     FOpenPocketBaseError& OutError)
 {
-    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, MoveTemp(Transport), OutError);
-    if (!Client.IsValid())
+    FOpenPocketBaseClientDependencies Dependencies;
+    Dependencies.Transport = MoveTemp(Transport);
+    FOpenPocketBaseClientResult Result =
+        FOpenPocketBaseClient::Create(Config, MoveTemp(Dependencies));
+    if (!Result.IsSuccess())
     {
+        OutError = Result.GetError();
         return nullptr;
     }
-
-    UOpenPocketBaseClient* Wrapper = NewObject<UOpenPocketBaseClient>(
-        Outer != nullptr ? Outer : GetTransientPackage());
-    Wrapper->NativeClient = Client;
-    Wrapper->BindNativeSessionEvents();
-    return Wrapper;
+    OutError = {};
+    return Wrap(Outer, Result.TakeValue());
 }
 
 UOpenPocketBaseClient* UOpenPocketBaseClient::Wrap(

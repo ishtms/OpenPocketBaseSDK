@@ -3441,129 +3441,95 @@ private:
 };
 }
 
-TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
+FOpenPocketBaseClientResult FOpenPocketBaseClient::Create(
     const FOpenPocketBaseClientConfig& Config,
-    FOpenPocketBaseError& OutError)
+    FOpenPocketBaseClientDependencies Dependencies)
 {
-    return Create(Config, CreateOpenPocketBaseHttpTransport(), OutError);
-}
+    const TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport =
+        Dependencies.Transport.IsValid()
+        ? Dependencies.Transport.ToSharedRef()
+        : CreateOpenPocketBaseHttpTransport();
+    const TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore =
+        Dependencies.SecureStore.IsValid()
+        ? Dependencies.SecureStore.ToSharedRef()
+        : CreateOpenPocketBaseSecureStore();
+    const TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock =
+        Dependencies.Clock.IsValid()
+        ? Dependencies.Clock.ToSharedRef()
+        : CreateOpenPocketBaseClock();
+    const TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser =
+        Dependencies.OAuthBrowser.IsValid()
+        ? Dependencies.OAuthBrowser.ToSharedRef()
+        : CreateOpenPocketBaseOAuthBrowser();
 
-TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
-    const FOpenPocketBaseClientConfig& Config,
-    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-    FOpenPocketBaseError& OutError)
-{
-    return Create(
+    FOpenPocketBaseError Error;
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = CreateInternal(
         Config,
-        MoveTemp(Transport),
-        CreateOpenPocketBaseSecureStore(),
-        CreateOpenPocketBaseClock(),
-        OutError);
+        Transport,
+        SecureStore,
+        Clock,
+        OAuthBrowser,
+        Error);
+    if (!Client.IsValid())
+    {
+        return FOpenPocketBaseClientResult::Failure(MoveTemp(Error));
+    }
+    return FOpenPocketBaseClientResult::Success(Client.ToSharedRef());
 }
 
-TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>
+FOpenPocketBaseClientResult
 FOpenPocketBaseClient::CreateEphemeralAuthenticated(
     const FOpenPocketBaseClientConfig& Config,
     FString Token,
     FString AuthCollection,
     const FOpenPocketBaseRecord& AuthRecord,
-    FOpenPocketBaseError& OutError)
-{
-    return CreateEphemeralAuthenticated(
-        Config,
-        CreateOpenPocketBaseHttpTransport(),
-        MoveTemp(Token),
-        MoveTemp(AuthCollection),
-        AuthRecord,
-        OutError);
-}
-
-TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>
-FOpenPocketBaseClient::CreateEphemeralAuthenticated(
-    const FOpenPocketBaseClientConfig& Config,
-    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-    FString Token,
-    FString AuthCollection,
-    const FOpenPocketBaseRecord& AuthRecord,
-    FOpenPocketBaseError& OutError)
+    FOpenPocketBaseClientDependencies Dependencies)
 {
     FOpenPocketBaseClientConfig EphemeralConfig = Config;
     EphemeralConfig.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
     EphemeralConfig.bEnableAssistedOAuth = false;
-    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = Create(
+    FOpenPocketBaseClientResult ClientResult = Create(
         EphemeralConfig,
-        MoveTemp(Transport),
-        OutError);
-    if (!Client.IsValid())
+        MoveTemp(Dependencies));
+    if (!ClientResult.IsSuccess())
     {
-        return nullptr;
+        return ClientResult;
     }
+    FOpenPocketBaseClientRef Client = ClientResult.TakeValue();
     if (Token.IsEmpty() || Token.Len() > 8192 || !IsSafePathSegment(AuthCollection) ||
         AuthRecord.Id.IsEmpty() || AuthRecord.Id.Len() > 255)
     {
         Client->Shutdown();
-        OutError = MakeLocalError(
+        return FOpenPocketBaseClientResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A bounded token, auth collection, and auth record are required."));
-        return nullptr;
+            TEXT("A bounded token, auth collection, and auth record are required.")));
     }
     for (const TCHAR Character : Token)
     {
         if (FChar::IsControl(Character) || FChar::IsWhitespace(Character))
         {
             Client->Shutdown();
-            OutError = MakeLocalError(
+            return FOpenPocketBaseClientResult::Failure(MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The ephemeral authentication token is invalid."));
-            return nullptr;
+                TEXT("The ephemeral authentication token is invalid.")));
         }
     }
     Client->Impl->bAuthRefreshAllowed = false;
+    FOpenPocketBaseError Error;
     if (!Client->Impl->StoreAuth(
             MoveTemp(Token),
             AuthRecord,
             MoveTemp(AuthCollection),
             EOpenPocketBaseSessionChangeReason::LoggedIn,
-            OutError))
+            Error))
     {
         Client->Shutdown();
-        return nullptr;
+        return FOpenPocketBaseClientResult::Failure(MoveTemp(Error));
     }
-    OutError = FOpenPocketBaseError();
-    return Client;
+    return FOpenPocketBaseClientResult::Success(Client);
 }
 
-TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
-    const FOpenPocketBaseClientConfig& Config,
-    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
-    FOpenPocketBaseError& OutError)
-{
-    return Create(
-        Config,
-        MoveTemp(Transport),
-        MoveTemp(SecureStore),
-        CreateOpenPocketBaseClock(),
-        OutError);
-}
-
-TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
-    const FOpenPocketBaseClientConfig& Config,
-    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-    TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
-    TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
-    FOpenPocketBaseError& OutError)
-{
-    return Create(
-        Config,
-        MoveTemp(Transport),
-        MoveTemp(SecureStore),
-        MoveTemp(Clock),
-        CreateOpenPocketBaseOAuthBrowser(),
-        OutError);
-}
-
-TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Create(
+TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::CreateInternal(
     const FOpenPocketBaseClientConfig& Config,
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
     TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,

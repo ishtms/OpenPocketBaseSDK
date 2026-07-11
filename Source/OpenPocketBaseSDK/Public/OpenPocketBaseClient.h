@@ -21,6 +21,19 @@
 class FOpenPocketBaseClient;
 class FOpenPocketBaseFileService;
 
+using FOpenPocketBaseClientRef =
+    TSharedRef<FOpenPocketBaseClient, ESPMode::ThreadSafe>;
+using FOpenPocketBaseClientResult =
+    TOpenPocketBaseResult<FOpenPocketBaseClientRef>;
+
+struct OPENPOCKETBASESDK_API FOpenPocketBaseClientDependencies
+{
+    TSharedPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport;
+    TSharedPtr<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore;
+    TSharedPtr<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock;
+    TSharedPtr<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser;
+};
+
 namespace OpenPocketBase::Internal
 {
 class FAssistedOAuthOperation;
@@ -268,50 +281,16 @@ class OPENPOCKETBASESDK_API FOpenPocketBaseClient final
     : public TSharedFromThis<FOpenPocketBaseClient, ESPMode::ThreadSafe>
 {
 public:
-    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
+    static FOpenPocketBaseClientResult Create(
         const FOpenPocketBaseClientConfig& Config,
-        FOpenPocketBaseError& OutError);
+        FOpenPocketBaseClientDependencies Dependencies = {});
 
-    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
-        const FOpenPocketBaseClientConfig& Config,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-        FOpenPocketBaseError& OutError);
-
-    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
-        const FOpenPocketBaseClientConfig& Config,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
-        FOpenPocketBaseError& OutError);
-
-    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
-        const FOpenPocketBaseClientConfig& Config,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
-        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
-        FOpenPocketBaseError& OutError);
-
-    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Create(
-        const FOpenPocketBaseClientConfig& Config,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
-        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
-        TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser,
-        FOpenPocketBaseError& OutError);
-
-    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> CreateEphemeralAuthenticated(
+    static FOpenPocketBaseClientResult CreateEphemeralAuthenticated(
         const FOpenPocketBaseClientConfig& Config,
         FString Token,
         FString AuthCollection,
         const FOpenPocketBaseRecord& AuthRecord,
-        FOpenPocketBaseError& OutError);
-
-    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> CreateEphemeralAuthenticated(
-        const FOpenPocketBaseClientConfig& Config,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-        FString Token,
-        FString AuthCollection,
-        const FOpenPocketBaseRecord& AuthRecord,
-        FOpenPocketBaseError& OutError);
+        FOpenPocketBaseClientDependencies Dependencies = {});
 
     ~FOpenPocketBaseClient();
 
@@ -356,6 +335,14 @@ public:
 
 private:
     struct FImpl;
+
+    static TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> CreateInternal(
+        const FOpenPocketBaseClientConfig& Config,
+        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
+        TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
+        TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
+        TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser,
+        FOpenPocketBaseError& OutError);
 
     FOpenPocketBaseClient(
         FOpenPocketBaseClientConfig Config,

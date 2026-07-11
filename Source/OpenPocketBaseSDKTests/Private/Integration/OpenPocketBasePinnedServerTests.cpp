@@ -7,6 +7,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseFilter.h"
 
@@ -307,7 +308,7 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
     Config.BaseUrl = BaseUrl;
     Config.ProfileName = TEXT("integration-v03911");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The integration client is created"), State->Client.Get()))
     {
         AddError(Error.ServerMessage);
@@ -481,7 +482,7 @@ bool FOpenPocketBasePinnedRemainingAuthTest::RunTest(const FString& Parameters)
     Config.BaseUrl = BaseUrl;
     Config.ProfileName = TEXT("integration-v03911-remaining-auth");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The remaining-auth integration client is created"), State->Client.Get()))
     {
         AddError(Error.ServerMessage);
@@ -799,8 +800,8 @@ bool FOpenPocketBasePinnedAccountOperationsTest::RunTest(const FString& Paramete
     Config.BaseUrl = BaseUrl;
     Config.ProfileName = TEXT("integration-v03911-account");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, Error);
-    State->AnonymousClient = FOpenPocketBaseClient::Create(Config, Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
+    State->AnonymousClient = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The account integration client is created"), State->Client.Get()) ||
         !TestNotNull(TEXT("The anonymous integration client is created"),
             State->AnonymousClient.Get()))
@@ -1022,7 +1023,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
     Config.BaseUrl = BaseUrl;
     Config.ProfileName = TEXT("integration-v03911-upload");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The upload client is created"), State->Client.Get()))
     {
         IFileManager::Get().Delete(*State->TempFile, false, true);
@@ -1219,7 +1220,7 @@ bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
     Config.BaseUrl = BaseUrl;
     Config.ProfileName = TEXT("integration-v03911-realtime");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The realtime integration client is created"), State->Client.Get()))
     {
         AddError(Error.ServerMessage);
@@ -1411,7 +1412,7 @@ bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
     Config.BaseUrl = BaseUrl;
     Config.ProfileName = TEXT("integration-v03911-realtime-chaos");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The realtime chaos client is created"), State->Client.Get()))
     {
         AddError(Error.ServerMessage);

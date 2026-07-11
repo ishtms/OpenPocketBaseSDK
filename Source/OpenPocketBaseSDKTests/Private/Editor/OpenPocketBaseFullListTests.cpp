@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseScriptedTransport.h"
 
 namespace
@@ -240,7 +241,7 @@ TSharedRef<FFullListTestState, ESPMode::ThreadSafe> MakeFullListState(FAutomatio
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     Test->TestNotNull(TEXT("The client is created"), State->Client.Get());
     return State;
 }

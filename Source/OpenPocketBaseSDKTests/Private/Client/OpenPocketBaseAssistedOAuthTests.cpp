@@ -7,6 +7,7 @@
 #include "Misc/CoreDelegates.h"
 #include "OAuth/OpenPocketBaseOAuthBrowser.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -437,7 +438,7 @@ bool FOpenPocketBaseAssistedOAuthTest::RunTest(const FString& Parameters)
     Config.BaseUrl = TEXT("https://pb.example.test");
     Config.bEnableAssistedOAuth = true;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -488,7 +489,7 @@ bool FOpenPocketBaseAssistedOAuthCancellationTest::RunTest(const FString& Parame
     Config.BaseUrl = TEXT("https://pb.example.test");
     Config.bEnableAssistedOAuth = true;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -533,7 +534,7 @@ bool FOpenPocketBaseAssistedOAuthPolicyTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -579,7 +580,7 @@ bool FOpenPocketBaseAssistedOAuthBackgroundTest::RunTest(const FString& Paramete
     Config.BaseUrl = TEXT("https://pb.example.test");
     Config.bEnableAssistedOAuth = true;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),

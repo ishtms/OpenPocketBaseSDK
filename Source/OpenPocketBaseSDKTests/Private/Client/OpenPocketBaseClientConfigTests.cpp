@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseClientConfig.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -68,7 +69,7 @@ bool FOpenPocketBaseOwnedHeadersTest::RunTest(const FString& Parameters)
         Config.DefaultHeaders.Add(Header, TEXT("caller-value"));
         FOpenPocketBaseError Error;
         const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-            FOpenPocketBaseClient::Create(Config, Error);
+            CreateOpenPocketBaseTestClient(Config, Error);
         TestFalse(*FString::Printf(TEXT("%s is SDK or security owned"), *Header), Client.IsValid());
         TestEqual(TEXT("Protected headers fail as invalid arguments"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
     }
@@ -79,7 +80,7 @@ bool FOpenPocketBaseOwnedHeadersTest::RunTest(const FString& Parameters)
     FOpenPocketBaseError Error;
     TestFalse(
         TEXT("Invalid HTTP field names are rejected"),
-        FOpenPocketBaseClient::Create(InvalidNameConfig, Error).IsValid());
+        CreateOpenPocketBaseTestClient(InvalidNameConfig, Error).IsValid());
     return true;
 }
 
@@ -96,13 +97,13 @@ bool FOpenPocketBaseAuthRefreshPolicyBoundsTest::RunTest(const FString& Paramete
     FOpenPocketBaseError Error;
     TestFalse(
         TEXT("A negative Auth Refresh lead time is rejected"),
-        FOpenPocketBaseClient::Create(Config, Error).IsValid());
+        CreateOpenPocketBaseTestClient(Config, Error).IsValid());
     TestEqual(TEXT("The lower bound uses InvalidArgument"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
 
     Config.AuthRefreshLeadTimeSeconds = 3601;
     TestFalse(
         TEXT("An excessive Auth Refresh lead time is rejected"),
-        FOpenPocketBaseClient::Create(Config, Error).IsValid());
+        CreateOpenPocketBaseTestClient(Config, Error).IsValid());
     TestEqual(TEXT("The upper bound uses InvalidArgument"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
     return true;
 }

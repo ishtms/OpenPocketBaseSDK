@@ -678,12 +678,15 @@ FOpenPocketBaseAdminClient::Create(
     FOpenPocketBaseClientConfig CoreConfig = InCoreConfig;
     CoreConfig.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
     CoreConfig.bEnableAssistedOAuth = false;
-    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Core =
-        FOpenPocketBaseClient::Create(CoreConfig, OutError);
-    if (!Core.IsValid())
+    FOpenPocketBaseClientResult CoreResult = FOpenPocketBaseClient::Create(CoreConfig);
+    if (!CoreResult.IsSuccess())
     {
+        OutError = CoreResult.GetError();
         return nullptr;
     }
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Core =
+        CoreResult.TakeValue();
+    OutError = {};
     return MakeShareable(new FOpenPocketBaseAdminClient(
         MoveTemp(CoreConfig), InPolicy, MoveTemp(Core), nullptr));
 }
@@ -702,12 +705,18 @@ FOpenPocketBaseAdminClient::Create(
     FOpenPocketBaseClientConfig CoreConfig = InCoreConfig;
     CoreConfig.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
     CoreConfig.bEnableAssistedOAuth = false;
-    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Core =
-        FOpenPocketBaseClient::Create(CoreConfig, Transport, OutError);
-    if (!Core.IsValid())
+    FOpenPocketBaseClientDependencies Dependencies;
+    Dependencies.Transport = Transport;
+    FOpenPocketBaseClientResult CoreResult =
+        FOpenPocketBaseClient::Create(CoreConfig, MoveTemp(Dependencies));
+    if (!CoreResult.IsSuccess())
     {
+        OutError = CoreResult.GetError();
         return nullptr;
     }
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Core =
+        CoreResult.TakeValue();
+    OutError = {};
     return MakeShareable(new FOpenPocketBaseAdminClient(
         MoveTemp(CoreConfig), InPolicy, MoveTemp(Core), Transport));
 }
@@ -1437,30 +1446,23 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::Impersonate(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
                         TEXT("PocketBase returned an invalid impersonation session.")));
             }
-            FOpenPocketBaseError Error;
-            TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Impersonated =
-                CapturedTransport.IsValid()
-                ? FOpenPocketBaseClient::CreateEphemeralAuthenticated(
-                    CapturedConfig,
-                    CapturedTransport.ToSharedRef(),
-                    MoveTemp(Token),
-                    AuthCollection,
-                    Record,
-                    Error)
-                : FOpenPocketBaseClient::CreateEphemeralAuthenticated(
+            FOpenPocketBaseClientDependencies Dependencies;
+            Dependencies.Transport = CapturedTransport;
+            FOpenPocketBaseClientResult ClientResult =
+                FOpenPocketBaseClient::CreateEphemeralAuthenticated(
                     CapturedConfig,
                     MoveTemp(Token),
                     AuthCollection,
                     Record,
-                    Error);
-            if (!Impersonated.IsValid())
+                    MoveTemp(Dependencies));
+            if (!ClientResult.IsSuccess())
             {
                 return TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>::Failure(
-                    SanitizeSensitiveError(MoveTemp(Error),
+                    SanitizeSensitiveError(ClientResult.GetError(),
                         TEXT("The impersonated client could not be created.")));
             }
             FOpenPocketBaseAdminImpersonationResult Result;
-            Result.Client = MoveTemp(Impersonated);
+            Result.Client = ClientResult.TakeValue();
             Result.Record = MoveTemp(Record);
             return TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>::Success(
                 MoveTemp(Result));

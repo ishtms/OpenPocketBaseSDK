@@ -5,6 +5,7 @@
 #include "Clock/OpenPocketBaseClock.h"
 #include "Misc/Base64.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 
 namespace
@@ -528,7 +529,7 @@ bool FOpenPocketBaseAccountOperationsTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestTrue(TEXT("The account operations client is created"), State->Client.IsValid()))
     {
         return false;
@@ -555,7 +556,7 @@ bool FOpenPocketBaseAccountUnlinkCancellationTest::RunTest(const FString& Parame
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestTrue(TEXT("The unlink cancellation client is created"), State->Client.IsValid()))
     {
         return false;
@@ -604,7 +605,7 @@ bool FOpenPocketBaseAccountVerificationPersistenceTest::RunTest(const FString& P
     Config.BaseUrl = TEXT("https://pb.example.test");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),

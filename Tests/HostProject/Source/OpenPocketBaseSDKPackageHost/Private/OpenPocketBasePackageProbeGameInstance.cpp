@@ -105,13 +105,13 @@ void UOpenPocketBasePackageProbeGameInstance::Init()
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = Origin;
     Config.ProfileName = TEXT("packaged-tls-probe");
-    FOpenPocketBaseError Error;
-    Client = FOpenPocketBaseClient::Create(Config, Error);
-    if (!Client.IsValid())
+    FOpenPocketBaseClientResult ClientResult = FOpenPocketBaseClient::Create(Config);
+    if (!ClientResult.IsSuccess())
     {
-        FinishTlsProbe(false, Error);
+        FinishTlsProbe(false, ClientResult.GetError());
         return;
     }
+    Client = ClientResult.TakeValue();
 
     FOpenPocketBaseRequestOptions Options;
     Options.TotalTimeoutSeconds = 20;
@@ -201,13 +201,13 @@ void UOpenPocketBasePackageProbeGameInstance::BeginTransferProbe()
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TransferOrigin;
     Config.ProfileName = TEXT("packaged-transfer-probe");
-    FOpenPocketBaseError Error;
-    Client = FOpenPocketBaseClient::Create(Config, Error);
-    if (!Client.IsValid())
+    FOpenPocketBaseClientResult ClientResult = FOpenPocketBaseClient::Create(Config);
+    if (!ClientResult.IsSuccess())
     {
-        FinishTransferProbe(false, Error);
+        FinishTransferProbe(false, ClientResult.GetError());
         return;
     }
+    Client = ClientResult.TakeValue();
 
     ExpectedTransferBytes.SetNumUninitialized(256 * 1024 + 17);
     for (int32 Index = 0; Index < ExpectedTransferBytes.Num(); ++Index)

@@ -3,6 +3,7 @@
 #include "Clock/OpenPocketBaseClock.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseScriptedTransport.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 
@@ -263,7 +264,7 @@ bool FOpenPocketBaseProactiveSingleFlightTest::RunTest(const FString& Parameters
     Config.BaseUrl = TEXT("https://pb.example.com");
     Config.AuthRefreshLeadTimeSeconds = 30.0;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -353,7 +354,7 @@ bool FOpenPocketBaseReadAuthReplayTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -417,7 +418,7 @@ bool FOpenPocketBaseMutationNoAuthReplayTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -481,7 +482,7 @@ bool FOpenPocketBaseInjectedClockRetryTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),

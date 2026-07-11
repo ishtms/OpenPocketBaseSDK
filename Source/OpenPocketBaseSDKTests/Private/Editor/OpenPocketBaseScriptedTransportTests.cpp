@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseScriptedTransport.h"
 
 namespace
@@ -260,7 +261,7 @@ bool FOpenPocketBaseScriptedErrorsTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -339,7 +340,7 @@ bool FOpenPocketBaseScriptedRedirectsTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -416,7 +417,7 @@ bool FOpenPocketBaseScriptedLateCallbackTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -458,7 +459,7 @@ bool FOpenPocketBaseScriptedTeardownTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;

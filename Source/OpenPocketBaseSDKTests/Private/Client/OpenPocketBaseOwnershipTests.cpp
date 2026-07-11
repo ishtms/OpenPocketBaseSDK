@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseClientLibrary.h"
 #include "OpenPocketBaseSubsystem.h"
 #include "Transport/OpenPocketBaseTransport.h"
@@ -109,8 +110,8 @@ bool FOpenPocketBaseNativeOwnershipIsolationTest::RunTest(const FString& Paramet
     FOpenPocketBaseClientConfig SecondConfig;
     SecondConfig.BaseUrl = TEXT("https://second.example.com");
     FOpenPocketBaseError Error;
-    State->FirstClient = FOpenPocketBaseClient::Create(FirstConfig, FirstTransport, Error);
-    State->SecondClient = FOpenPocketBaseClient::Create(SecondConfig, SecondTransport, Error);
+    State->FirstClient = CreateOpenPocketBaseTestClient(FirstConfig, FirstTransport, Error);
+    State->SecondClient = CreateOpenPocketBaseTestClient(SecondConfig, SecondTransport, Error);
     if (!TestNotNull(TEXT("The first client is created"), State->FirstClient.Get()) ||
         !TestNotNull(TEXT("The second client is created"), State->SecondClient.Get()))
     {

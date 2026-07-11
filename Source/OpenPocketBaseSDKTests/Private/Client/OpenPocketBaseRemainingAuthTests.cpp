@@ -4,6 +4,7 @@
 
 #include "OpenPocketBaseAuthentication.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 
 namespace
 {
@@ -155,7 +156,7 @@ bool FOpenPocketBaseRemainingAuthTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestTrue(TEXT("The client is created"), State->Client.IsValid()))
     {
         return false;

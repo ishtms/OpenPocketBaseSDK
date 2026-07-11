@@ -4,6 +4,7 @@
 
 #include "Clock/OpenPocketBaseClock.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseCustomRoute.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 
@@ -399,7 +400,7 @@ bool FOpenPocketBaseCustomRouteTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -430,7 +431,7 @@ bool FOpenPocketBaseCustomRouteValidationTest::RunTest(const FString& Parameters
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -495,7 +496,7 @@ bool FOpenPocketBaseCustomRouteJsonRootTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),

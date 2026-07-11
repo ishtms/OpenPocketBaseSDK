@@ -5,6 +5,7 @@
 #include "OpenPocketBaseBlueprintClient.h"
 #include "OpenPocketBaseCapability.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 #include "UObject/Package.h"
 
@@ -89,7 +90,7 @@ bool FOpenPocketBaseCapabilityReportTest::RunTest(const FString& Parameters)
         MakeShared<FCapabilityTransport, ESPMode::ThreadSafe>(true);
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(
+        CreateOpenPocketBaseTestClient(
             Config,
             Transport,
             MakeShared<FUnavailableCapabilitySecureStore, ESPMode::ThreadSafe>(),
@@ -143,7 +144,7 @@ bool FOpenPocketBaseRealtimeCapabilityGateTest::RunTest(const FString& Parameter
         MakeShared<FCapabilityTransport, ESPMode::ThreadSafe>(false);
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(
+        CreateOpenPocketBaseTestClient(
             Config,
             Transport,
             MakeShared<FUnavailableCapabilitySecureStore, ESPMode::ThreadSafe>(),

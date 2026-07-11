@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseFile.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
@@ -178,7 +179,7 @@ bool FOpenPocketBaseFileUrlTest::RunTest(const FString& Parameters)
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Error);
+        CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The client is created"), Client.Get()))
     {
         return false;
@@ -231,7 +232,7 @@ bool FOpenPocketBaseFileTokenTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -273,7 +274,7 @@ bool FOpenPocketBaseProtectedFileErrorTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;

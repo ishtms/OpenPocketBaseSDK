@@ -212,15 +212,15 @@ FOpenPocketBaseEditorValidationEnvironment BuildEnvironment(
         return Environment;
     }
 
-    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Error);
-    if (!Client.IsValid())
+    FOpenPocketBaseClientResult ClientResult = FOpenPocketBaseClient::Create(Config);
+    if (!ClientResult.IsSuccess())
     {
         Environment.bHttpStreamingAvailable = false;
         Environment.bSecurePersistenceAvailable = false;
         Environment.bOAuthCallbackAvailable = false;
         return Environment;
     }
+    FOpenPocketBaseClientRef Client = ClientResult.TakeValue();
 
     Environment.bHttpStreamingAvailable = Client->GetCapability(
         EOpenPocketBaseCapability::HttpStreaming).IsSupported();

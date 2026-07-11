@@ -3,6 +3,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "Misc/CoreDelegates.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
@@ -302,7 +303,7 @@ bool FOpenPocketBaseRealtimeHandshakeTest::RunTest(const FString& Parameters)
         MakeShared<FRealtimeHandshakeTransport, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Transport, Error);
+        CreateOpenPocketBaseTestClient(Config, Transport, Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
     FOpenPocketBaseRealtimeCallbacks Callbacks;
@@ -345,7 +346,7 @@ bool FOpenPocketBaseRealtimeLatestSetTest::RunTest(const FString& Parameters)
         MakeShared<FControlledRealtimeTransport, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Transport, Error);
+        CreateOpenPocketBaseTestClient(Config, Transport, Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
     FOpenPocketBaseSubscriptionHandle FirstMessages = Client->Subscribe(
@@ -407,7 +408,7 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
         MakeShared<FControlledRealtimeTransport, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Transport, Error);
+        CreateOpenPocketBaseTestClient(Config, Transport, Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
     FOpenPocketBaseRealtimeOptions Options;
@@ -474,7 +475,7 @@ bool FOpenPocketBaseRealtimeReconnectGenerationTest::RunTest(const FString& Para
         MakeShared<FRealtimeTestClock, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(
+        CreateOpenPocketBaseTestClient(
             Config,
             Transport,
             CreateOpenPocketBaseSecureStore(),
@@ -534,7 +535,7 @@ bool FOpenPocketBaseRealtimeRetryHintTest::RunTest(const FString& Parameters)
         MakeShared<FRealtimeTestClock, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(
+        CreateOpenPocketBaseTestClient(
             Config,
             Transport,
             CreateOpenPocketBaseSecureStore(),
@@ -578,7 +579,7 @@ bool FOpenPocketBaseRealtimeStableBackoffTest::RunTest(const FString& Parameters
         MakeShared<FRealtimeTestClock, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(
+        CreateOpenPocketBaseTestClient(
             Config,
             Transport,
             CreateOpenPocketBaseSecureStore(),
@@ -648,7 +649,7 @@ bool FOpenPocketBaseRealtimeLifecycleTest::RunTest(const FString& Parameters)
         MakeShared<FRealtimeTestClock, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(
+        CreateOpenPocketBaseTestClient(
             Config,
             Transport,
             CreateOpenPocketBaseSecureStore(),
@@ -702,7 +703,7 @@ bool FOpenPocketBaseRealtimeBoundedDeliveryTest::RunTest(const FString& Paramete
     Config.BaseUrl = TEXT("https://pb.example.test");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     TestTrue(TEXT("The client is created"), State->Client.IsValid());
 
     FOpenPocketBaseRealtimeCallbacks Callbacks;

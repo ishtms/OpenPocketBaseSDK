@@ -5,6 +5,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseFile.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
@@ -238,7 +239,7 @@ bool FOpenPocketBaseMultipartRequestTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError CreateError;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), CreateError);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), CreateError);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -311,7 +312,7 @@ bool FOpenPocketBaseUploadTeardownTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         IFileManager::Get().Delete(*State->SourcePath, false, true);

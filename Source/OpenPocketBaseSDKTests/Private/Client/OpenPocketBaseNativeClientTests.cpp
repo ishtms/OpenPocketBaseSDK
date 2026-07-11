@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
 namespace
@@ -173,6 +174,34 @@ private:
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseNativeFactoryResultTest,
+    "OpenPocketBase.Client.Factory.ReturnsTypedResult",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseNativeFactoryResultTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseClientConfig InvalidConfig;
+    const auto InvalidResult = FOpenPocketBaseClient::Create(InvalidConfig);
+    TestFalse(TEXT("Invalid configuration returns a failed result"), InvalidResult.IsSuccess());
+    TestEqual(
+        TEXT("The failed result preserves the configuration error"),
+        InvalidResult.GetError().Kind,
+        EOpenPocketBaseErrorKind::InvalidArgument);
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseClientDependencies Dependencies;
+    Dependencies.Transport = MakeShared<FImmediateTransport, ESPMode::ThreadSafe>();
+    auto Result = FOpenPocketBaseClient::Create(Config, MoveTemp(Dependencies));
+    TestTrue(TEXT("Valid configuration returns a client result"), Result.IsSuccess());
+    if (Result.IsSuccess())
+    {
+        Result.GetValue()->Shutdown();
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseNativeGetOneTest,
     "OpenPocketBase.Client.Records.GetOneUsesSharedLifecycle",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -193,7 +222,7 @@ bool FOpenPocketBaseNativeGetOneTest::RunTest(const FString& Parameters)
     Config.BaseUrl = TEXT("https://pb.example.com");
 
     FOpenPocketBaseError CreateError;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), CreateError);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), CreateError);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -236,7 +265,7 @@ bool FOpenPocketBaseNativeGetListTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError CreateError;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), CreateError);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), CreateError);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -276,7 +305,7 @@ bool FOpenPocketBaseUnsafePathSegmentTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError CreateError;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), CreateError);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), CreateError);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;

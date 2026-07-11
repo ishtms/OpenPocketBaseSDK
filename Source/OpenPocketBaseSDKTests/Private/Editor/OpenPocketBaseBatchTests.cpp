@@ -5,6 +5,7 @@
 #include "OpenPocketBaseBatch.h"
 #include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseScriptedTransport.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -177,7 +178,7 @@ TSharedRef<FBatchTestState, ESPMode::ThreadSafe> MakeBatchState(FAutomationTestB
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     Test->TestNotNull(TEXT("The client is created"), State->Client.Get());
     return State;
 }

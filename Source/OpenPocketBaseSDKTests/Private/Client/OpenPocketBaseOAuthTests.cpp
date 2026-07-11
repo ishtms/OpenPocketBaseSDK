@@ -6,6 +6,7 @@
 #include "Dom/JsonObject.h"
 #include "Misc/Base64.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -319,7 +320,7 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),
@@ -472,7 +473,7 @@ bool FOpenPocketBaseOAuthCapacityTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.test");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         CreateOpenPocketBaseSecureStore(),

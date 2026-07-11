@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Guid.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseScriptedTransport.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 
@@ -274,7 +275,7 @@ bool FOpenPocketBaseUnavailableSecureStoreTest::RunTest(const FString& Parameter
         MakeShared<FUnavailableSecureStore, ESPMode::ThreadSafe>();
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Transport, SecureStore, Error);
+        CreateOpenPocketBaseTestClient(Config, Transport, SecureStore, Error);
 
     TestFalse(TEXT("RequireSecureStorage rejects unavailable storage"), Client.IsValid());
     TestEqual(TEXT("The failure is classified as secure storage"), Error.Kind, EOpenPocketBaseErrorKind::SecureStorage);
@@ -308,7 +309,7 @@ bool FOpenPocketBaseSecureRoundTripTest::RunTest(const FString& Parameters)
     Config.ProfileName = TEXT("secure-test");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),
@@ -343,7 +344,7 @@ bool FOpenPocketBaseSecureRoundTripTest::RunTest(const FString& Parameters)
             State->Client.Reset();
             State->Transport = MakeShared<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe>();
             FOpenPocketBaseError RestoreCreateError;
-            State->Client = FOpenPocketBaseClient::Create(
+            State->Client = CreateOpenPocketBaseTestClient(
                 Config,
                 State->Transport.ToSharedRef(),
                 State->SecureStore.ToSharedRef(),
@@ -404,7 +405,7 @@ bool FOpenPocketBaseSecureSaveFailureTest::RunTest(const FString& Parameters)
     Config.BaseUrl = TEXT("https://pb.example.com");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),
@@ -450,7 +451,7 @@ bool FOpenPocketBaseCorruptEnvelopeTest::RunTest(const FString& Parameters)
     Config.BaseUrl = TEXT("https://pb.example.com");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),
@@ -501,7 +502,7 @@ bool FOpenPocketBaseWrongOriginEnvelopeTest::RunTest(const FString& Parameters)
     Config.ProfileName = TEXT("secure-test");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),
@@ -552,7 +553,7 @@ bool FOpenPocketBaseVersionedEnvelopeTest::RunTest(const FString& Parameters)
     Config.ProfileName = TEXT("secure-test");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),
@@ -592,7 +593,7 @@ bool FOpenPocketBaseOversizedEnvelopeTest::RunTest(const FString& Parameters)
     Config.BaseUrl = TEXT("https://pb.example.com");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),
@@ -640,7 +641,7 @@ bool FOpenPocketBaseVerifiedRestoreTest::RunTest(const FString& Parameters)
     Config.ProfileName = TEXT("verified-restore");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),
@@ -674,7 +675,7 @@ bool FOpenPocketBaseVerifiedRestoreTest::RunTest(const FString& Parameters)
                 TEXT("\"collectionName\":\"users\"}}"));
             State->Transport->Enqueue(MoveTemp(Refresh));
             FOpenPocketBaseError CreateError;
-            State->Client = FOpenPocketBaseClient::Create(
+            State->Client = CreateOpenPocketBaseTestClient(
                 Config,
                 State->Transport.ToSharedRef(),
                 State->SecureStore.ToSharedRef(),
@@ -739,7 +740,7 @@ bool FOpenPocketBaseExpiredRestoreTest::RunTest(const FString& Parameters)
     Config.ProfileName = TEXT("expired-test");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         State->SecureStore.ToSharedRef(),

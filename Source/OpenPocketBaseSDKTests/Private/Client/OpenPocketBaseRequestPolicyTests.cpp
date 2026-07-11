@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
 namespace
@@ -240,7 +241,7 @@ bool FOpenPocketBaseReadRetryPolicyTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -279,7 +280,7 @@ bool FOpenPocketBaseMutationRetryPolicyTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -328,7 +329,7 @@ bool FOpenPocketBaseResponseLimitPolicyTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -373,7 +374,7 @@ bool FOpenPocketBaseRetryCancellationPolicyTest::RunTest(const FString& Paramete
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -414,7 +415,7 @@ bool FOpenPocketBaseRequestKeyPolicyTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
     {
         return false;
@@ -458,7 +459,7 @@ bool FOpenPocketBaseRequestKeyDefaultPolicyTest::RunTest(const FString& Paramete
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Transport, Error);
+        CreateOpenPocketBaseTestClient(Config, Transport, Error);
     if (!TestNotNull(TEXT("The client is created"), Client.Get()))
     {
         return false;
@@ -501,7 +502,7 @@ bool FOpenPocketBaseMutationRequestKeyPolicyTest::RunTest(const FString& Paramet
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
-        FOpenPocketBaseClient::Create(Config, Transport, Error);
+        CreateOpenPocketBaseTestClient(Config, Transport, Error);
     if (!TestNotNull(TEXT("The client is created"), Client.Get()))
     {
         return false;

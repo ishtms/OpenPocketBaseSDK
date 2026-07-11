@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseClient.h"
+#include "OpenPocketBaseTestClientFactory.h"
 #include "OpenPocketBaseScriptedTransport.h"
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 
@@ -271,7 +272,7 @@ bool FOpenPocketBaseAuthRecordSyncTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     State->Client->OnSessionChanged().AddLambda(
         [State](const FOpenPocketBaseSessionSnapshot& Snapshot)
         {
@@ -337,7 +338,7 @@ bool FOpenPocketBaseAuthRecordPersistenceFailureTest::RunTest(const FString& Par
     Config.BaseUrl = TEXT("https://pb.example.com");
     Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(
+    State->Client = CreateOpenPocketBaseTestClient(
         Config,
         State->Transport.ToSharedRef(),
         SecureStore,
@@ -419,7 +420,7 @@ bool FOpenPocketBaseAuthRecordRefreshRaceTest::RunTest(const FString& Parameters
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     State->Client->OnSessionChanged().AddLambda(
         [State](const FOpenPocketBaseSessionSnapshot& Snapshot)
         {
@@ -491,7 +492,7 @@ bool FOpenPocketBaseAuthRecordDeleteTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     State->Client->OnSessionChanged().AddLambda(
         [State](const FOpenPocketBaseSessionSnapshot& Snapshot)
         {
@@ -552,7 +553,7 @@ bool FOpenPocketBaseBatchAuthRecordSyncTest::RunTest(const FString& Parameters)
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseClient::Create(Config, State->Transport.ToSharedRef(), Error);
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
     State->Client->OnSessionChanged().AddLambda(
         [State](const FOpenPocketBaseSessionSnapshot& Snapshot)
         {
