@@ -88,35 +88,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Client")
     void Shutdown();
 
-    UFUNCTION(
-        BlueprintCallable,
-        Category = "Open PocketBase|Realtime",
-        meta = (DisplayName = "Subscribe to Records", AutoCreateRefTerm = "Options"))
     UOpenPocketBaseSubscription* SubscribeToRecords(
         FString Collection,
         const FOpenPocketBaseRealtimeOptions& Options,
         FOpenPocketBaseError& OutError);
 
-    UFUNCTION(
-        BlueprintCallable,
-        Category = "Open PocketBase|Realtime",
-        meta = (DisplayName = "Subscribe to Record", AutoCreateRefTerm = "Options"))
     UOpenPocketBaseSubscription* SubscribeToRecord(
         FString Collection,
         FString RecordId,
         const FOpenPocketBaseRealtimeOptions& Options,
         FOpenPocketBaseError& OutError);
 
-    UFUNCTION(
-        BlueprintCallable,
-        Category = "Open PocketBase|Realtime",
-        meta = (DisplayName = "Subscribe to Realtime Topic", AutoCreateRefTerm = "Options"))
     UOpenPocketBaseSubscription* SubscribeToTopic(
         FString Topic,
         const FOpenPocketBaseRealtimeOptions& Options,
         FOpenPocketBaseError& OutError);
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Realtime")
     void UnsubscribeAllRealtime();
 
     virtual void BeginDestroy() override;

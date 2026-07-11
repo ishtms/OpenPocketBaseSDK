@@ -16,6 +16,7 @@
 #include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "OpenPocketBaseRecord.h"
+#include "OpenPocketBaseRealtimeLibrary.h"
 #include "OpenPocketBaseSubsystem.h"
 #include "UObject/Field.h"
 #include "UObject/Package.h"
@@ -289,6 +290,30 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
         Schema->TryCreateConnection(
             CollectionNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
             CollectionPin));
+
+    UK2Node_CallFunction* SubscribeRecordsNode = NewObject<UK2Node_CallFunction>(Graph);
+    SubscribeRecordsNode->SetFromFunction(
+        UOpenPocketBaseRealtimeLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseRealtimeLibrary,
+                SubscribeToRecords)));
+    SubscribeRecordsNode->CreateNewGuid();
+    SubscribeRecordsNode->PostPlacedNewNode();
+    SubscribeRecordsNode->AllocateDefaultPins();
+    Graph->AddNode(SubscribeRecordsNode, true, false);
+    UEdGraphPin* RealtimeCollectionPin =
+        SubscribeRecordsNode->FindPin(TEXT("Collection"), EGPD_Input);
+    TestNotNull(
+        TEXT("Subscribe to Records accepts a collection value"),
+        RealtimeCollectionPin);
+    TestNull(
+        TEXT("Subscribe to Records does not repeat the client pin"),
+        SubscribeRecordsNode->FindPin(TEXT("PocketBaseClient"), EGPD_Input));
+    TestTrue(
+        TEXT("A Collection value connects directly to realtime subscriptions"),
+        Schema->TryCreateConnection(
+            CollectionNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+            RealtimeCollectionPin));
     TestNotNull(
         TEXT("List Records is available as an async Blueprint node"),
         AddAsyncConsumerNode(

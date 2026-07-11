@@ -6,6 +6,7 @@
 #include "OpenPocketBaseError.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseRecordLibrary.h"
+#include "OpenPocketBaseRealtimeLibrary.h"
 #include "OpenPocketBaseRequestHandle.h"
 #include "OpenPocketBaseResult.h"
 #include "OpenPocketBaseSDKModule.h"
