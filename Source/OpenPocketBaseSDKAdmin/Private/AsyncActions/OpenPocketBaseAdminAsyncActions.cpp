@@ -57,7 +57,6 @@ bool UOpenPocketBaseAdminAsyncActionBase::TryGetNativeClient(
 
 UOpenPocketBaseAuthenticateSuperuserAsyncAction*
 UOpenPocketBaseAuthenticateSuperuserAsyncAction::AuthenticateSuperuser(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString InEmail,
     FString InPassword,
@@ -69,7 +68,7 @@ UOpenPocketBaseAuthenticateSuperuserAsyncAction::AuthenticateSuperuser(
     Action->Email = MoveTemp(InEmail);
     Action->Password = MoveTemp(InPassword);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -115,7 +114,6 @@ void UOpenPocketBaseAuthenticateSuperuserAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListCollections(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseAdminListOptions InOptions)
 {
@@ -124,12 +122,11 @@ UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListCo
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::Collections;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListLogs(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseAdminListOptions InOptions)
 {
@@ -138,7 +135,7 @@ UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListLo
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::Logs;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -179,7 +176,6 @@ void UOpenPocketBaseAdminPageAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::GetCollection(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString Collection,
     FOpenPocketBaseRequestOptions InOptions)
@@ -190,12 +186,11 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
     Action->Operation = EOperation::GetCollection;
     Action->Target = MoveTemp(Collection);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::CreateCollection(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseAdminDocument InBody,
     FOpenPocketBaseRequestOptions InOptions)
@@ -206,12 +201,11 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
     Action->Operation = EOperation::CreateCollection;
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::UpdateCollection(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString Collection,
     FOpenPocketBaseAdminDocument InBody,
@@ -224,12 +218,11 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
     Action->Target = MoveTemp(Collection);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::GetSettings(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -238,12 +231,11 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::GetSettings;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::UpdateSettings(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseAdminDocument InBody,
     FOpenPocketBaseRequestOptions InOptions)
@@ -254,12 +246,11 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
     Action->Operation = EOperation::UpdateSettings;
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::GetLog(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString LogId,
     FOpenPocketBaseRequestOptions InOptions)
@@ -270,7 +261,7 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
     Action->Operation = EOperation::GetLog;
     Action->Target = MoveTemp(LogId);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -334,7 +325,6 @@ void UOpenPocketBaseAdminDocumentAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::DeleteCollection(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString Collection,
     FOpenPocketBaseRequestOptions InOptions)
@@ -345,12 +335,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::DeleteCollection;
     Action->Target = MoveTemp(Collection);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::ImportCollections(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseAdminDocument InBody,
     FOpenPocketBaseRequestOptions InOptions)
@@ -361,12 +350,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::ImportCollections;
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::TestS3(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseAdminDocument InBody,
     FOpenPocketBaseRequestOptions InOptions)
@@ -377,12 +365,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::TestS3;
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::TestEmail(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseAdminDocument InBody,
     FOpenPocketBaseRequestOptions InOptions)
@@ -393,12 +380,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::TestEmail;
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::CreateBackup(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString Name,
     FOpenPocketBaseRequestOptions InOptions)
@@ -409,12 +395,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::CreateBackup;
     Action->Target = MoveTemp(Name);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::UploadBackup(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseFileInput InFile,
     FOpenPocketBaseRequestOptions InOptions)
@@ -425,12 +410,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::UploadBackup;
     Action->File = MoveTemp(InFile);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::RestoreBackup(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString Key,
     FOpenPocketBaseRequestOptions InOptions)
@@ -441,12 +425,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::RestoreBackup;
     Action->Target = MoveTemp(Key);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::DeleteBackup(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString Key,
     FOpenPocketBaseRequestOptions InOptions)
@@ -457,12 +440,11 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::DeleteBackup;
     Action->Target = MoveTemp(Key);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::RunCron(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString CronId,
     FOpenPocketBaseRequestOptions InOptions)
@@ -473,7 +455,7 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     Action->Operation = EOperation::RunCron;
     Action->Target = MoveTemp(CronId);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -550,7 +532,6 @@ void UOpenPocketBaseAdminCommandAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAdminBackupListAsyncAction*
 UOpenPocketBaseAdminBackupListAsyncAction::ListBackups(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -558,7 +539,7 @@ UOpenPocketBaseAdminBackupListAsyncAction::ListBackups(
         NewObject<UOpenPocketBaseAdminBackupListAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -598,7 +579,6 @@ void UOpenPocketBaseAdminBackupListAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAdminBackupDownloadAsyncAction*
 UOpenPocketBaseAdminBackupDownloadAsyncAction::DownloadBackup(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString InKey,
     FOpenPocketBaseRequestOptions InOptions)
@@ -608,7 +588,7 @@ UOpenPocketBaseAdminBackupDownloadAsyncAction::DownloadBackup(
     Action->AdminClient = PocketBaseAdminClient;
     Action->Key = MoveTemp(InKey);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -649,7 +629,6 @@ void UOpenPocketBaseAdminBackupDownloadAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAdminDocumentListAsyncAction*
 UOpenPocketBaseAdminDocumentListAsyncAction::ListCrons(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -657,7 +636,7 @@ UOpenPocketBaseAdminDocumentListAsyncAction::ListCrons(
         NewObject<UOpenPocketBaseAdminDocumentListAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -696,7 +675,6 @@ void UOpenPocketBaseAdminDocumentListAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseAdminSqlAsyncAction* UOpenPocketBaseAdminSqlAsyncAction::RunSql(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString InQuery,
     FOpenPocketBaseRequestOptions InOptions)
@@ -706,7 +684,7 @@ UOpenPocketBaseAdminSqlAsyncAction* UOpenPocketBaseAdminSqlAsyncAction::RunSql(
     Action->AdminClient = PocketBaseAdminClient;
     Action->Query = MoveTemp(InQuery);
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
@@ -747,7 +725,6 @@ void UOpenPocketBaseAdminSqlAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAdminImpersonateAsyncAction*
 UOpenPocketBaseAdminImpersonateAsyncAction::Impersonate(
-    const UObject* WorldContextObject,
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
     FString InAuthCollection,
     FString InRecordId,
@@ -761,7 +738,7 @@ UOpenPocketBaseAdminImpersonateAsyncAction::Impersonate(
     Action->RecordId = MoveTemp(InRecordId);
     Action->DurationSeconds = InDurationSeconds;
     Action->Options = MoveTemp(InOptions);
-    Action->RegisterWithGameInstance(WorldContextObject);
+    Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 

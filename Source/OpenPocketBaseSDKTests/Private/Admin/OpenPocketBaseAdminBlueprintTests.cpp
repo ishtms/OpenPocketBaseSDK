@@ -62,8 +62,31 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters)
 {
-    VerifyDevelopmentOnlyFunction(*this, UOpenPocketBaseAdminClient::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAdminClient, CreateAdminClient));
+    const UFunction* InitializeAdmin = UOpenPocketBaseAdminClient::StaticClass()
+        ->FindFunctionByName(TEXT("InitializeAdminClient"));
+    TestNotNull(TEXT("Initialize Privileged PocketBase exists"), InitializeAdmin);
+    if (InitializeAdmin != nullptr)
+    {
+        TestTrue(
+            TEXT("Initialize Privileged PocketBase is disabled in Shipping by default"),
+            InitializeAdmin->HasMetaData(TEXT("DevelopmentOnly")));
+        TestEqual(
+            TEXT("Admin initialization resolves its world automatically"),
+            InitializeAdmin->GetMetaData(TEXT("WorldContext")),
+            FString(TEXT("WorldContextObject")));
+        TestEqual(
+            TEXT("Admin initialization hides its world pin"),
+            InitializeAdmin->GetMetaData(TEXT("HidePin")),
+            FString(TEXT("WorldContextObject")));
+        TestEqual(
+            TEXT("Admin initialization exposes success and failure paths"),
+            InitializeAdmin->GetMetaData(TEXT("ExpandBoolAsExecs")),
+            FString(TEXT("ReturnValue")));
+    }
+    TestNull(
+        TEXT("The old admin client factory is no longer exposed"),
+        UOpenPocketBaseAdminClient::StaticClass()->FindFunctionByName(
+            TEXT("CreateAdminClient")));
 
     struct FExpectedFunction
     {
@@ -97,6 +120,14 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
     for (const FExpectedFunction& Function : Functions)
     {
         VerifyDevelopmentOnlyFunction(*this, Function.Owner, Function.Name);
+        const UFunction* Factory = Function.Owner->FindFunctionByName(Function.Name);
+        TestNull(
+            *FString::Printf(
+                TEXT("%s resolves lifetime through the admin client"),
+                *Function.Name.ToString()),
+            Factory != nullptr
+                ? FindFProperty<FProperty>(Factory, TEXT("WorldContextObject"))
+                : nullptr);
     }
 
     const FName BlueprintName = MakeUniqueObjectName(
@@ -133,6 +164,12 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
             *FString::Printf(TEXT("%s exposes the failure error"),
                 *Function.Name.ToString()),
             AsyncNode != nullptr ? AsyncNode->FindPin(TEXT("Error"), EGPD_Output) : nullptr);
+        TestNull(
+            *FString::Printf(TEXT("%s has no World Context pin"),
+                *Function.Name.ToString()),
+            AsyncNode != nullptr
+                ? AsyncNode->FindPin(TEXT("WorldContextObject"), EGPD_Input)
+                : nullptr);
     }
     FKismetEditorUtilities::CompileBlueprint(
         Blueprint,

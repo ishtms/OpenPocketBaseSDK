@@ -108,12 +108,10 @@ public:
         Category = "Open PocketBase|Admin",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "Authenticate PocketBase Superuser",
             AdvancedDisplay = "Options",
             DevelopmentOnly))
     static UOpenPocketBaseAuthenticateSuperuserAsyncAction* AuthenticateSuperuser(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Email,
         FString Password,
@@ -151,11 +149,10 @@ public:
         Category = "Open PocketBase|Admin",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "List PocketBase Collections",
+            AdvancedDisplay = "Options",
             DevelopmentOnly))
     static UOpenPocketBaseAdminPageAsyncAction* ListCollections(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseAdminListOptions Options);
 
@@ -164,11 +161,10 @@ public:
         Category = "Open PocketBase|Admin",
         meta = (
             BlueprintInternalUseOnly = "true",
-            WorldContext = "WorldContextObject",
             DisplayName = "List PocketBase Logs",
+            AdvancedDisplay = "Options",
             DevelopmentOnly))
     static UOpenPocketBaseAdminPageAsyncAction* ListLogs(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseAdminListOptions Options);
 
@@ -205,61 +201,55 @@ public:
     FOpenPocketBaseAdminDocumentActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Get PocketBase Collection", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* GetCollection(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Collection,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Create PocketBase Collection", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* CreateCollection(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Update PocketBase Collection", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* UpdateCollection(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Collection,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Get PocketBase Settings", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* GetSettings(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Update PocketBase Settings", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* UpdateSettings(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Get PocketBase Log", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* GetLog(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString LogId,
         FOpenPocketBaseRequestOptions Options);
@@ -303,91 +293,82 @@ public:
     FOpenPocketBaseAdminActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Delete PocketBase Collection", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* DeleteCollection(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Collection,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Import PocketBase Collections", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* ImportCollections(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Test PocketBase S3 Settings", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* TestS3(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Test PocketBase Email Settings", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* TestEmail(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Create PocketBase Backup", AdvancedDisplay = "Name,Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* CreateBackup(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Name,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Upload PocketBase Backup", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* UploadBackup(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseFileInput File,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Restore PocketBase Backup", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* RestoreBackup(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Key,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Delete PocketBase Backup", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* DeleteBackup(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Key,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Run PocketBase Cron", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* RunCron(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString CronId,
         FOpenPocketBaseRequestOptions Options);
@@ -435,11 +416,10 @@ public:
     FOpenPocketBaseAdminBackupListActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "List PocketBase Backups", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminBackupListAsyncAction* ListBackups(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseRequestOptions Options);
 
@@ -469,11 +449,10 @@ public:
     FOpenPocketBaseAdminBackupDownloadActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Download PocketBase Backup", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminBackupDownloadAsyncAction* DownloadBackup(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Key,
         FOpenPocketBaseRequestOptions Options);
@@ -505,11 +484,10 @@ public:
     FOpenPocketBaseAdminDocumentListActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "List PocketBase Crons", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentListAsyncAction* ListCrons(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FOpenPocketBaseRequestOptions Options);
 
@@ -539,11 +517,10 @@ public:
     FOpenPocketBaseAdminSqlActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Run PocketBase SQL", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminSqlAsyncAction* RunSql(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString Query,
         FOpenPocketBaseRequestOptions Options);
@@ -575,11 +552,10 @@ public:
     FOpenPocketBaseAdminImpersonationActionSuccess Cancelled;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
-        BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject",
+        BlueprintInternalUseOnly = "true",
         DisplayName = "Impersonate PocketBase User", AdvancedDisplay = "Options",
         DevelopmentOnly))
     static UOpenPocketBaseAdminImpersonateAsyncAction* Impersonate(
-        const UObject* WorldContextObject,
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
         FString AuthCollection,
         FString RecordId,

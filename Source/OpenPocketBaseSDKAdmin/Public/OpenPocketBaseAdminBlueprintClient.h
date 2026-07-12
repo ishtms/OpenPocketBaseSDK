@@ -29,13 +29,19 @@ public:
         Category = "Open PocketBase|Admin",
         meta = (
             WorldContext = "WorldContextObject",
-            DisplayName = "Create Privileged PocketBase Client",
+            DefaultToSelf = "WorldContextObject",
+            HidePin = "WorldContextObject",
+            DisplayName = "Initialize Privileged PocketBase",
+            ExpandBoolAsExecs = "ReturnValue",
             DevelopmentOnly))
-    static UOpenPocketBaseAdminClient* CreateAdminClient(
+    static bool InitializeAdminClient(
         const UObject* WorldContextObject,
         FOpenPocketBaseClientConfig CoreConfig,
         FOpenPocketBaseAdminPolicy Policy,
-        FOpenPocketBaseError& OutError);
+        UOpenPocketBaseAdminClient*& Client,
+        FOpenPocketBaseError& Error);
+
+    virtual UWorld* GetWorld() const override;
 
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> GetNativeClient() const;
 

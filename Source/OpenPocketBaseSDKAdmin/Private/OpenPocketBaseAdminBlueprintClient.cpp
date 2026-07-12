@@ -53,17 +53,24 @@ UOpenPocketBaseAdminClient* UOpenPocketBaseAdminClient::Create(
     return Wrapper;
 }
 
-UOpenPocketBaseAdminClient* UOpenPocketBaseAdminClient::CreateAdminClient(
+bool UOpenPocketBaseAdminClient::InitializeAdminClient(
     const UObject* WorldContextObject,
     FOpenPocketBaseClientConfig CoreConfig,
     FOpenPocketBaseAdminPolicy Policy,
-    FOpenPocketBaseError& OutError)
+    UOpenPocketBaseAdminClient*& Client,
+    FOpenPocketBaseError& Error)
 {
-    return Create(
+    Client = Create(
         ResolveAdminOuter(WorldContextObject),
         CoreConfig,
         Policy,
-        OutError);
+        Error);
+    return Client != nullptr;
+}
+
+UWorld* UOpenPocketBaseAdminClient::GetWorld() const
+{
+    return GetOuter() != nullptr ? GetOuter()->GetWorld() : nullptr;
 }
 
 TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>
