@@ -206,7 +206,8 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Get Record"))
+            DisplayName = "Get Record",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseGetRecordAsyncAction* GetRecord(
         FOpenPocketBaseCollection Collection,
         FString RecordId,
@@ -244,7 +245,8 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Get First Record"))
+            DisplayName = "Get First Record",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseGetFirstRecordAsyncAction* GetFirstRecord(
         FOpenPocketBaseCollection Collection,
         FOpenPocketBaseFilter Filter,
@@ -282,7 +284,8 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Create Record"))
+            DisplayName = "Create Record",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseCreateRecordAsyncAction* CreateRecord(
         FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
@@ -367,7 +370,8 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Update Record"))
+            DisplayName = "Update Record",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseUpdateRecordAsyncAction* UpdateRecord(
         FOpenPocketBaseCollection Collection,
         FString RecordId,
@@ -456,7 +460,8 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Delete Record"))
+            DisplayName = "Delete Record",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseDeleteRecordAsyncAction* DeleteRecord(
         FOpenPocketBaseCollection Collection,
         FString RecordId,
@@ -494,7 +499,8 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "List Records"))
+            DisplayName = "List Records",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseListRecordsAsyncAction* ListRecords(
         FOpenPocketBaseCollection Collection,
         FOpenPocketBaseListOptions Options);
@@ -566,7 +572,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Refresh Auth"))
+            DisplayName = "Refresh Session",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseRefreshAuthAsyncAction* RefreshAuth(
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseRequestOptions Options);
@@ -601,7 +608,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "List Authentication Methods"))
+            DisplayName = "List Authentication Methods",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseListAuthMethodsAsyncAction* ListAuthenticationMethods(
         FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseRequestOptions Options);
@@ -637,7 +645,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Request One-Time Password"))
+            DisplayName = "Request One-Time Password",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseRequestOtpAsyncAction* RequestOneTimePassword(
         FOpenPocketBaseCollection AuthCollection,
         FString Email,
@@ -683,7 +692,7 @@ public:
     static UOpenPocketBaseOtpAuthAsyncAction* LogInWithOneTimePassword(
         FOpenPocketBaseCollection AuthCollection,
         FString OtpId,
-        FString Password,
+        FString OneTimePassword,
         FOpenPocketBaseMfaContinuation Mfa,
         FOpenPocketBaseRequestOptions Options);
 
@@ -846,7 +855,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Request Password Reset"))
+            DisplayName = "Request Password Reset",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseAccountAsyncAction* RequestPasswordReset(
         FOpenPocketBaseCollection AuthCollection,
         FString Email,
@@ -857,12 +867,13 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Confirm Password Reset"))
+            DisplayName = "Confirm Password Reset",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmPasswordReset(
         FOpenPocketBaseCollection AuthCollection,
         FString Token,
-        FString Password,
-        FString PasswordConfirm,
+        FString NewPassword,
+        FString ConfirmPassword,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(
@@ -870,7 +881,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Request Email Verification"))
+            DisplayName = "Request Email Verification",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseAccountAsyncAction* RequestVerification(
         FOpenPocketBaseCollection AuthCollection,
         FString Email,
@@ -881,7 +893,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Confirm Email Verification"))
+            DisplayName = "Confirm Email Verification",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmVerification(
         FOpenPocketBaseCollection AuthCollection,
         FString Token,
@@ -892,7 +905,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Request Email Change"))
+            DisplayName = "Request Email Change",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseAccountAsyncAction* RequestEmailChange(
         FOpenPocketBaseCollection AuthCollection,
         FString NewEmail,
@@ -903,11 +917,12 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Confirm Email Change"))
+            DisplayName = "Confirm Email Change",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmEmailChange(
         FOpenPocketBaseCollection AuthCollection,
         FString Token,
-        FString Password,
+        FString CurrentPassword,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(
@@ -915,7 +930,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Unlink External Auth"))
+            DisplayName = "Unlink External Auth",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseAccountAsyncAction* UnlinkExternalAuth(
         FOpenPocketBaseCollection AuthCollection,
         FString RecordId,
@@ -966,7 +982,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "List Linked External Auths"))
+            DisplayName = "List Linked External Auths",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseListExternalAuthsAsyncAction* ListLinkedExternalAuths(
         FOpenPocketBaseCollection AuthCollection,
         FString RecordId,
@@ -1004,7 +1021,8 @@ public:
         Category = "Open PocketBase|Session",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Restore Session"))
+            DisplayName = "Restore Session",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseRestoreSessionAsyncAction* RestoreSession(
         UOpenPocketBaseClient* PocketBaseClient,
         bool bVerifyWithServer,
@@ -1044,7 +1062,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Log In with Password"))
+            DisplayName = "Log In with Password",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBasePasswordAuthAsyncAction* LogInWithPassword(
         FOpenPocketBaseCollection AuthCollection,
         FString Identity,

@@ -1100,7 +1100,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::BroadcastCancelled()
 UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithOneTimePassword(
     FOpenPocketBaseCollection InAuthCollection,
     FString InOtpId,
-    FString InPassword,
+    FString InOneTimePassword,
     FOpenPocketBaseMfaContinuation InMfa,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -1108,7 +1108,7 @@ UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithO
     Action->Client = InAuthCollection.Client;
     Action->AuthCollection = MoveTemp(InAuthCollection.Name);
     Action->OtpId = MoveTemp(InOtpId);
-    Action->Password = MoveTemp(InPassword);
+    Action->Password = MoveTemp(InOneTimePassword);
     Action->Mfa = MoveTemp(InMfa);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -1470,16 +1470,16 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPas
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPasswordReset(
     FOpenPocketBaseCollection AuthCollection,
     FString Token,
-    FString Password,
-    FString PasswordConfirm,
+    FString NewPassword,
+    FString ConfirmPassword,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
         EOpenPocketBaseAccountActionKind::ConfirmPasswordReset,
         MoveTemp(AuthCollection),
         MoveTemp(Token),
-        MoveTemp(Password),
-        MoveTemp(PasswordConfirm),
+        MoveTemp(NewPassword),
+        MoveTemp(ConfirmPassword),
         MoveTemp(Options));
 }
 
@@ -1528,14 +1528,14 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEma
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEmailChange(
     FOpenPocketBaseCollection AuthCollection,
     FString Token,
-    FString Password,
+    FString CurrentPassword,
     FOpenPocketBaseRequestOptions Options)
 {
     return CreateAction(
         EOpenPocketBaseAccountActionKind::ConfirmEmailChange,
         MoveTemp(AuthCollection),
         MoveTemp(Token),
-        MoveTemp(Password),
+        MoveTemp(CurrentPassword),
         {},
         MoveTemp(Options));
 }

@@ -129,6 +129,177 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintNodeDefaultsTest,
+    "OpenPocketBase.Blueprint.Nodes.KeepOptionalPinsAdvanced",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters)
+{
+    const auto TestAdvancedOptions = [this](UClass* Class, const FName FunctionName)
+    {
+        const UFunction* Function = Class->FindFunctionByName(FunctionName);
+        TestNotNull(*FString::Printf(TEXT("%s exists"), *FunctionName.ToString()), Function);
+        if (Function == nullptr)
+        {
+            return;
+        }
+        const FProperty* Options = FindFProperty<FProperty>(Function, TEXT("Options"));
+        TestNotNull(
+            *FString::Printf(TEXT("%s has options"), *FunctionName.ToString()),
+            Options);
+        if (Options != nullptr)
+        {
+            TestTrue(
+                *FString::Printf(
+                    TEXT("%s keeps optional settings advanced"),
+                    *FunctionName.ToString()),
+                Options->HasAnyPropertyFlags(CPF_AdvancedDisplay));
+        }
+    };
+
+    TestAdvancedOptions(
+        UOpenPocketBaseGetRecordAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetRecordAsyncAction, GetRecord));
+    TestAdvancedOptions(
+        UOpenPocketBaseGetFirstRecordAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetFirstRecordAsyncAction, GetFirstRecord));
+    TestAdvancedOptions(
+        UOpenPocketBaseCreateRecordAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord));
+    TestAdvancedOptions(
+        UOpenPocketBaseUpdateRecordAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseUpdateRecordAsyncAction, UpdateRecord));
+    TestAdvancedOptions(
+        UOpenPocketBaseDeleteRecordAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseDeleteRecordAsyncAction, DeleteRecord));
+    TestAdvancedOptions(
+        UOpenPocketBaseListRecordsAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseListRecordsAsyncAction, ListRecords));
+    TestAdvancedOptions(
+        UOpenPocketBaseRefreshAuthAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRefreshAuthAsyncAction, RefreshAuth));
+    TestAdvancedOptions(
+        UOpenPocketBaseListAuthMethodsAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(
+            UOpenPocketBaseListAuthMethodsAsyncAction,
+            ListAuthenticationMethods));
+    TestAdvancedOptions(
+        UOpenPocketBaseRequestOtpAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(
+            UOpenPocketBaseRequestOtpAsyncAction,
+            RequestOneTimePassword));
+    TestAdvancedOptions(
+        UOpenPocketBaseRestoreSessionAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRestoreSessionAsyncAction, RestoreSession));
+    TestAdvancedOptions(
+        UOpenPocketBasePasswordAuthAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBasePasswordAuthAsyncAction, LogInWithPassword));
+    TestAdvancedOptions(
+        UOpenPocketBaseAccountAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, RequestPasswordReset));
+    TestAdvancedOptions(
+        UOpenPocketBaseAccountAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, ConfirmPasswordReset));
+    TestAdvancedOptions(
+        UOpenPocketBaseAccountAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, RequestVerification));
+    TestAdvancedOptions(
+        UOpenPocketBaseAccountAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, ConfirmVerification));
+    TestAdvancedOptions(
+        UOpenPocketBaseAccountAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, RequestEmailChange));
+    TestAdvancedOptions(
+        UOpenPocketBaseAccountAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, ConfirmEmailChange));
+    TestAdvancedOptions(
+        UOpenPocketBaseAccountAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, UnlinkExternalAuth));
+    TestAdvancedOptions(
+        UOpenPocketBaseListExternalAuthsAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(
+            UOpenPocketBaseListExternalAuthsAsyncAction,
+            ListLinkedExternalAuths));
+    TestAdvancedOptions(
+        UOpenPocketBaseSendBatchAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseSendBatchAsyncAction, SendBatch));
+    TestAdvancedOptions(
+        UOpenPocketBaseFileLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFileLibrary, TryBuildFileUrl));
+
+    const UFunction* RefreshSession =
+        UOpenPocketBaseRefreshAuthAsyncAction::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRefreshAuthAsyncAction, RefreshAuth));
+    if (RefreshSession != nullptr)
+    {
+        TestEqual(
+            TEXT("Blueprint uses the user-facing Refresh Session name"),
+            RefreshSession->GetMetaData(TEXT("DisplayName")),
+            FString(TEXT("Refresh Session")));
+    }
+
+    const UFunction* OtpLogin =
+        UOpenPocketBaseOtpAuthAsyncAction::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseOtpAuthAsyncAction,
+                LogInWithOneTimePassword));
+    if (OtpLogin != nullptr)
+    {
+        TestNotNull(
+            TEXT("OTP login names the one-time password clearly"),
+            FindFProperty<FProperty>(OtpLogin, TEXT("OneTimePassword")));
+        TestNull(
+            TEXT("OTP login does not expose a generic Password pin"),
+            FindFProperty<FProperty>(OtpLogin, TEXT("Password")));
+    }
+
+    const UFunction* ConfirmPasswordReset =
+        UOpenPocketBaseAccountAsyncAction::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                ConfirmPasswordReset));
+    if (ConfirmPasswordReset != nullptr)
+    {
+        TestNotNull(
+            TEXT("Password reset names the new password clearly"),
+            FindFProperty<FProperty>(ConfirmPasswordReset, TEXT("NewPassword")));
+        TestNotNull(
+            TEXT("Password reset names its confirmation clearly"),
+            FindFProperty<FProperty>(ConfirmPasswordReset, TEXT("ConfirmPassword")));
+        TestNull(
+            TEXT("Password reset does not expose the wire-level PasswordConfirm name"),
+            FindFProperty<FProperty>(ConfirmPasswordReset, TEXT("PasswordConfirm")));
+    }
+
+    const UFunction* ConfirmEmailChange =
+        UOpenPocketBaseAccountAsyncAction::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseAccountAsyncAction,
+                ConfirmEmailChange));
+    if (ConfirmEmailChange != nullptr)
+    {
+        TestNotNull(
+            TEXT("Email change identifies the current password"),
+            FindFProperty<FProperty>(ConfirmEmailChange, TEXT("CurrentPassword")));
+        TestNull(
+            TEXT("Email change does not expose an ambiguous Password pin"),
+            FindFProperty<FProperty>(ConfirmEmailChange, TEXT("Password")));
+    }
+
+    const UFunction* BuildFileUrl =
+        UOpenPocketBaseFileLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFileLibrary, TryBuildFileUrl));
+    if (BuildFileUrl != nullptr)
+    {
+        TestEqual(
+            TEXT("Try Build File URL exposes success and failure execution paths"),
+            BuildFileUrl->GetMetaData(TEXT("ExpandBoolAsExecs")),
+            FString(TEXT("ReturnValue")));
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseBlueprintClientEntryApiTest,
     "OpenPocketBase.Blueprint.Client.UsesDirectEntryPoints",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

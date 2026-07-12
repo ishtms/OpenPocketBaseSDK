@@ -34,7 +34,8 @@ public:
         Category = "Open PocketBase|Records|Batch",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Send Batch"))
+            DisplayName = "Send Batch",
+            AdvancedDisplay = "Options"))
     static UOpenPocketBaseSendBatchAsyncAction* SendBatch(
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseBatchRequest Batch,
