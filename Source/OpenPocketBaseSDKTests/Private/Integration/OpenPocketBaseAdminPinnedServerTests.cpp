@@ -571,15 +571,16 @@ bool FOpenPocketBasePinnedAdminTest::RunTest(const FString& Parameters)
     Policy.bAllowBackupRestore = true;
     Policy.bAllowImpersonation = true;
     Policy.MaxBackupBytes = 64 * 1024 * 1024;
-    FOpenPocketBaseError Error;
     const TSharedRef<FPinnedAdminState, ESPMode::ThreadSafe> State =
         MakeShared<FPinnedAdminState, ESPMode::ThreadSafe>();
-    State->Client = FOpenPocketBaseAdminClient::Create(Config, Policy, Error);
-    if (!TestNotNull(TEXT("The pinned privileged client is created"), State->Client.Get()))
+    FOpenPocketBaseAdminClientResult ClientResult =
+        FOpenPocketBaseAdminClient::Create(Config, Policy);
+    if (!TestTrue(TEXT("The pinned privileged client is created"), ClientResult.IsSuccess()))
     {
-        AddError(Error.ServerMessage);
+        AddError(ClientResult.GetError().ServerMessage);
         return false;
     }
+    State->Client = ClientResult.TakeValue();
     const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Flow =
         MakeShared<FPinnedAdminFlow, ESPMode::ThreadSafe>(State);
     Flow->Start(MoveTemp(Credentials.Email), MoveTemp(Credentials.Password));

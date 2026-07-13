@@ -665,60 +665,33 @@ FOpenPocketBaseAdminClient::FOpenPocketBaseAdminClient(
 {
 }
 
-TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>
+FOpenPocketBaseAdminClientResult
 FOpenPocketBaseAdminClient::Create(
     const FOpenPocketBaseClientConfig& InCoreConfig,
     const FOpenPocketBaseAdminPolicy& InPolicy,
-    FOpenPocketBaseError& OutError)
+    FOpenPocketBaseClientDependencies Dependencies)
 {
-    if (!ValidatePolicy(InPolicy, OutError))
+    FOpenPocketBaseError Error;
+    if (!ValidatePolicy(InPolicy, Error))
     {
-        return nullptr;
+        return FOpenPocketBaseAdminClientResult::Failure(MoveTemp(Error));
     }
     FOpenPocketBaseClientConfig CoreConfig = InCoreConfig;
     CoreConfig.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
     CoreConfig.bEnableAssistedOAuth = false;
-    FOpenPocketBaseClientResult CoreResult = FOpenPocketBaseClient::Create(CoreConfig);
-    if (!CoreResult.IsSuccess())
-    {
-        OutError = CoreResult.GetError();
-        return nullptr;
-    }
-    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Core =
-        CoreResult.TakeValue();
-    OutError = {};
-    return MakeShareable(new FOpenPocketBaseAdminClient(
-        MoveTemp(CoreConfig), InPolicy, MoveTemp(Core), nullptr));
-}
-
-TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>
-FOpenPocketBaseAdminClient::Create(
-    const FOpenPocketBaseClientConfig& InCoreConfig,
-    const FOpenPocketBaseAdminPolicy& InPolicy,
-    TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-    FOpenPocketBaseError& OutError)
-{
-    if (!ValidatePolicy(InPolicy, OutError))
-    {
-        return nullptr;
-    }
-    FOpenPocketBaseClientConfig CoreConfig = InCoreConfig;
-    CoreConfig.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
-    CoreConfig.bEnableAssistedOAuth = false;
-    FOpenPocketBaseClientDependencies Dependencies;
-    Dependencies.Transport = Transport;
+    const TSharedPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> InjectedTransport =
+        Dependencies.Transport;
     FOpenPocketBaseClientResult CoreResult =
         FOpenPocketBaseClient::Create(CoreConfig, MoveTemp(Dependencies));
     if (!CoreResult.IsSuccess())
     {
-        OutError = CoreResult.GetError();
-        return nullptr;
+        return FOpenPocketBaseAdminClientResult::Failure(CoreResult.GetError());
     }
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Core =
         CoreResult.TakeValue();
-    OutError = {};
-    return MakeShareable(new FOpenPocketBaseAdminClient(
-        MoveTemp(CoreConfig), InPolicy, MoveTemp(Core), Transport));
+    FOpenPocketBaseAdminClientRef Client = MakeShareable(new FOpenPocketBaseAdminClient(
+        MoveTemp(CoreConfig), InPolicy, MoveTemp(Core), InjectedTransport)).ToSharedRef();
+    return FOpenPocketBaseAdminClientResult::Success(MoveTemp(Client));
 }
 
 bool FOpenPocketBaseAdminClient::IsAuthenticated() const

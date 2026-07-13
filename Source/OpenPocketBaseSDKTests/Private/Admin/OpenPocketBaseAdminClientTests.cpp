@@ -622,17 +622,16 @@ bool FOpenPocketBaseAdminClientTest::RunTest(const FString& Parameters)
     Policy.bAllowBackupRestore = true;
     Policy.bAllowImpersonation = true;
     Policy.MaxBackupBytes = 1024 * 1024;
-    FOpenPocketBaseError Error;
-    State->Client = FOpenPocketBaseAdminClient::Create(
-        CoreConfig,
-        Policy,
-        State->Transport.ToSharedRef(),
-        Error);
-    if (!TestTrue(TEXT("The privileged client is created"), State->Client.IsValid()))
+    FOpenPocketBaseClientDependencies Dependencies;
+    Dependencies.Transport = State->Transport;
+    FOpenPocketBaseAdminClientResult ClientResult =
+        FOpenPocketBaseAdminClient::Create(CoreConfig, Policy, MoveTemp(Dependencies));
+    if (!TestTrue(TEXT("The privileged client is created"), ClientResult.IsSuccess()))
     {
-        AddError(Error.ServerMessage);
+        AddError(ClientResult.GetError().ServerMessage);
         return false;
     }
+    State->Client = ClientResult.TakeValue();
 
     const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Flow =
         MakeShared<FAdminFlow, ESPMode::ThreadSafe>(State);

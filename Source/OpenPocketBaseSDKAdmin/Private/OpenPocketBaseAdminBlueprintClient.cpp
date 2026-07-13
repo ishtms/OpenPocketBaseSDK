@@ -18,15 +18,17 @@ UOpenPocketBaseAdminClient* UOpenPocketBaseAdminClient::Create(
     const FOpenPocketBaseAdminPolicy& Policy,
     FOpenPocketBaseError& OutError)
 {
-    TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native =
-        FOpenPocketBaseAdminClient::Create(CoreConfig, Policy, OutError);
-    if (!Native.IsValid())
+    FOpenPocketBaseAdminClientResult Result =
+        FOpenPocketBaseAdminClient::Create(CoreConfig, Policy);
+    if (!Result.IsSuccess())
     {
+        OutError = Result.GetError();
         return nullptr;
     }
     UOpenPocketBaseAdminClient* Wrapper = NewObject<UOpenPocketBaseAdminClient>(
         Outer != nullptr ? Outer : GetTransientPackage());
-    Wrapper->NativeClient = MoveTemp(Native);
+    Wrapper->NativeClient = Result.TakeValue();
+    OutError = {};
     return Wrapper;
 }
 
@@ -37,19 +39,19 @@ UOpenPocketBaseAdminClient* UOpenPocketBaseAdminClient::Create(
     TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
     FOpenPocketBaseError& OutError)
 {
-    TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native =
-        FOpenPocketBaseAdminClient::Create(
-            CoreConfig,
-            Policy,
-            MoveTemp(Transport),
-            OutError);
-    if (!Native.IsValid())
+    FOpenPocketBaseClientDependencies Dependencies;
+    Dependencies.Transport = MoveTemp(Transport);
+    FOpenPocketBaseAdminClientResult Result =
+        FOpenPocketBaseAdminClient::Create(CoreConfig, Policy, MoveTemp(Dependencies));
+    if (!Result.IsSuccess())
     {
+        OutError = Result.GetError();
         return nullptr;
     }
     UOpenPocketBaseAdminClient* Wrapper = NewObject<UOpenPocketBaseAdminClient>(
         Outer != nullptr ? Outer : GetTransientPackage());
-    Wrapper->NativeClient = MoveTemp(Native);
+    Wrapper->NativeClient = Result.TakeValue();
+    OutError = {};
     return Wrapper;
 }
 

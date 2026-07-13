@@ -26,6 +26,12 @@ struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminImpersonationResult
     FOpenPocketBaseRecord Record;
 };
 
+class FOpenPocketBaseAdminClient;
+using FOpenPocketBaseAdminClientRef =
+    TSharedRef<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>;
+using FOpenPocketBaseAdminClientResult =
+    TOpenPocketBaseResult<FOpenPocketBaseAdminClientRef>;
+
 using FOpenPocketBaseAdminIdentityCallback =
     TUniqueFunction<void(TOpenPocketBaseResult<FOpenPocketBaseAdminIdentity>&&)>;
 using FOpenPocketBaseAdminDocumentCallback =
@@ -47,16 +53,10 @@ class OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminClient final
     : public TSharedFromThis<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>
 {
 public:
-    static TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Create(
+    static FOpenPocketBaseAdminClientResult Create(
         const FOpenPocketBaseClientConfig& CoreConfig,
         const FOpenPocketBaseAdminPolicy& Policy,
-        FOpenPocketBaseError& OutError);
-
-    static TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Create(
-        const FOpenPocketBaseClientConfig& CoreConfig,
-        const FOpenPocketBaseAdminPolicy& Policy,
-        TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> Transport,
-        FOpenPocketBaseError& OutError);
+        FOpenPocketBaseClientDependencies Dependencies = {});
 
     FOpenPocketBaseAdminRequestHandle AuthenticateSuperuser(
         FString Email,
