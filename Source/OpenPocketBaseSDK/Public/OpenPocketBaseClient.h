@@ -25,6 +25,10 @@ using FOpenPocketBaseClientRef =
     TSharedRef<FOpenPocketBaseClient, ESPMode::ThreadSafe>;
 using FOpenPocketBaseClientResult =
     TOpenPocketBaseResult<FOpenPocketBaseClientRef>;
+using FOpenPocketBaseFileUrlResult =
+    TOpenPocketBaseResult<FString>;
+using FOpenPocketBaseSubscriptionResult =
+    TOpenPocketBaseResult<FOpenPocketBaseSubscriptionHandle>;
 
 struct OPENPOCKETBASESDK_API FOpenPocketBaseClientDependencies
 {
@@ -75,13 +79,11 @@ using FOpenPocketBaseFileDownloadCallback =
 class OPENPOCKETBASESDK_API FOpenPocketBaseFileService
 {
 public:
-    bool TryBuildUrl(
+    FOpenPocketBaseFileUrlResult BuildUrl(
         FString Collection,
         FString RecordId,
         FString FileName,
-        FOpenPocketBaseFileUrlOptions Options,
-        FString& OutUrl,
-        FOpenPocketBaseError& OutError) const;
+        FOpenPocketBaseFileUrlOptions Options = {}) const;
 
     FOpenPocketBaseRequestHandle GetToken(
         FOpenPocketBaseFileTokenCallback OnComplete,
@@ -239,16 +241,14 @@ public:
         FOpenPocketBaseBoolCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
 
-    FOpenPocketBaseSubscriptionHandle SubscribeToRecords(
+    FOpenPocketBaseSubscriptionResult SubscribeToRecords(
         FOpenPocketBaseRealtimeCallbacks Callbacks,
-        FOpenPocketBaseRealtimeOptions Options,
-        FOpenPocketBaseError& OutError) const;
+        FOpenPocketBaseRealtimeOptions Options = {}) const;
 
-    FOpenPocketBaseSubscriptionHandle SubscribeToRecord(
+    FOpenPocketBaseSubscriptionResult SubscribeToRecord(
         FString RecordId,
         FOpenPocketBaseRealtimeCallbacks Callbacks,
-        FOpenPocketBaseRealtimeOptions Options,
-        FOpenPocketBaseError& OutError) const;
+        FOpenPocketBaseRealtimeOptions Options = {}) const;
 
     bool IsValid() const;
 
@@ -317,11 +317,10 @@ public:
         FOpenPocketBaseBatchRequest Batch,
         FOpenPocketBaseBatchCallback OnComplete,
         FOpenPocketBaseBatchOptions Options = {});
-    FOpenPocketBaseSubscriptionHandle Subscribe(
+    FOpenPocketBaseSubscriptionResult Subscribe(
         FString Topic,
         FOpenPocketBaseRealtimeCallbacks Callbacks,
-        FOpenPocketBaseRealtimeOptions Options,
-        FOpenPocketBaseError& OutError);
+        FOpenPocketBaseRealtimeOptions Options = {});
     void UnsubscribeTopic(const FString& Topic);
     void UnsubscribeAllRealtime();
     bool IsShutdown() const;

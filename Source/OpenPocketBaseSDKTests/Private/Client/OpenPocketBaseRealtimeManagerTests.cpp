@@ -420,9 +420,14 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
     Options.Fields = {TEXT("id"), TEXT("title")};
     Options.QueryParameters.Add(TEXT("locale"), TEXT("en-GB"));
     Options.Headers.Add(TEXT("X-Tenant"), TEXT("game-one"));
-    FOpenPocketBaseSubscriptionHandle Handle = Client->Collection(TEXT("sdk_tasks"))
-        .SubscribeToRecords({}, Options, Error);
-    TestTrue(TEXT("Approved options are accepted"), Handle.IsActive());
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Collection(TEXT("sdk_tasks"))
+        .SubscribeToRecords({}, Options);
+    TestTrue(TEXT("Approved options are accepted"), SubscriptionResult.IsSuccess());
+    if (!SubscriptionResult.IsSuccess())
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle Handle = SubscriptionResult.TakeValue();
     Transport->EmitConnect(0, TEXT("options-client"));
 
     const TSet<FString> Posted = Transport->GetPostedSubscriptions(0);

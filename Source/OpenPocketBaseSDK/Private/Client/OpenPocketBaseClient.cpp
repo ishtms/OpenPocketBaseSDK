@@ -4355,31 +4355,41 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
         });
 }
 
-FOpenPocketBaseSubscriptionHandle FOpenPocketBaseClient::Subscribe(
+FOpenPocketBaseSubscriptionResult FOpenPocketBaseClient::Subscribe(
     FString Topic,
     FOpenPocketBaseRealtimeCallbacks Callbacks,
-    FOpenPocketBaseRealtimeOptions Options,
-    FOpenPocketBaseError& OutError)
+    FOpenPocketBaseRealtimeOptions Options)
 {
     if (IsShutdown() || !Impl->Realtime.IsValid())
     {
-        OutError = MakeLocalError(
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::Cancelled,
-            TEXT("The client has shut down."));
-        return {};
+            TEXT("The client has shut down.")));
     }
     const FOpenPocketBaseCapabilityInfo Streaming =
         GetCapability(EOpenPocketBaseCapability::HttpStreaming);
     if (!Streaming.IsSupported())
     {
-        OutError = MakeLocalError(EOpenPocketBaseErrorKind::Unsupported, *Streaming.Reason);
-        return {};
+        return FOpenPocketBaseSubscriptionResult::Failure(
+            MakeLocalError(EOpenPocketBaseErrorKind::Unsupported, *Streaming.Reason));
     }
-    return Impl->Realtime->Subscribe(
+    FOpenPocketBaseError Error;
+    FOpenPocketBaseSubscriptionHandle Subscription = Impl->Realtime->Subscribe(
         MoveTemp(Topic),
         MoveTemp(Callbacks),
         MoveTemp(Options),
-        OutError);
+        Error);
+    if (!Subscription.IsActive())
+    {
+        if (!Error.IsSet())
+        {
+            Error = MakeLocalError(
+                EOpenPocketBaseErrorKind::Transport,
+                TEXT("The realtime subscription could not be started."));
+        }
+        return FOpenPocketBaseSubscriptionResult::Failure(MoveTemp(Error));
+    }
+    return FOpenPocketBaseSubscriptionResult::Success(MoveTemp(Subscription));
 }
 
 void FOpenPocketBaseClient::UnsubscribeTopic(const FString& Topic)
@@ -4422,24 +4432,20 @@ bool FOpenPocketBaseFileService::IsValid() const
     return Client.IsValid();
 }
 
-bool FOpenPocketBaseFileService::TryBuildUrl(
+FOpenPocketBaseFileUrlResult FOpenPocketBaseFileService::BuildUrl(
     FString InCollection,
     FString RecordId,
     FString FileName,
-    FOpenPocketBaseFileUrlOptions Options,
-    FString& OutUrl,
-    FOpenPocketBaseError& OutError) const
+    FOpenPocketBaseFileUrlOptions Options) const
 {
-    OutUrl.Reset();
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
         !IsSafePathSegment(InCollection) || !IsSafePathSegment(RecordId) ||
         !IsSafePathSegment(FileName))
     {
-        OutError = MakeLocalError(
+        return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client and safe collection, record ID, and filename are required."));
-        return false;
+            TEXT("A ready client and safe collection, record ID, and filename are required.")));
     }
 
     FString Thumbnail;
@@ -4449,10 +4455,9 @@ bool FOpenPocketBaseFileService::TryBuildUrl(
         (Options.Thumbnail.Mode == EOpenPocketBaseThumbnailMode::None && bHasThumbnailSize) ||
         (Options.Thumbnail.Mode != EOpenPocketBaseThumbnailMode::None && !bHasThumbnailSize))
     {
-        OutError = MakeLocalError(
+        return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Thumbnail dimensions and crop mode are invalid."));
-        return false;
+            TEXT("Thumbnail dimensions and crop mode are invalid.")));
     }
 
     if (Options.Thumbnail.Mode != EOpenPocketBaseThumbnailMode::None)
@@ -4490,9 +4495,8 @@ bool FOpenPocketBaseFileService::TryBuildUrl(
         *EncodeSegment(InCollection),
         *EncodeSegment(RecordId),
         *EncodeSegment(FileName));
-    OutUrl = PinnedClient->GetBaseUrl() + AddQuery(MoveTemp(Path), FString::Join(QueryParts, TEXT("&")));
-    OutError = FOpenPocketBaseError();
-    return true;
+    return FOpenPocketBaseFileUrlResult::Success(
+        PinnedClient->GetBaseUrl() + AddQuery(MoveTemp(Path), FString::Join(QueryParts, TEXT("&"))));
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::GetToken(
@@ -4621,19 +4625,19 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
         return {};
     }
 
-    FString Url;
-    FOpenPocketBaseError UrlError;
-    if (!TryBuildUrl(
-            InCollection,
-            RecordId,
-            FileName,
-            Options.UrlOptions,
-            Url,
-            UrlError))
+    FOpenPocketBaseFileUrlResult UrlResult = BuildUrl(
+        InCollection,
+        RecordId,
+        FileName,
+        Options.UrlOptions);
+    if (!UrlResult.IsSuccess())
     {
-        DispatchFailure<FOpenPocketBaseFileDownloadResult>(MoveTemp(OnComplete), MoveTemp(UrlError));
+        DispatchFailure<FOpenPocketBaseFileDownloadResult>(
+            MoveTemp(OnComplete),
+            UrlResult.GetError());
         return {};
     }
+    FString Url = UrlResult.TakeValue();
 
     FString ProtectedToken;
     if (Token.IsSet())
@@ -6463,44 +6467,38 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UnlinkExternalAut
     return Handle;
 }
 
-FOpenPocketBaseSubscriptionHandle FOpenPocketBaseCollectionService::SubscribeToRecords(
+FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToRecords(
     FOpenPocketBaseRealtimeCallbacks Callbacks,
-    FOpenPocketBaseRealtimeOptions Options,
-    FOpenPocketBaseError& OutError) const
+    FOpenPocketBaseRealtimeOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection))
     {
-        OutError = MakeLocalError(
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client and valid collection are required."));
-        return {};
+            TEXT("A ready client and valid collection are required.")));
     }
     return PinnedClient->Subscribe(
         Collection + TEXT("/*"),
         MoveTemp(Callbacks),
-        MoveTemp(Options),
-        OutError);
+        MoveTemp(Options));
 }
 
-FOpenPocketBaseSubscriptionHandle FOpenPocketBaseCollectionService::SubscribeToRecord(
+FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToRecord(
     FString RecordId,
     FOpenPocketBaseRealtimeCallbacks Callbacks,
-    FOpenPocketBaseRealtimeOptions Options,
-    FOpenPocketBaseError& OutError) const
+    FOpenPocketBaseRealtimeOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
         !IsSafePathSegment(RecordId))
     {
-        OutError = MakeLocalError(
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client, valid collection, and valid record ID are required."));
-        return {};
+            TEXT("A ready client, valid collection, and valid record ID are required.")));
     }
     return PinnedClient->Subscribe(
         Collection + TEXT("/") + MoveTemp(RecordId),
         MoveTemp(Callbacks),
-        MoveTemp(Options),
-        OutError);
+        MoveTemp(Options));
 }

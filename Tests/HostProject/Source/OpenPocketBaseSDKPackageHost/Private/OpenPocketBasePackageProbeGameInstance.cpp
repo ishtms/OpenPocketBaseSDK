@@ -485,13 +485,14 @@ void UOpenPocketBasePackageProbeGameInstance::BeginRealtimeManagerProbe()
         }
     };
 
-    FOpenPocketBaseError Error;
-    RealtimeSubscription = Client->Collection(TEXT("sdk_tasks")).SubscribeToRecords(
-        MoveTemp(Callbacks), {}, Error);
-    if (!RealtimeSubscription.IsActive())
+    FOpenPocketBaseSubscriptionResult SubscriptionResult =
+        Client->Collection(TEXT("sdk_tasks")).SubscribeToRecords(MoveTemp(Callbacks));
+    if (!SubscriptionResult.IsSuccess())
     {
-        FinishRealtimeManagerProbe(false, Error);
+        FinishRealtimeManagerProbe(false, SubscriptionResult.GetError());
+        return;
     }
+    RealtimeSubscription = SubscriptionResult.TakeValue();
 }
 
 void UOpenPocketBasePackageProbeGameInstance::DeleteRealtimeManagerRecord()

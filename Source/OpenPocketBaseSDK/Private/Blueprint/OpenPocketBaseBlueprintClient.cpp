@@ -154,6 +154,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
     const FOpenPocketBaseRealtimeOptions& Options,
     FOpenPocketBaseError& OutError)
 {
+    OutError = {};
     if (!IsReady())
     {
         OutError = FOpenPocketBaseError();
@@ -163,12 +164,14 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionHandle Handle = NativeClient->Collection(MoveTemp(Collection))
-        .SubscribeToRecords(MakeRealtimeCallbacks(Subscription), Options, OutError);
-    if (!Handle.IsActive())
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->Collection(MoveTemp(Collection))
+        .SubscribeToRecords(MakeRealtimeCallbacks(Subscription), Options);
+    if (!Result.IsSuccess())
     {
+        OutError = Result.GetError();
         return nullptr;
     }
+    FOpenPocketBaseSubscriptionHandle Handle = Result.TakeValue();
     Subscription->Initialize(this, MoveTemp(Handle));
     RetainSubscription(Subscription);
     return Subscription;
@@ -180,6 +183,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
     const FOpenPocketBaseRealtimeOptions& Options,
     FOpenPocketBaseError& OutError)
 {
+    OutError = {};
     if (!IsReady())
     {
         OutError = FOpenPocketBaseError();
@@ -189,16 +193,17 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionHandle Handle = NativeClient->Collection(MoveTemp(Collection))
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->Collection(MoveTemp(Collection))
         .SubscribeToRecord(
             MoveTemp(RecordId),
             MakeRealtimeCallbacks(Subscription),
-            Options,
-            OutError);
-    if (!Handle.IsActive())
+            Options);
+    if (!Result.IsSuccess())
     {
+        OutError = Result.GetError();
         return nullptr;
     }
+    FOpenPocketBaseSubscriptionHandle Handle = Result.TakeValue();
     Subscription->Initialize(this, MoveTemp(Handle));
     RetainSubscription(Subscription);
     return Subscription;
@@ -209,6 +214,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToTopic(
     const FOpenPocketBaseRealtimeOptions& Options,
     FOpenPocketBaseError& OutError)
 {
+    OutError = {};
     if (!IsReady())
     {
         OutError = FOpenPocketBaseError();
@@ -218,15 +224,16 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToTopic(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionHandle Handle = NativeClient->Subscribe(
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->Subscribe(
         MoveTemp(Topic),
         MakeRealtimeCallbacks(Subscription),
-        Options,
-        OutError);
-    if (!Handle.IsActive())
+        Options);
+    if (!Result.IsSuccess())
     {
+        OutError = Result.GetError();
         return nullptr;
     }
+    FOpenPocketBaseSubscriptionHandle Handle = Result.TakeValue();
     Subscription->Initialize(this, MoveTemp(Handle));
     RetainSubscription(Subscription);
     return Subscription;

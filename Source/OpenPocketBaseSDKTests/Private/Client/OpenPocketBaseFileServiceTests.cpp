@@ -190,16 +190,17 @@ bool FOpenPocketBaseFileUrlTest::RunTest(const FString& Parameters)
     Options.Thumbnail.Height = 50;
     Options.Thumbnail.Mode = EOpenPocketBaseThumbnailMode::CropTop;
     Options.bForceDownload = true;
-    FString Url;
-    TestTrue(
-        TEXT("A valid record file URL is built"),
-        Client->Files().TryBuildUrl(
-            TEXT("tasks id"),
-            TEXT("record-1"),
-            TEXT("report final.png"),
-            Options,
-            Url,
-            Error));
+    FOpenPocketBaseFileUrlResult UrlResult = Client->Files().BuildUrl(
+        TEXT("tasks id"),
+        TEXT("record-1"),
+        TEXT("report final.png"),
+        Options);
+    TestTrue(TEXT("A valid record file URL is built"), UrlResult.IsSuccess());
+    if (!UrlResult.IsSuccess())
+    {
+        return false;
+    }
+    const FString Url = UrlResult.TakeValue();
     TestEqual(
         TEXT("Every path and query value is encoded"),
         Url,
@@ -207,13 +208,16 @@ bool FOpenPocketBaseFileUrlTest::RunTest(const FString& Parameters)
 
     Options.Thumbnail.Width = 0;
     Options.Thumbnail.Height = 0;
-    TestFalse(
-        TEXT("A thumbnail cannot have two zero dimensions"),
-        Client->Files().TryBuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("image.png"), Options, Url, Error));
-    TestEqual(TEXT("Invalid thumbnails use InvalidArgument"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
-    TestFalse(
-        TEXT("Traversal-like filenames are rejected"),
-        Client->Files().TryBuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("../image.png"), {}, Url, Error));
+    const FOpenPocketBaseFileUrlResult InvalidThumbnail =
+        Client->Files().BuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("image.png"), Options);
+    TestFalse(TEXT("A thumbnail cannot have two zero dimensions"), InvalidThumbnail.IsSuccess());
+    TestEqual(
+        TEXT("Invalid thumbnails use InvalidArgument"),
+        InvalidThumbnail.GetError().Kind,
+        EOpenPocketBaseErrorKind::InvalidArgument);
+    const FOpenPocketBaseFileUrlResult InvalidFile =
+        Client->Files().BuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("../image.png"));
+    TestFalse(TEXT("Traversal-like filenames are rejected"), InvalidFile.IsSuccess());
 
     Client->Shutdown();
     return true;

@@ -1267,17 +1267,19 @@ bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
                     TEXT("Realtime stream"),
                     RealtimeError));
             };
-            FOpenPocketBaseError SubscribeError;
-            State->Subscription = State->Client->Collection(TEXT("sdk_tasks"))
-                .SubscribeToRecords(MoveTemp(Callbacks), {}, SubscribeError);
-            if (SubscribeError.IsSet())
+            FOpenPocketBaseSubscriptionResult SubscriptionResult =
+                State->Client->Collection(TEXT("sdk_tasks"))
+                    .SubscribeToRecords(MoveTemp(Callbacks));
+            if (!SubscriptionResult.IsSuccess())
             {
                 State->Errors.Add(DescribeIntegrationError(
                     TEXT("Realtime subscribe"),
-                    SubscribeError));
+                    SubscriptionResult.GetError()));
                 State->bCreateCompleted = true;
                 State->bDeleteCompleted = true;
+                return;
             }
+            State->Subscription = SubscriptionResult.TakeValue();
         });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedRealtime(State, this));
@@ -1475,17 +1477,19 @@ bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
             {
                 ++State->ResyncCount;
             };
-            FOpenPocketBaseError SubscribeError;
-            State->Subscription = State->Client->Collection(TEXT("sdk_tasks"))
-                .SubscribeToRecords(MoveTemp(Callbacks), {}, SubscribeError);
-            if (SubscribeError.IsSet())
+            FOpenPocketBaseSubscriptionResult SubscriptionResult =
+                State->Client->Collection(TEXT("sdk_tasks"))
+                    .SubscribeToRecords(MoveTemp(Callbacks));
+            if (!SubscriptionResult.IsSuccess())
             {
                 State->Errors.Add(DescribeIntegrationError(
                     TEXT("Realtime chaos subscribe"),
-                    SubscribeError));
+                    SubscriptionResult.GetError()));
                 State->bCreateCompleted = true;
                 State->bDeleteCompleted = true;
+                return;
             }
+            State->Subscription = SubscriptionResult.TakeValue();
         });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedRealtimeChaos(State, this));

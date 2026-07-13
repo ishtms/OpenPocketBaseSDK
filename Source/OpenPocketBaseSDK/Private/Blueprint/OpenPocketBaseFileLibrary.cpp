@@ -19,11 +19,18 @@ bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
         return false;
     }
 
-    return NativeClient->Files().TryBuildUrl(
+    FOpenPocketBaseFileUrlResult Result = NativeClient->Files().BuildUrl(
         MoveTemp(Collection.Name),
         MoveTemp(RecordId),
         MoveTemp(FileName),
-        MoveTemp(Options),
-        Url,
-        Error);
+        MoveTemp(Options));
+    if (!Result.IsSuccess())
+    {
+        Url.Reset();
+        Error = Result.GetError();
+        return false;
+    }
+    Url = Result.TakeValue();
+    Error = {};
+    return true;
 }
