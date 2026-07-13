@@ -281,7 +281,7 @@ bool FOpenPocketBaseAuthRecordSyncTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& LoginResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
         {
             if (!LoginResult.IsSuccess())
             {
@@ -351,7 +351,7 @@ bool FOpenPocketBaseAuthRecordPersistenceFailureTest::RunTest(const FString& Par
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& LoginResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
         {
             if (!LoginResult.IsSuccess())
             {
@@ -429,7 +429,7 @@ bool FOpenPocketBaseAuthRecordRefreshRaceTest::RunTest(const FString& Parameters
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& LoginResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
         {
             if (!LoginResult.IsSuccess())
             {
@@ -501,7 +501,7 @@ bool FOpenPocketBaseAuthRecordDeleteTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& LoginResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
         {
             if (!LoginResult.IsSuccess())
             {
@@ -562,7 +562,7 @@ bool FOpenPocketBaseBatchAuthRecordSyncTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& LoginResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
         {
             if (!LoginResult.IsSuccess())
             {

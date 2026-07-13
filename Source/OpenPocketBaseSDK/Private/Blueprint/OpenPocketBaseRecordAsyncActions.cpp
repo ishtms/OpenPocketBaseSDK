@@ -1136,7 +1136,7 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseOtpAuthAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).AuthenticateWithOtp(
+    RequestHandle = NativeClient->Collection(AuthCollection).AuthWithOtp(
         MoveTemp(OtpId),
         MoveTemp(Password),
         MoveTemp(Mfa),
@@ -1379,7 +1379,7 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseAssistedOAuth2AsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).AuthenticateWithOAuth2(
+    RequestHandle = NativeClient->Collection(AuthCollection).AuthWithOAuth2(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -1755,7 +1755,7 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBasePasswordAuthAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).AuthenticateWithPassword(
+    RequestHandle = NativeClient->Collection(AuthCollection).AuthWithPassword(
         MoveTemp(Identity),
         MoveTemp(Password),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)

@@ -293,7 +293,7 @@ bool FOpenPocketBaseMutationRetryPolicyTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             State->bSucceeded = Result.IsSuccess();
             if (!Result.IsSuccess())
@@ -514,14 +514,14 @@ bool FOpenPocketBaseMutationRequestKeyPolicyTest::RunTest(const FString& Paramet
     const FOpenPocketBaseRequestHandle First = Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("first@example.com"),
         TEXT("private-password"),
-        [](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
         },
         Options);
     const FOpenPocketBaseRequestHandle Second = Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("second@example.com"),
         TEXT("private-password"),
-        [](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
         },
         Options);

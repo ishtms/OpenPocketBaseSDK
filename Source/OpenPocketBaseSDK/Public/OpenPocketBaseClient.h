@@ -161,12 +161,6 @@ public:
         FOpenPocketBaseBoolCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
 
-    FOpenPocketBaseRequestHandle AuthWithPassword(
-        FString Identity,
-        FString Password,
-        FOpenPocketBaseAuthCallback OnComplete,
-        FOpenPocketBaseRequestOptions Options = {}) const;
-
     FOpenPocketBaseRequestHandle ListAuthMethods(
         FOpenPocketBaseAuthMethodsCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
@@ -176,13 +170,13 @@ public:
         FOpenPocketBaseOtpRequestCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
 
-    FOpenPocketBaseRequestHandle AuthenticateWithPassword(
+    FOpenPocketBaseRequestHandle AuthWithPassword(
         FString Identity,
         FString Password,
         FOpenPocketBaseAuthAttemptCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {}) const;
 
-    FOpenPocketBaseRequestHandle AuthenticateWithOtp(
+    FOpenPocketBaseRequestHandle AuthWithOtp(
         FString OtpId,
         FString Password,
         FOpenPocketBaseMfaContinuation Mfa,
@@ -197,7 +191,7 @@ public:
         FOpenPocketBaseOAuth2Callback Callback,
         FOpenPocketBaseAuthAttemptCallback OnComplete) const;
 
-    FOpenPocketBaseRequestHandle AuthenticateWithOAuth2(
+    FOpenPocketBaseRequestHandle AuthWithOAuth2(
         FOpenPocketBaseAssistedOAuth2Options Options,
         FOpenPocketBaseAuthAttemptCallback OnComplete) const;
 

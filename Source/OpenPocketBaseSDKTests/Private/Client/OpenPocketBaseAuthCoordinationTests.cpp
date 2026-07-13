@@ -278,7 +278,7 @@ bool FOpenPocketBaseProactiveSingleFlightTest::RunTest(const FString& Parameters
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             if (!Result.IsSuccess())
             {
@@ -363,7 +363,7 @@ bool FOpenPocketBaseReadAuthReplayTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& LoginResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
         {
             if (!LoginResult.IsSuccess())
             {
@@ -427,7 +427,7 @@ bool FOpenPocketBaseMutationNoAuthReplayTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& LoginResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
         {
             if (!LoginResult.IsSuccess())
             {

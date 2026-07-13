@@ -216,7 +216,7 @@ bool FOpenPocketBaseSessionLifecycleTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             if (Result.IsSuccess())
             {
@@ -276,7 +276,7 @@ bool FOpenPocketBaseSingleFlightRefreshTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             if (!Result.IsSuccess())
             {
@@ -352,7 +352,7 @@ bool FOpenPocketBaseRefreshLogoutRaceTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             if (!Result.IsSuccess())
             {
@@ -433,7 +433,7 @@ bool FOpenPocketBaseRefreshUserSwitchRaceTest::RunTest(const FString& Parameters
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("first@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             if (!Result.IsSuccess())
             {
@@ -454,7 +454,7 @@ bool FOpenPocketBaseRefreshUserSwitchRaceTest::RunTest(const FString& Parameters
             State->Client->Collection(TEXT("users")).AuthWithPassword(
                 TEXT("second@example.com"),
                 TEXT("private-password"),
-                [](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& SecondResult) {});
+                [](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& SecondResult) {});
             State->Transport->CompleteNextHeld();
         });
 

@@ -318,12 +318,12 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             State->bAuthSucceeded = Result.IsSuccess();
             if (Result.IsSuccess())
             {
-                State->AuthRecordId = Result.GetValue().Record.Id;
+                State->AuthRecordId = Result.GetValue().Authentication.Record.Id;
                 CreateIntegrationRecord(State);
                 RunSuccessfulIntegrationBatch(State);
                 State->Client->RefreshAuth(
@@ -555,7 +555,7 @@ public:
         State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
             TEXT("player@example.com"),
             TEXT("correct-horse-battery"),
-            [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
             {
                 if (!Result.IsSuccess())
                 {
@@ -1034,7 +1034,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
         {
             if (!AuthResult.IsSuccess())
             {
@@ -1230,7 +1230,7 @@ bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
         {
             if (!AuthResult.IsSuccess())
             {
@@ -1422,7 +1422,7 @@ bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
         {
             if (!AuthResult.IsSuccess())
             {

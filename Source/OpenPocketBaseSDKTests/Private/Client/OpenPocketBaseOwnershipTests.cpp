@@ -121,14 +121,14 @@ bool FOpenPocketBaseNativeOwnershipIsolationTest::RunTest(const FString& Paramet
     State->FirstClient->Collection(TEXT("users")).AuthWithPassword(
         TEXT("first@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             ++State->CompletionCount;
         });
     State->SecondClient->Collection(TEXT("users")).AuthWithPassword(
         TEXT("second@example.com"),
         TEXT("private-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             ++State->CompletionCount;
         });

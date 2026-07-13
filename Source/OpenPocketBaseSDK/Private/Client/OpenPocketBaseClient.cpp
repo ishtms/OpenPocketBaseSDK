@@ -5436,42 +5436,6 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Delete(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
-    FString Identity,
-    FString Password,
-    FOpenPocketBaseAuthCallback OnComplete,
-    FOpenPocketBaseRequestOptions Options) const
-{
-    return AuthenticateWithPassword(
-        MoveTemp(Identity),
-        MoveTemp(Password),
-        [OnComplete = MoveTemp(OnComplete)](
-            TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Attempt) mutable
-        {
-            if (!OnComplete)
-            {
-                return;
-            }
-            if (!Attempt.IsSuccess())
-            {
-                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
-                    Attempt.GetError()));
-                return;
-            }
-            if (Attempt.GetValue().Status == EOpenPocketBaseAuthAttemptStatus::MfaRequired)
-            {
-                OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
-                    MakeLocalError(
-                        EOpenPocketBaseErrorKind::Authentication,
-                        TEXT("Multi-factor authentication is required; use the MFA-aware authentication operation."))));
-                return;
-            }
-            OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Success(
-                MoveTemp(Attempt.GetValue().Authentication)));
-        },
-        MoveTemp(Options));
-}
-
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListAuthMethods(
     FOpenPocketBaseAuthMethodsCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
@@ -5577,7 +5541,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestOtp(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithPassword(
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
     FString Identity,
     FString Password,
     FOpenPocketBaseAuthAttemptCallback OnComplete,
@@ -5659,7 +5623,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithP
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithOtp(
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithOtp(
     FString OtpId,
     FString Password,
     FOpenPocketBaseMfaContinuation Mfa,
@@ -5979,7 +5943,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CompleteOAuth2(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthenticateWithOAuth2(
+FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithOAuth2(
     FOpenPocketBaseAssistedOAuth2Options Options,
     FOpenPocketBaseAuthAttemptCallback OnComplete) const
 {

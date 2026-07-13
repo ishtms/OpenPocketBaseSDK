@@ -165,7 +165,7 @@ bool FOpenPocketBaseRemainingAuthTest::RunTest(const FString& Parameters)
     const FOpenPocketBaseCollectionService Auth = State->Client->Collection(TEXT("sdk_users"));
     FOpenPocketBaseMfaContinuation OversizedContinuation;
     OversizedContinuation.Id = FString::ChrN(257, TEXT('x'));
-    Auth.AuthenticateWithOtp(
+    Auth.AuthWithOtp(
         TEXT("otp00000000001"),
         TEXT("123456"),
         MoveTemp(OversizedContinuation),
@@ -182,7 +182,7 @@ bool FOpenPocketBaseRemainingAuthTest::RunTest(const FString& Parameters)
             State->bMethodsTyped = Methods.IsSuccess() && Methods.GetValue().Mfa.bEnabled &&
                 Methods.GetValue().Otp.bEnabled && Methods.GetValue().Password.bEnabled &&
                 Methods.GetValue().OAuth2.Providers.Num() == 1;
-            Auth.AuthenticateWithPassword(
+            Auth.AuthWithPassword(
                 TEXT("player@example.com"),
                 TEXT("correct-horse-battery"),
                 [State, Auth](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Password) mutable
@@ -208,7 +208,7 @@ bool FOpenPocketBaseRemainingAuthTest::RunTest(const FString& Parameters)
                             State->OtpId = Otp.GetValue().OtpId;
                             FOpenPocketBaseMfaContinuation Continuation;
                             Continuation.Id = State->MfaId;
-                            Auth.AuthenticateWithOtp(
+                            Auth.AuthWithOtp(
                                 State->OtpId,
                                 TEXT("123456"),
                                 Continuation,

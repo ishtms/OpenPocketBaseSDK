@@ -208,7 +208,7 @@ bool FOpenPocketBasePasswordAuthTest::RunTest(const FString& Parameters)
     State->Client->Collection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("secret-password"),
-        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result)
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             State->bSucceeded = Result.IsSuccess();
             State->bCompleted = true;

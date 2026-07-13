@@ -190,7 +190,7 @@ public:
     void Start()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).AuthenticateWithPassword(
+        State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
             TEXT("player@example.com"),
             TEXT("correct-horse-battery"),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -617,7 +617,7 @@ bool FOpenPocketBaseAccountVerificationPersistenceTest::RunTest(const FString& P
         return false;
     }
 
-    State->Client->Collection(TEXT("sdk_users")).AuthenticateWithPassword(
+    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)

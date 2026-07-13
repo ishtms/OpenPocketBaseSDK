@@ -232,7 +232,7 @@ void UOpenPocketBasePackageProbeGameInstance::BeginTransferProbe()
     Request = Client->Collection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
-        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& AuthResult)
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
         {
             if (!WeakThis.IsValid())
             {
