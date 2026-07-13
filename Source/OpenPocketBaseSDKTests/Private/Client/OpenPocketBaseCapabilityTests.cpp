@@ -159,14 +159,14 @@ bool FOpenPocketBaseRealtimeCapabilityGateTest::RunTest(const FString& Parameter
     TestEqual(TEXT("The transport reports streaming as unsupported"),
         Streaming.Status, EOpenPocketBaseCapabilityStatus::Unsupported);
 
-    FOpenPocketBaseSubscriptionHandle Handle = Client->Subscribe(
-        TEXT("messages/*"), {}, {}, Error);
-    TestFalse(TEXT("Realtime is rejected before opening a stream"), Handle.IsActive());
+    const FOpenPocketBaseSubscriptionResult SubscriptionResult =
+        Client->Subscribe(TEXT("messages/*"));
+    TestFalse(TEXT("Realtime is rejected before opening a stream"), SubscriptionResult.IsSuccess());
     TestEqual(TEXT("The rejection uses the stable unsupported error"),
-        Error.Kind, EOpenPocketBaseErrorKind::Unsupported);
+        SubscriptionResult.GetError().Kind, EOpenPocketBaseErrorKind::Unsupported);
     TestEqual(TEXT("The unsupported transport receives no request"), Transport->RequestCount, 0);
     TestTrue(TEXT("The public error carries the sanitized capability reason"),
-        Error.ServerMessage.Contains(TEXT("cannot stream")));
+        SubscriptionResult.GetError().ServerMessage.Contains(TEXT("cannot stream")));
 
     const FOpenPocketBaseCapabilityInfo SecurePersistence =
         Client->GetCapability(EOpenPocketBaseCapability::SecurePersistence);

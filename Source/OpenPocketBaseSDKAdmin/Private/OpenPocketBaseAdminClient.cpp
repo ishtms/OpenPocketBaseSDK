@@ -689,9 +689,10 @@ FOpenPocketBaseAdminClient::Create(
     }
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Core =
         CoreResult.TakeValue();
-    FOpenPocketBaseAdminClientRef Client = MakeShareable(new FOpenPocketBaseAdminClient(
-        MoveTemp(CoreConfig), InPolicy, MoveTemp(Core), InjectedTransport)).ToSharedRef();
-    return FOpenPocketBaseAdminClientResult::Success(MoveTemp(Client));
+    TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Client =
+        MakeShareable(new FOpenPocketBaseAdminClient(
+            MoveTemp(CoreConfig), InPolicy, MoveTemp(Core), InjectedTransport));
+    return FOpenPocketBaseAdminClientResult::Success(Client.ToSharedRef());
 }
 
 bool FOpenPocketBaseAdminClient::IsAuthenticated() const

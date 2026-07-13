@@ -307,13 +307,16 @@ bool FOpenPocketBaseRealtimeHandshakeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
     FOpenPocketBaseRealtimeCallbacks Callbacks;
-    FOpenPocketBaseSubscriptionHandle Handle = Client->Subscribe(
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(
         TEXT("messages/*"),
         MoveTemp(Callbacks),
-        {},
-        Error);
-
-    TestFalse(TEXT("The subscription is accepted"), Error.IsSet());
+        {});
+    TestTrue(TEXT("The subscription is accepted"), SubscriptionResult.IsSuccess());
+    if (!SubscriptionResult.IsSuccess())
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle Handle = SubscriptionResult.TakeValue();
     TestTrue(TEXT("The subscription handle is active"), Handle.IsActive());
     TestEqual(TEXT("Only the stream opens before PB_CONNECT"), Transport->Requests.Num(), 1);
     TestEqual(TEXT("The first request is GET"), Transport->Requests[0].Method, FString(TEXT("GET")));
@@ -349,8 +352,12 @@ bool FOpenPocketBaseRealtimeLatestSetTest::RunTest(const FString& Parameters)
         CreateOpenPocketBaseTestClient(Config, Transport, Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionHandle FirstMessages = Client->Subscribe(
-        TEXT("messages/*"), {}, {}, Error);
+    FOpenPocketBaseSubscriptionResult FirstResult = Client->Subscribe(TEXT("messages/*"));
+    if (!TestTrue(TEXT("The first listener is accepted"), FirstResult.IsSuccess()))
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle FirstMessages = FirstResult.TakeValue();
     Transport->EmitConnect(0, TEXT("client-latest"));
     TestEqual(TEXT("The initial desired set is posted once"), Transport->Posts.Num(), 1);
     TestEqual(
@@ -358,10 +365,15 @@ bool FOpenPocketBaseRealtimeLatestSetTest::RunTest(const FString& Parameters)
         Transport->GetPostedSubscriptions(0).Num(),
         1);
 
-    FOpenPocketBaseSubscriptionHandle SecondMessages = Client->Subscribe(
-        TEXT("messages/*"), {}, {}, Error);
-    FOpenPocketBaseSubscriptionHandle Presence = Client->Subscribe(
-        TEXT("presence"), {}, {}, Error);
+    FOpenPocketBaseSubscriptionResult SecondResult = Client->Subscribe(TEXT("messages/*"));
+    FOpenPocketBaseSubscriptionResult PresenceResult = Client->Subscribe(TEXT("presence"));
+    if (!TestTrue(TEXT("The second listener is accepted"), SecondResult.IsSuccess()) ||
+        !TestTrue(TEXT("The presence listener is accepted"), PresenceResult.IsSuccess()))
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle SecondMessages = SecondResult.TakeValue();
+    FOpenPocketBaseSubscriptionHandle Presence = PresenceResult.TakeValue();
     TestEqual(TEXT("Edits wait behind the in-flight full-set post"), Transport->Posts.Num(), 1);
 
     Transport->CompletePost(0);
@@ -452,11 +464,11 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseRealtimeOptions UnsafeOptions;
     UnsafeOptions.Headers.Add(TEXT("Authorization"), TEXT("caller-token"));
-    FOpenPocketBaseSubscriptionHandle Unsafe = Client->Subscribe(
-        TEXT("unsafe"), {}, UnsafeOptions, Error);
-    TestFalse(TEXT("A per-topic auth override is rejected"), Unsafe.IsActive());
+    const FOpenPocketBaseSubscriptionResult Unsafe =
+        Client->Subscribe(TEXT("unsafe"), {}, UnsafeOptions);
+    TestFalse(TEXT("A per-topic auth override is rejected"), Unsafe.IsSuccess());
     TestEqual(TEXT("The rejected option is a local argument error"),
-        Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
+        Unsafe.GetError().Kind, EOpenPocketBaseErrorKind::InvalidArgument);
 
     Handle.Unsubscribe();
     Client->Shutdown();
@@ -488,8 +500,12 @@ bool FOpenPocketBaseRealtimeReconnectGenerationTest::RunTest(const FString& Para
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionHandle Messages = Client->Subscribe(
-        TEXT("messages/*"), {}, {}, Error);
+    FOpenPocketBaseSubscriptionResult MessagesResult = Client->Subscribe(TEXT("messages/*"));
+    if (!TestTrue(TEXT("The messages listener is accepted"), MessagesResult.IsSuccess()))
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle Messages = MessagesResult.TakeValue();
     Transport->EmitConnect(0, TEXT("first-client"));
     Transport->CompletePost(0);
     Transport->CompleteStream(0);
@@ -502,8 +518,12 @@ bool FOpenPocketBaseRealtimeReconnectGenerationTest::RunTest(const FString& Para
             InitialReconnectDelay.GetValue() >= 0.4 && InitialReconnectDelay.GetValue() <= 0.6);
     }
 
-    FOpenPocketBaseSubscriptionHandle Presence = Client->Subscribe(
-        TEXT("presence"), {}, {}, Error);
+    FOpenPocketBaseSubscriptionResult PresenceResult = Client->Subscribe(TEXT("presence"));
+    if (!TestTrue(TEXT("The presence listener is accepted"), PresenceResult.IsSuccess()))
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle Presence = PresenceResult.TakeValue();
     TestEqual(TEXT("No stale subscription post is sent while reconnecting"), Transport->Posts.Num(), 1);
     TestTrue(TEXT("The injected clock owns the reconnect"), Clock->RunNextActive());
     TestEqual(TEXT("One replacement stream is opened"), Transport->Streams.Num(), 2);
@@ -548,8 +568,12 @@ bool FOpenPocketBaseRealtimeRetryHintTest::RunTest(const FString& Parameters)
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionHandle Handle = Client->Subscribe(
-        TEXT("messages/*"), {}, {}, Error);
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(TEXT("messages/*"));
+    if (!TestTrue(TEXT("The listener is accepted"), SubscriptionResult.IsSuccess()))
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle Handle = SubscriptionResult.TakeValue();
     Transport->EmitConnect(0, TEXT("retry-client"));
     Transport->CompletePost(0);
     Transport->EmitStream(
@@ -592,8 +616,12 @@ bool FOpenPocketBaseRealtimeStableBackoffTest::RunTest(const FString& Parameters
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionHandle Handle = Client->Subscribe(
-        TEXT("messages/*"), {}, {}, Error);
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(TEXT("messages/*"));
+    if (!TestTrue(TEXT("The listener is accepted"), SubscriptionResult.IsSuccess()))
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle Handle = SubscriptionResult.TakeValue();
     Transport->EmitConnect(0, TEXT("backoff-zero"));
     Transport->CompletePost(0);
     Transport->CompleteStream(0);
@@ -662,8 +690,12 @@ bool FOpenPocketBaseRealtimeLifecycleTest::RunTest(const FString& Parameters)
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionHandle Handle = Client->Subscribe(
-        TEXT("messages/*"), {}, {}, Error);
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(TEXT("messages/*"));
+    if (!TestTrue(TEXT("The listener is accepted"), SubscriptionResult.IsSuccess()))
+    {
+        return false;
+    }
+    FOpenPocketBaseSubscriptionHandle Handle = SubscriptionResult.TakeValue();
     Transport->EmitConnect(0, TEXT("lifecycle-one"));
     Transport->CompletePost(0);
 
@@ -720,8 +752,13 @@ bool FOpenPocketBaseRealtimeBoundedDeliveryTest::RunTest(const FString& Paramete
     {
         ++State->ResyncCount;
     };
-    State->Handle = State->Client->Subscribe(
-        TEXT("messages/*"), MoveTemp(Callbacks), {}, Error);
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = State->Client->Subscribe(
+        TEXT("messages/*"), MoveTemp(Callbacks));
+    if (!TestTrue(TEXT("The delivery listener is accepted"), SubscriptionResult.IsSuccess()))
+    {
+        return false;
+    }
+    State->Handle = SubscriptionResult.TakeValue();
     State->Transport->EmitConnect(0, TEXT("delivery-client"));
     State->Transport->CompletePost(0);
 

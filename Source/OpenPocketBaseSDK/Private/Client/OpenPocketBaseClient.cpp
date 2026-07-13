@@ -2930,17 +2930,17 @@ private:
             Self->HandleRealtimeGap();
         };
 
-        FOpenPocketBaseError SubscribeError;
-        FOpenPocketBaseSubscriptionHandle NewSubscription = Client->Subscribe(
+        FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(
             TEXT("@oauth2"),
             MoveTemp(Callbacks),
-            {},
-            SubscribeError);
-        if (!NewSubscription.IsActive())
+            {});
+        if (!SubscriptionResult.IsSuccess())
         {
-            FinishFailure(MoveTemp(SubscribeError));
+            FinishFailure(SubscriptionResult.GetError());
             return;
         }
+        FOpenPocketBaseSubscriptionHandle NewSubscription =
+            SubscriptionResult.TakeValue();
         SetSubscription(MoveTemp(NewSubscription));
     }
 
