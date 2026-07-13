@@ -76,10 +76,20 @@ public:
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Authentication")
     bool IsAuthenticated() const;
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Authentication")
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            DisplayName = "Get Current Auth Record",
+            ExpandBoolAsExecs = "ReturnValue"))
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Session")
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Session",
+        meta = (
+            DisplayName = "Get Current Session",
+            ExpandBoolAsExecs = "ReturnValue"))
     bool GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Session")

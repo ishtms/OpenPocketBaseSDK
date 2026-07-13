@@ -296,6 +296,27 @@ bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters
             BuildFileUrl->GetMetaData(TEXT("ExpandBoolAsExecs")),
             FString(TEXT("ReturnValue")));
     }
+
+    const UFunction* CurrentAuthRecord =
+        UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, GetCurrentAuthRecord));
+    const UFunction* CurrentSession =
+        UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, GetCurrentSession));
+    if (CurrentAuthRecord != nullptr)
+    {
+        TestEqual(
+            TEXT("Get Current Auth Record exposes found and missing execution paths"),
+            CurrentAuthRecord->GetMetaData(TEXT("ExpandBoolAsExecs")),
+            FString(TEXT("ReturnValue")));
+    }
+    if (CurrentSession != nullptr)
+    {
+        TestEqual(
+            TEXT("Get Current Session exposes authenticated and unauthenticated paths"),
+            CurrentSession->GetMetaData(TEXT("ExpandBoolAsExecs")),
+            FString(TEXT("ReturnValue")));
+    }
     return true;
 }
 
