@@ -78,19 +78,41 @@ public:
 
     UFUNCTION(
         BlueprintCallable,
-        Category = "Open PocketBase|Authentication",
+        Category = "Open PocketBase|Authentication|Internal",
         meta = (
-            DisplayName = "Get Current Auth Record",
-            ExpandBoolAsExecs = "ReturnValue"))
+            BlueprintInternalUseOnly = "true",
+            DeprecatedFunction,
+            DeprecationMessage = "Replace this node with Get Current Auth Record.",
+            DisplayName = "Get Current Auth Record (Legacy)"))
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
 
     UFUNCTION(
         BlueprintCallable,
+        BlueprintPure = false,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            DisplayName = "Get Current Auth Record",
+            ExpandBoolAsExecs = "ReturnValue"))
+    bool TryGetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Session|Internal",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DeprecatedFunction,
+            DeprecationMessage = "Replace this node with Get Current Session.",
+            DisplayName = "Get Current Session (Legacy)"))
+    bool GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
+
+    UFUNCTION(
+        BlueprintCallable,
+        BlueprintPure = false,
         Category = "Open PocketBase|Session",
         meta = (
             DisplayName = "Get Current Session",
             ExpandBoolAsExecs = "ReturnValue"))
-    bool GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
+    bool TryGetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Session")
     void Logout();

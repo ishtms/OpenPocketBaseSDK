@@ -118,9 +118,19 @@ bool UOpenPocketBaseClient::GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecor
     return NativeClient.IsValid() && NativeClient->GetCurrentAuthRecord(OutRecord);
 }
 
+bool UOpenPocketBaseClient::TryGetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const
+{
+    return GetCurrentAuthRecord(OutRecord);
+}
+
 bool UOpenPocketBaseClient::GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const
 {
     return NativeClient.IsValid() && NativeClient->GetCurrentSession(OutSession);
+}
+
+bool UOpenPocketBaseClient::TryGetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const
+{
+    return GetCurrentSession(OutSession);
 }
 
 void UOpenPocketBaseClient::Logout()

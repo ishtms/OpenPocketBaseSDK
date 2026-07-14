@@ -299,10 +299,10 @@ bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters
 
     const UFunction* CurrentAuthRecord =
         UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
-            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, GetCurrentAuthRecord));
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, TryGetCurrentAuthRecord));
     const UFunction* CurrentSession =
         UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
-            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, GetCurrentSession));
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, TryGetCurrentSession));
     if (CurrentAuthRecord != nullptr)
     {
         TestEqual(
@@ -317,6 +317,21 @@ bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters
             CurrentSession->GetMetaData(TEXT("ExpandBoolAsExecs")),
             FString(TEXT("ReturnValue")));
     }
+
+    const UFunction* LegacyCurrentAuthRecord =
+        UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, GetCurrentAuthRecord));
+    const UFunction* LegacyCurrentSession =
+        UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, GetCurrentSession));
+    TestTrue(
+        TEXT("Saved Get Current Auth Record nodes keep their original pin layout"),
+        LegacyCurrentAuthRecord != nullptr &&
+            !LegacyCurrentAuthRecord->HasMetaData(TEXT("ExpandBoolAsExecs")));
+    TestTrue(
+        TEXT("Saved Get Current Session nodes keep their original pin layout"),
+        LegacyCurrentSession != nullptr &&
+            !LegacyCurrentSession->HasMetaData(TEXT("ExpandBoolAsExecs")));
     return true;
 }
 
