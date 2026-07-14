@@ -70,6 +70,7 @@ public:
         {
             Response.Body = ToUtf8(
                 TEXT("{\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\",")
+                TEXT("\"created\":\"2026-08-23 16:00:56.310Z\",\"updated\":\"2026-08-23 16:00:56.310Z\",")
                 TEXT("\"title\":\"Saved\",\"futureField\":{\"kept\":true},\"expand\":{")
                 TEXT("\"owner\":{\"id\":\"user123\",\"expand\":{\"team\":{\"id\":\"team123\"}}},")
                 TEXT("\"tasks_via_parent\":[{\"id\":\"child123\"}]}}"));
@@ -89,6 +90,7 @@ struct FCrudTestState
     bool bDeleteSucceeded = false;
     bool bFirstSucceeded = false;
     bool bUnknownFieldRetained = false;
+    bool bRecordDataClean = false;
     bool bNestedExpansionRetained = false;
     bool bBackRelationRetained = false;
     FString FirstId;
@@ -117,6 +119,7 @@ public:
         Test->TestTrue(TEXT("An empty 204 delete succeeds"), State->bDeleteSucceeded);
         Test->TestTrue(TEXT("First matching record succeeds"), State->bFirstSucceeded);
         Test->TestTrue(TEXT("Unknown response fields are retained"), State->bUnknownFieldRetained);
+        Test->TestTrue(TEXT("Record data excludes typed system fields"), State->bRecordDataClean);
         Test->TestTrue(TEXT("Nested expansions are retained"), State->bNestedExpansionRetained);
         Test->TestTrue(TEXT("Back-relation expansions are retained"), State->bBackRelationRetained);
         Test->TestEqual(TEXT("First matching record is returned"), State->FirstId, FString(TEXT("first123")));
@@ -215,6 +218,14 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
                 const FOpenPocketBaseRecord& Record = Result.GetValue();
                 State->bUnknownFieldRetained =
                     Record.Data.JsonObject.IsValid() && Record.Data.JsonObject->HasField(TEXT("futureField"));
+                State->bRecordDataClean = Record.Data.JsonObject.IsValid() &&
+                    Record.Data.JsonObject->HasField(TEXT("title")) &&
+                    !Record.Data.JsonObject->HasField(TEXT("id")) &&
+                    !Record.Data.JsonObject->HasField(TEXT("collectionId")) &&
+                    !Record.Data.JsonObject->HasField(TEXT("collectionName")) &&
+                    !Record.Data.JsonObject->HasField(TEXT("created")) &&
+                    !Record.Data.JsonObject->HasField(TEXT("updated")) &&
+                    !Record.Data.JsonObject->HasField(TEXT("expand"));
                 if (Record.Expanded.JsonObject.IsValid())
                 {
                     const TSharedPtr<FJsonObject>* Owner = nullptr;

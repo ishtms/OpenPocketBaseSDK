@@ -82,7 +82,7 @@ bool Serialize(
     Root->SetStringField(TEXT("profile"), Profile);
     Root->SetStringField(TEXT("authCollection"), AuthCollection);
     Root->SetStringField(TEXT("token"), Token);
-    Root->SetObjectField(TEXT("record"), Record.Data.JsonObject);
+    Root->SetObjectField(TEXT("record"), OpenPocketBase::Json::MakeRecordObject(Record));
     OutBytes = OpenPocketBase::Json::SerializeObject(Root);
     if (OutBytes.IsEmpty() || OutBytes.Num() > MaxEnvelopeBytes)
     {

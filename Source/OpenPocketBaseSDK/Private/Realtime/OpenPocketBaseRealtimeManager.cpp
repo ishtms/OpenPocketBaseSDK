@@ -9,6 +9,7 @@
 #include "Misc/ScopeLock.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "Serialization/OpenPocketBaseJson.h"
 
 namespace
@@ -25,6 +26,22 @@ FOpenPocketBaseError MakeRealtimeError(
     Error.bMayRetry = Kind == EOpenPocketBaseErrorKind::Transport ||
         Kind == EOpenPocketBaseErrorKind::Timeout || Kind == EOpenPocketBaseErrorKind::Http;
     return Error;
+}
+
+FJsonObjectWrapper WrapRealtimeData(const TSharedRef<FJsonObject>& Object)
+{
+    FJsonObjectWrapper Wrapper;
+    Wrapper.JsonObject = MakeShared<FJsonObject>();
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Object->Values)
+    {
+        if (Field.Key != TEXT("action") && Field.Key != TEXT("record"))
+        {
+            Wrapper.JsonObject->SetField(Field.Key, Field.Value);
+        }
+    }
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Wrapper.JsonString);
+    FJsonSerializer::Serialize(Wrapper.JsonObject.ToSharedRef(), Writer);
+    return Wrapper;
 }
 
 bool IsSameOrigin(const FString& BaseUrl, const FString& EffectiveUrl)
@@ -738,7 +755,7 @@ void FConnectionManager::HandleSseEvent(const uint64 Generation, const FSseEvent
         QueueResyncRequired();
         return;
     }
-    RealtimeEvent.Data.JsonObject = Object;
+    RealtimeEvent.Data = WrapRealtimeData(Object.ToSharedRef());
     Object->TryGetStringField(TEXT("action"), RealtimeEvent.ActionName);
     RealtimeEvent.Action = ParseAction(RealtimeEvent.ActionName);
     const TSharedPtr<FJsonObject>* RecordObject = nullptr;

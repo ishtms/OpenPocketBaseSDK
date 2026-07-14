@@ -78,9 +78,11 @@ struct FAdminTestState
     bool bSucceeded = true;
     bool bSettingsRedacted = false;
     bool bBackupExact = false;
+    bool bSqlDataClean = false;
     bool bSqlErrorSanitized = false;
     int32 RejectedSqlPolicyCases = 0;
     bool bImpersonationSeparated = false;
+    bool bImpersonationRecordClean = false;
     bool bImpersonationRefreshBlocked = false;
     TArray<FString> Errors;
 };
@@ -410,6 +412,15 @@ private:
             TEXT("SELECT id FROM sdk_tasks LIMIT 1"),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>&& Result)
             {
+                if (Result.IsSuccess())
+                {
+                    const FJsonObjectWrapper& Data = Result.GetValue().Data;
+                    Self->State->bSqlDataClean = Data.JsonObject.IsValid() &&
+                        Data.JsonObject->HasField(TEXT("rows")) &&
+                        !Data.JsonObject->HasField(TEXT("execTime")) &&
+                        !Data.JsonObject->HasField(TEXT("affectedRows")) &&
+                        !Data.JsonObject->HasField(TEXT("columns"));
+                }
                 Self->Continue(Result.IsSuccess() && Result.GetValue().RowCount == 1,
                     TEXT("Run SQL"));
                 if (Result.IsSuccess()) Self->RejectSqlPolicyCase(0);
@@ -467,6 +478,16 @@ private:
                 Self->Continue(Result.IsSuccess(), TEXT("Impersonate"));
                 if (Result.IsSuccess())
                 {
+                    const FOpenPocketBaseRecord& Record = Result.GetValue().Record;
+                    FString DisplayName;
+                    Self->State->bImpersonationRecordClean =
+                        Record.Data.JsonObject.IsValid() &&
+                        Record.Data.JsonObject->TryGetStringField(
+                            TEXT("displayName"), DisplayName) &&
+                        DisplayName == TEXT("Player") &&
+                        !Record.Data.JsonObject->HasField(TEXT("id")) &&
+                        !Record.Data.JsonObject->HasField(TEXT("collectionId")) &&
+                        !Record.Data.JsonObject->HasField(TEXT("collectionName"));
                     FOpenPocketBaseSessionSnapshot Session;
                     Self->State->bImpersonationSeparated =
                         Result.GetValue().Client.IsValid() &&
@@ -519,12 +540,15 @@ public:
         Test->TestTrue(TEXT("Every privileged operation succeeds"), State->bSucceeded);
         Test->TestTrue(TEXT("Settings secrets are redacted"), State->bSettingsRedacted);
         Test->TestTrue(TEXT("Backup bytes remain exact"), State->bBackupExact);
+        Test->TestTrue(TEXT("SQL data excludes typed result metadata"), State->bSqlDataClean);
         Test->TestTrue(TEXT("SQL failures do not expose query or result material"),
             State->bSqlErrorSanitized);
         Test->TestEqual(TEXT("Default SQL policy rejects non-SELECT and stacked statements"),
             State->RejectedSqlPolicyCases, 3);
         Test->TestTrue(TEXT("Impersonation uses a separate authenticated client"),
             State->bImpersonationSeparated);
+        Test->TestTrue(TEXT("Impersonated record data excludes typed system fields"),
+            State->bImpersonationRecordClean);
         Test->TestTrue(TEXT("Impersonation cannot persist or refresh its token"),
             State->bImpersonationRefreshBlocked);
         Test->TestEqual(TEXT("All pinned privileged requests are sent"),
@@ -613,7 +637,7 @@ bool FOpenPocketBaseAdminClientTest::RunTest(const FString& Parameters)
     State->Transport->AddJson(
         TEXT("{\"token\":\"mock-impersonation-token\",\"record\":{"
              "\"id\":\"user00000000001\",\"collectionId\":\"users_collection\","
-             "\"collectionName\":\"sdk_users\"}}"));
+             "\"collectionName\":\"sdk_users\",\"displayName\":\"Player\"}}"));
 
     FOpenPocketBaseClientConfig CoreConfig;
     CoreConfig.BaseUrl = TEXT("https://pb.example.test");

@@ -173,6 +173,26 @@ FJsonObjectWrapper WrapAdminObject(const TSharedRef<FJsonObject>& Object)
     return Wrapper;
 }
 
+bool IsRecordSystemField(const FString& Name)
+{
+    return Name == TEXT("id") || Name == TEXT("collectionId") ||
+        Name == TEXT("collectionName") || Name == TEXT("created") ||
+        Name == TEXT("updated") || Name == TEXT("expand");
+}
+
+FJsonObjectWrapper WrapAdminRecordData(const TSharedRef<FJsonObject>& Object)
+{
+    const TSharedRef<FJsonObject> Data = MakeShared<FJsonObject>();
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Object->Values)
+    {
+        if (!IsRecordSystemField(Field.Key))
+        {
+            Data->SetField(Field.Key, Field.Value);
+        }
+    }
+    return WrapAdminObject(Data);
+}
+
 bool IsSecretSettingName(const FString& Name)
 {
     const FString Lower = Name.ToLower();
@@ -412,7 +432,9 @@ bool TryParseSql(
     OutResult.ExecutionTimeMilliseconds = static_cast<int64>(Execution);
     OutResult.AffectedRows = static_cast<int64>(Affected);
     OutResult.RowCount = Rows->Num();
-    OutResult.Data = Response.JsonBody;
+    const TSharedRef<FJsonObject> Data = MakeShared<FJsonObject>();
+    Data->SetArrayField(TEXT("rows"), *Rows);
+    OutResult.Data = WrapAdminObject(Data);
     OutResult.Columns.Reserve(Columns->Num());
     for (const TSharedPtr<FJsonValue>& Value : *Columns)
     {
@@ -436,6 +458,7 @@ bool TryParseAdminRecord(
     const TSharedRef<FJsonObject>& Object,
     FOpenPocketBaseRecord& OutRecord)
 {
+    OutRecord = FOpenPocketBaseRecord();
     if (!Object->TryGetStringField(TEXT("id"), OutRecord.Id) || OutRecord.Id.IsEmpty())
     {
         return false;
@@ -453,7 +476,12 @@ bool TryParseAdminRecord(
     {
         return false;
     }
-    OutRecord.Data = WrapAdminObject(Object);
+    OutRecord.Data = WrapAdminRecordData(Object);
+    const TSharedPtr<FJsonObject>* Expanded = nullptr;
+    if (Object->TryGetObjectField(TEXT("expand"), Expanded) && Expanded != nullptr)
+    {
+        OutRecord.Expanded = WrapAdminObject(Expanded->ToSharedRef());
+    }
     return true;
 }
 

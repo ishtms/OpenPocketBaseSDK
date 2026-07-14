@@ -189,8 +189,29 @@ FJsonObjectWrapper WrapObject(const TSharedRef<FJsonObject>& Object)
     return Wrapper;
 }
 
+bool IsRecordSystemField(const FString& Name)
+{
+    return Name == TEXT("id") || Name == TEXT("collectionId") ||
+        Name == TEXT("collectionName") || Name == TEXT("created") ||
+        Name == TEXT("updated") || Name == TEXT("expand");
+}
+
+FJsonObjectWrapper WrapRecordData(const TSharedRef<FJsonObject>& Object)
+{
+    const TSharedRef<FJsonObject> Data = MakeShared<FJsonObject>();
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Object->Values)
+    {
+        if (!IsRecordSystemField(Field.Key))
+        {
+            Data->SetField(Field.Key, Field.Value);
+        }
+    }
+    return WrapObject(Data);
+}
+
 bool ParseRecordObject(const TSharedRef<FJsonObject>& Object, FOpenPocketBaseRecord& OutRecord)
 {
+    OutRecord = FOpenPocketBaseRecord();
     if (!Object->TryGetStringField(TEXT("id"), OutRecord.Id))
     {
         return false;
@@ -211,7 +232,7 @@ bool ParseRecordObject(const TSharedRef<FJsonObject>& Object, FOpenPocketBaseRec
         return false;
     }
 
-    OutRecord.Data = WrapObject(Object);
+    OutRecord.Data = WrapRecordData(Object);
     const TSharedPtr<FJsonObject>* Expanded = nullptr;
     if (Object->TryGetObjectField(TEXT("expand"), Expanded) && Expanded != nullptr)
     {
@@ -243,6 +264,43 @@ bool TryParseRecordObject(
     FOpenPocketBaseRecord& OutRecord)
 {
     return ParseRecordObject(Object, OutRecord);
+}
+
+TSharedRef<FJsonObject> MakeRecordObject(const FOpenPocketBaseRecord& Record)
+{
+    const TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+    if (Record.Data.JsonObject.IsValid())
+    {
+        for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Record.Data.JsonObject->Values)
+        {
+            if (!IsRecordSystemField(Field.Key))
+            {
+                Object->SetField(Field.Key, Field.Value);
+            }
+        }
+    }
+    Object->SetStringField(TEXT("id"), Record.Id);
+    if (!Record.CollectionId.IsEmpty())
+    {
+        Object->SetStringField(TEXT("collectionId"), Record.CollectionId);
+    }
+    if (!Record.CollectionName.IsEmpty())
+    {
+        Object->SetStringField(TEXT("collectionName"), Record.CollectionName);
+    }
+    if (Record.Created.GetTicks() > 0)
+    {
+        Object->SetStringField(TEXT("created"), OpenPocketBase::Date::Format(Record.Created));
+    }
+    if (Record.Updated.GetTicks() > 0)
+    {
+        Object->SetStringField(TEXT("updated"), OpenPocketBase::Date::Format(Record.Updated));
+    }
+    if (Record.Expanded.JsonObject.IsValid())
+    {
+        Object->SetObjectField(TEXT("expand"), Record.Expanded.JsonObject);
+    }
+    return Object;
 }
 
 TOpenPocketBaseResult<FOpenPocketBaseRecord> ParseRecordResponse(

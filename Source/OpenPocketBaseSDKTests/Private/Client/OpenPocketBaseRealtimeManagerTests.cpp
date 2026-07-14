@@ -244,6 +244,8 @@ struct FRealtimeDeliveryState
     TSharedPtr<FControlledRealtimeTransport, ESPMode::ThreadSafe> Transport;
     FOpenPocketBaseSubscriptionHandle Handle;
     TArray<FString> Actions;
+    bool bEventDataClean = false;
+    bool bRecordDataClean = false;
     int32 ResyncCount = 0;
 };
 
@@ -276,6 +278,8 @@ public:
                 FString::FromInt(Index));
         }
         Test->TestEqual(TEXT("Overflow reports one resynchronization gap"), State->ResyncCount, 1);
+        Test->TestTrue(TEXT("Realtime data excludes the typed event envelope"), State->bEventDataClean);
+        Test->TestTrue(TEXT("Realtime records exclude typed system fields"), State->bRecordDataClean);
         State->Handle.Unsubscribe();
         State->Client->Shutdown();
         return true;
@@ -746,6 +750,22 @@ bool FOpenPocketBaseRealtimeBoundedDeliveryTest::RunTest(const FString& Paramete
     FOpenPocketBaseRealtimeCallbacks Callbacks;
     Callbacks.OnEvent = [State](const FOpenPocketBaseRealtimeEvent& Event)
     {
+        if (State->Actions.IsEmpty())
+        {
+            FString Message;
+            State->bEventDataClean = Event.Data.JsonObject.IsValid() &&
+                Event.Data.JsonObject->TryGetStringField(TEXT("message"), Message) &&
+                Message == TEXT("kept") &&
+                !Event.Data.JsonObject->HasField(TEXT("action")) &&
+                !Event.Data.JsonObject->HasField(TEXT("record"));
+            State->bRecordDataClean = Event.bHasRecord &&
+                Event.Record.Id == TEXT("eventrecord0001") &&
+                Event.Record.Data.JsonObject.IsValid() &&
+                Event.Record.Data.JsonObject->HasField(TEXT("title")) &&
+                !Event.Record.Data.JsonObject->HasField(TEXT("id")) &&
+                !Event.Record.Data.JsonObject->HasField(TEXT("collectionId")) &&
+                !Event.Record.Data.JsonObject->HasField(TEXT("collectionName"));
+        }
         State->Actions.Add(Event.ActionName);
     };
     Callbacks.OnResyncRequired = [State]()
@@ -765,9 +785,13 @@ bool FOpenPocketBaseRealtimeBoundedDeliveryTest::RunTest(const FString& Paramete
     FString Payload;
     for (int32 Index = 0; Index < 1024; ++Index)
     {
-        Payload += FString::Printf(
-            TEXT("event: messages/*\ndata: {\"action\":\"%d\"}\n\n"),
-            Index);
+        Payload += Index == 0
+            ? TEXT("event: messages/*\ndata: {\"action\":\"0\",\"message\":\"kept\","
+                   "\"record\":{\"id\":\"eventrecord0001\",\"collectionId\":\"messages_id\","
+                   "\"collectionName\":\"messages\",\"title\":\"Hello\"}}\n\n")
+            : FString::Printf(
+                TEXT("event: messages/*\ndata: {\"action\":\"%d\"}\n\n"),
+                Index);
     }
     State->Transport->EmitStream(0, Payload);
     State->Transport->EmitStream(

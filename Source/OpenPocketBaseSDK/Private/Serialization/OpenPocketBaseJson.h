@@ -12,6 +12,8 @@ bool TryParseRecordObject(
     const TSharedRef<FJsonObject>& Object,
     FOpenPocketBaseRecord& OutRecord);
 
+TSharedRef<FJsonObject> MakeRecordObject(const FOpenPocketBaseRecord& Record);
+
 TOpenPocketBaseResult<FOpenPocketBaseRecord> ParseRecordResponse(
     const FOpenPocketBaseHttpResponse& Response);
 

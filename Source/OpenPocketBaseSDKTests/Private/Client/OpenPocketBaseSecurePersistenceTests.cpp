@@ -137,6 +137,20 @@ public:
         Test->TestEqual(TEXT("Restore advances generation"), Session.AuthGeneration, static_cast<int64>(1));
         Test->TestEqual(TEXT("Restore reports persisted state"), Session.PersistenceState, EOpenPocketBaseSessionPersistenceState::Persisted);
         Test->TestEqual(TEXT("Restore publishes one event"), State->Events[0].Reason, EOpenPocketBaseSessionChangeReason::Restored);
+        Test->TestEqual(TEXT("Restore keeps the typed record ID"), Session.AuthRecord.Id, FString(TEXT("user00000000001")));
+        FString DisplayName;
+        Test->TestTrue(
+            TEXT("Restore keeps custom auth fields"),
+            Session.AuthRecord.Data.JsonObject.IsValid() &&
+                Session.AuthRecord.Data.JsonObject->TryGetStringField(
+                    TEXT("displayName"), DisplayName) &&
+                DisplayName == TEXT("Player"));
+        Test->TestTrue(
+            TEXT("Restore keeps system fields out of auth data"),
+            Session.AuthRecord.Data.JsonObject.IsValid() &&
+                !Session.AuthRecord.Data.JsonObject->HasField(TEXT("id")) &&
+                !Session.AuthRecord.Data.JsonObject->HasField(TEXT("collectionId")) &&
+                !Session.AuthRecord.Data.JsonObject->HasField(TEXT("collectionName")));
         Test->TestEqual(TEXT("Unverified restore performs no HTTP work"), State->Transport->GetRequestCount(), 0);
         State->Client->Shutdown();
         return true;
