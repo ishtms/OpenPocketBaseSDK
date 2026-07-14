@@ -319,7 +319,7 @@ public:
         FOpenPocketBaseBatchOptions Options = {});
     FOpenPocketBaseSubscriptionResult Subscribe(
         FString Topic,
-        FOpenPocketBaseRealtimeCallbacks Callbacks,
+        FOpenPocketBaseRealtimeCallbacks Callbacks = {},
         FOpenPocketBaseRealtimeOptions Options = {});
     void UnsubscribeTopic(const FString& Topic);
     void UnsubscribeAllRealtime();
