@@ -164,7 +164,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFileDownloadOptions
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files")
     FOpenPocketBaseFileUrlOptions UrlOptions;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files", AdvancedDisplay)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files")
     FOpenPocketBaseRequestOptions RequestOptions;
 };
 

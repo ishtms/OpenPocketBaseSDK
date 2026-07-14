@@ -186,7 +186,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordOptions
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
     TArray<FString> Fields;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", AdvancedDisplay)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
     FOpenPocketBaseRequestOptions RequestOptions;
 
     FOpenPocketBaseRecordOptions& WithExpand(TArray<FString> InExpand);
@@ -220,7 +220,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", AdvancedDisplay)
     bool bSkipTotal = false;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", AdvancedDisplay)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
     FOpenPocketBaseRequestOptions RequestOptions;
 
     FOpenPocketBaseListOptions& AtPage(int32 InPage);

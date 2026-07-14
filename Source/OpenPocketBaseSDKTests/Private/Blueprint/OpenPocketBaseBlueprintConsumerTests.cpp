@@ -13,12 +13,14 @@
 #include "OpenPocketBaseFilterLibrary.h"
 #include "OpenPocketBaseClientLibrary.h"
 #include "OpenPocketBaseFileLibrary.h"
+#include "OpenPocketBaseAdminTypes.h"
 #include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseRealtimeLibrary.h"
 #include "OpenPocketBaseSubsystem.h"
 #include "UObject/Field.h"
+#include "UObject/UObjectIterator.h"
 #include "UObject/Package.h"
 
 namespace
@@ -130,102 +132,68 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseBlueprintNodeDefaultsTest,
-    "OpenPocketBase.Blueprint.Nodes.KeepOptionalPinsAdvanced",
+    "OpenPocketBase.Blueprint.Nodes.ShowOptionsPins",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters)
 {
-    const auto TestAdvancedOptions = [this](UClass* Class, const FName FunctionName)
+    FOpenPocketBaseAdminListOptions::StaticStruct();
+
+    const auto IsSdkPackage = [](const UObject* Object)
     {
-        const UFunction* Function = Class->FindFunctionByName(FunctionName);
-        TestNotNull(*FString::Printf(TEXT("%s exists"), *FunctionName.ToString()), Function);
-        if (Function == nullptr)
-        {
-            return;
-        }
-        const FProperty* Options = FindFProperty<FProperty>(Function, TEXT("Options"));
-        TestNotNull(
-            *FString::Printf(TEXT("%s has options"), *FunctionName.ToString()),
-            Options);
-        if (Options != nullptr)
-        {
-            TestTrue(
-                *FString::Printf(
-                    TEXT("%s keeps optional settings advanced"),
-                    *FunctionName.ToString()),
-                Options->HasAnyPropertyFlags(CPF_AdvancedDisplay));
-        }
+        const FString PackageName = Object->GetOutermost()->GetName();
+        return PackageName == TEXT("/Script/OpenPocketBaseSDK") ||
+            PackageName == TEXT("/Script/OpenPocketBaseSDKAdmin");
     };
 
-    TestAdvancedOptions(
-        UOpenPocketBaseGetRecordAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetRecordAsyncAction, GetRecord));
-    TestAdvancedOptions(
-        UOpenPocketBaseGetFirstRecordAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetFirstRecordAsyncAction, GetFirstRecord));
-    TestAdvancedOptions(
-        UOpenPocketBaseCreateRecordAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord));
-    TestAdvancedOptions(
-        UOpenPocketBaseUpdateRecordAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseUpdateRecordAsyncAction, UpdateRecord));
-    TestAdvancedOptions(
-        UOpenPocketBaseDeleteRecordAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseDeleteRecordAsyncAction, DeleteRecord));
-    TestAdvancedOptions(
-        UOpenPocketBaseListRecordsAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseListRecordsAsyncAction, ListRecords));
-    TestAdvancedOptions(
-        UOpenPocketBaseRefreshAuthAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRefreshAuthAsyncAction, RefreshAuth));
-    TestAdvancedOptions(
-        UOpenPocketBaseListAuthMethodsAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(
-            UOpenPocketBaseListAuthMethodsAsyncAction,
-            ListAuthenticationMethods));
-    TestAdvancedOptions(
-        UOpenPocketBaseRequestOtpAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(
-            UOpenPocketBaseRequestOtpAsyncAction,
-            RequestOneTimePassword));
-    TestAdvancedOptions(
-        UOpenPocketBaseRestoreSessionAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRestoreSessionAsyncAction, RestoreSession));
-    TestAdvancedOptions(
-        UOpenPocketBasePasswordAuthAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBasePasswordAuthAsyncAction, LogInWithPassword));
-    TestAdvancedOptions(
-        UOpenPocketBaseAccountAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, RequestPasswordReset));
-    TestAdvancedOptions(
-        UOpenPocketBaseAccountAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, ConfirmPasswordReset));
-    TestAdvancedOptions(
-        UOpenPocketBaseAccountAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, RequestVerification));
-    TestAdvancedOptions(
-        UOpenPocketBaseAccountAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, ConfirmVerification));
-    TestAdvancedOptions(
-        UOpenPocketBaseAccountAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, RequestEmailChange));
-    TestAdvancedOptions(
-        UOpenPocketBaseAccountAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, ConfirmEmailChange));
-    TestAdvancedOptions(
-        UOpenPocketBaseAccountAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseAccountAsyncAction, UnlinkExternalAuth));
-    TestAdvancedOptions(
-        UOpenPocketBaseListExternalAuthsAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(
-            UOpenPocketBaseListExternalAuthsAsyncAction,
-            ListLinkedExternalAuths));
-    TestAdvancedOptions(
-        UOpenPocketBaseSendBatchAsyncAction::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseSendBatchAsyncAction, SendBatch));
-    TestAdvancedOptions(
-        UOpenPocketBaseFileLibrary::StaticClass(),
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFileLibrary, TryBuildFileUrl));
+    for (TObjectIterator<UClass> Class; Class; ++Class)
+    {
+        if (!IsSdkPackage(*Class))
+        {
+            continue;
+        }
+
+        for (TFieldIterator<UFunction> Function(*Class, EFieldIteratorFlags::ExcludeSuper);
+             Function;
+             ++Function)
+        {
+            for (TFieldIterator<FProperty> Property(*Function); Property; ++Property)
+            {
+                if (Property->HasAnyPropertyFlags(CPF_Parm) &&
+                    Property->GetName().EndsWith(TEXT("Options")))
+                {
+                    TestFalse(
+                        *FString::Printf(
+                            TEXT("%s.%s keeps %s visible"),
+                            *Class->GetName(),
+                            *Function->GetName(),
+                            *Property->GetName()),
+                        Property->HasAnyPropertyFlags(CPF_AdvancedDisplay));
+                }
+            }
+        }
+    }
+
+    for (TObjectIterator<UScriptStruct> Struct; Struct; ++Struct)
+    {
+        if (!IsSdkPackage(*Struct))
+        {
+            continue;
+        }
+
+        for (TFieldIterator<FProperty> Property(*Struct); Property; ++Property)
+        {
+            if (Property->GetName().EndsWith(TEXT("Options")))
+            {
+                TestFalse(
+                    *FString::Printf(
+                        TEXT("%s keeps %s visible"),
+                        *Struct->GetName(),
+                        *Property->GetName()),
+                    Property->HasAnyPropertyFlags(CPF_AdvancedDisplay));
+            }
+        }
+    }
 
     const UFunction* RefreshSession =
         UOpenPocketBaseRefreshAuthAsyncAction::StaticClass()->FindFunctionByName(

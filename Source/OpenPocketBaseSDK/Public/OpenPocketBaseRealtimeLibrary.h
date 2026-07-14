@@ -18,7 +18,6 @@ public:
         meta = (
             DisplayName = "Subscribe to Records",
             AutoCreateRefTerm = "Options",
-            AdvancedDisplay = "Options",
             ExpandBoolAsExecs = "ReturnValue"))
     static bool SubscribeToRecords(
         FOpenPocketBaseCollection Collection,
@@ -32,7 +31,6 @@ public:
         meta = (
             DisplayName = "Subscribe to Record",
             AutoCreateRefTerm = "Options",
-            AdvancedDisplay = "Options",
             ExpandBoolAsExecs = "ReturnValue"))
     static bool SubscribeToRecord(
         FOpenPocketBaseCollection Collection,
@@ -47,7 +45,6 @@ public:
         meta = (
             DisplayName = "Subscribe to Realtime Topic",
             AutoCreateRefTerm = "Options",
-            AdvancedDisplay = "Options",
             ExpandBoolAsExecs = "ReturnValue"))
     static bool SubscribeToTopic(
         UOpenPocketBaseClient* PocketBaseClient,

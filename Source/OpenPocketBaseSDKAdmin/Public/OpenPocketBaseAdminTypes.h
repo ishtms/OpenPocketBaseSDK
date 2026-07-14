@@ -66,7 +66,7 @@ struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminListOptions
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin")
     TArray<FString> Fields;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin", AdvancedDisplay)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin")
     FOpenPocketBaseRequestOptions RequestOptions;
 };
 

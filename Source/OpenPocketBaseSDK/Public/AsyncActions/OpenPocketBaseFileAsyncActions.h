@@ -41,8 +41,7 @@ public:
         Category = "Open PocketBase|Files",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Get Protected File Token",
-            AdvancedDisplay = "Options"))
+            DisplayName = "Get Protected File Token"))
     static UOpenPocketBaseGetFileTokenAsyncAction* GetProtectedFileToken(
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseRequestOptions Options);

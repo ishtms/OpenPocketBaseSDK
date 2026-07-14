@@ -19,7 +19,6 @@ public:
         meta = (
             DisplayName = "Try Build File URL",
             AutoCreateRefTerm = "Options",
-            AdvancedDisplay = "Options",
             ExpandBoolAsExecs = "ReturnValue"))
     static bool TryBuildFileUrl(
         FOpenPocketBaseCollection Collection,

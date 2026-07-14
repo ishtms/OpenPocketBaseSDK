@@ -109,7 +109,6 @@ public:
         meta = (
             BlueprintInternalUseOnly = "true",
             DisplayName = "Authenticate PocketBase Superuser",
-            AdvancedDisplay = "Options",
             DevelopmentOnly))
     static UOpenPocketBaseAuthenticateSuperuserAsyncAction* AuthenticateSuperuser(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -150,7 +149,6 @@ public:
         meta = (
             BlueprintInternalUseOnly = "true",
             DisplayName = "List PocketBase Collections",
-            AdvancedDisplay = "Options",
             DevelopmentOnly))
     static UOpenPocketBaseAdminPageAsyncAction* ListCollections(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -162,7 +160,6 @@ public:
         meta = (
             BlueprintInternalUseOnly = "true",
             DisplayName = "List PocketBase Logs",
-            AdvancedDisplay = "Options",
             DevelopmentOnly))
     static UOpenPocketBaseAdminPageAsyncAction* ListLogs(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -202,7 +199,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Get PocketBase Collection", AdvancedDisplay = "Options",
+        DisplayName = "Get PocketBase Collection",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* GetCollection(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -211,7 +208,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Create PocketBase Collection", AdvancedDisplay = "Options",
+        DisplayName = "Create PocketBase Collection",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* CreateCollection(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -220,7 +217,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Update PocketBase Collection", AdvancedDisplay = "Options",
+        DisplayName = "Update PocketBase Collection",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* UpdateCollection(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -230,7 +227,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Get PocketBase Settings", AdvancedDisplay = "Options",
+        DisplayName = "Get PocketBase Settings",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* GetSettings(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -238,7 +235,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Update PocketBase Settings", AdvancedDisplay = "Options",
+        DisplayName = "Update PocketBase Settings",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* UpdateSettings(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -247,7 +244,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Get PocketBase Log", AdvancedDisplay = "Options",
+        DisplayName = "Get PocketBase Log",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* GetLog(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -294,7 +291,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Delete PocketBase Collection", AdvancedDisplay = "Options",
+        DisplayName = "Delete PocketBase Collection",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* DeleteCollection(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -303,7 +300,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Import PocketBase Collections", AdvancedDisplay = "Options",
+        DisplayName = "Import PocketBase Collections",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* ImportCollections(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -312,7 +309,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Test PocketBase S3 Settings", AdvancedDisplay = "Options",
+        DisplayName = "Test PocketBase S3 Settings",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* TestS3(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -321,7 +318,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Test PocketBase Email Settings", AdvancedDisplay = "Options",
+        DisplayName = "Test PocketBase Email Settings",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* TestEmail(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -330,7 +327,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Create PocketBase Backup", AdvancedDisplay = "Name,Options",
+        DisplayName = "Create PocketBase Backup", AdvancedDisplay = "Name",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* CreateBackup(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -339,7 +336,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Upload PocketBase Backup", AdvancedDisplay = "Options",
+        DisplayName = "Upload PocketBase Backup",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* UploadBackup(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -348,7 +345,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Restore PocketBase Backup", AdvancedDisplay = "Options",
+        DisplayName = "Restore PocketBase Backup",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* RestoreBackup(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -357,7 +354,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Delete PocketBase Backup", AdvancedDisplay = "Options",
+        DisplayName = "Delete PocketBase Backup",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* DeleteBackup(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -366,7 +363,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Run PocketBase Cron", AdvancedDisplay = "Options",
+        DisplayName = "Run PocketBase Cron",
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* RunCron(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -417,7 +414,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "List PocketBase Backups", AdvancedDisplay = "Options",
+        DisplayName = "List PocketBase Backups",
         DevelopmentOnly))
     static UOpenPocketBaseAdminBackupListAsyncAction* ListBackups(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -450,7 +447,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Download PocketBase Backup", AdvancedDisplay = "Options",
+        DisplayName = "Download PocketBase Backup",
         DevelopmentOnly))
     static UOpenPocketBaseAdminBackupDownloadAsyncAction* DownloadBackup(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -485,7 +482,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "List PocketBase Crons", AdvancedDisplay = "Options",
+        DisplayName = "List PocketBase Crons",
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentListAsyncAction* ListCrons(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -518,7 +515,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Run PocketBase SQL", AdvancedDisplay = "Options",
+        DisplayName = "Run PocketBase SQL",
         DevelopmentOnly))
     static UOpenPocketBaseAdminSqlAsyncAction* RunSql(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
@@ -553,7 +550,7 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Impersonate PocketBase User", AdvancedDisplay = "Options",
+        DisplayName = "Impersonate PocketBase User",
         DevelopmentOnly))
     static UOpenPocketBaseAdminImpersonateAsyncAction* Impersonate(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,

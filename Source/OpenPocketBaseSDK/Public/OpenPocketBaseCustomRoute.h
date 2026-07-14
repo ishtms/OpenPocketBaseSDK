@@ -100,7 +100,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteRequest
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Utilities", AdvancedDisplay, meta = (ClampMin = "0", ClampMax = "67108864"))
     int64 MaxRequestBytes = 8 * 1024 * 1024;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Utilities", AdvancedDisplay)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Utilities")
     FOpenPocketBaseRequestOptions Options;
 };
 

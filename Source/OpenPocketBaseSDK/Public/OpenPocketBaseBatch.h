@@ -106,6 +106,6 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchOptions
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records|Batch", meta = (ClampMin = "1024", ClampMax = "16777216"))
     int64 MaxBodyBytes = 8 * 1024 * 1024;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records|Batch", AdvancedDisplay)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records|Batch")
     FOpenPocketBaseRequestOptions RequestOptions;
 };
