@@ -56,7 +56,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseSessionSnapshot
         EOpenPocketBaseSessionPersistenceState::MemoryOnly;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Session")
-    EOpenPocketBaseSessionChangeReason Reason = EOpenPocketBaseSessionChangeReason::LoggedIn;
+    EOpenPocketBaseSessionChangeReason Reason = EOpenPocketBaseSessionChangeReason::LoggedOut;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Session")
     FOpenPocketBaseRecord AuthRecord;

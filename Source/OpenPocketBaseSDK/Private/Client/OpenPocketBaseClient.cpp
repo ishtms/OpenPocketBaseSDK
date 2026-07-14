@@ -1705,6 +1705,8 @@ struct FOpenPocketBaseClient::FImpl
     bool bAuthRefreshAllowed = true;
     EOpenPocketBaseSessionPersistenceState PersistenceState =
         EOpenPocketBaseSessionPersistenceState::MemoryOnly;
+    EOpenPocketBaseSessionChangeReason LastSessionReason =
+        EOpenPocketBaseSessionChangeReason::LoggedOut;
     TSharedRef<FSessionEventQueue, ESPMode::ThreadSafe> SessionEvents =
         MakeShared<FSessionEventQueue, ESPMode::ThreadSafe>();
     mutable FCriticalSection RefreshMutex;
@@ -2322,9 +2324,10 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthCollection = AuthCollection;
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
-            Snapshot.Reason = bUserSwitched
+            LastSessionReason = bUserSwitched
                 ? EOpenPocketBaseSessionChangeReason::UserSwitched
                 : RequestedReason;
+            Snapshot.Reason = LastSessionReason;
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
@@ -2360,7 +2363,8 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthCollection = AuthCollection;
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
-            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::RecordUpdated;
+            LastSessionReason = EOpenPocketBaseSessionChangeReason::RecordUpdated;
+            Snapshot.Reason = LastSessionReason;
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
@@ -2407,7 +2411,8 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthCollection = AuthCollection;
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
-            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::RecordUpdated;
+            LastSessionReason = EOpenPocketBaseSessionChangeReason::RecordUpdated;
+            Snapshot.Reason = LastSessionReason;
             Snapshot.AuthRecord = AuthRecord;
         }
         if (bUpdated)
@@ -2463,7 +2468,8 @@ struct FOpenPocketBaseClient::FImpl
 
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
-            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::LoggedOut;
+            LastSessionReason = EOpenPocketBaseSessionChangeReason::LoggedOut;
+            Snapshot.Reason = LastSessionReason;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
         Realtime->NotifyAuthChanged();
@@ -2544,7 +2550,8 @@ struct FOpenPocketBaseClient::FImpl
 
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
-            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::LoggedOut;
+            LastSessionReason = EOpenPocketBaseSessionChangeReason::LoggedOut;
+            Snapshot.Reason = LastSessionReason;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
         Realtime->NotifyAuthChanged();
@@ -2584,7 +2591,8 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthCollection = AuthCollection;
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
-            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::Refreshed;
+            LastSessionReason = EOpenPocketBaseSessionChangeReason::Refreshed;
+            Snapshot.Reason = LastSessionReason;
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
@@ -2680,7 +2688,8 @@ struct FOpenPocketBaseClient::FImpl
             Snapshot.AuthCollection = AuthCollection;
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
-            Snapshot.Reason = EOpenPocketBaseSessionChangeReason::Restored;
+            LastSessionReason = EOpenPocketBaseSessionChangeReason::Restored;
+            Snapshot.Reason = LastSessionReason;
             Snapshot.AuthRecord = AuthRecord;
         }
         SessionEvents->Enqueue(Snapshot);
@@ -4047,6 +4056,7 @@ bool FOpenPocketBaseClient::GetCurrentSession(FOpenPocketBaseSessionSnapshot& Ou
     OutSession.AuthCollection = Impl->AuthCollection;
     OutSession.AuthGeneration = Impl->AuthGeneration;
     OutSession.PersistenceState = Impl->PersistenceState;
+    OutSession.Reason = Impl->LastSessionReason;
     if (Impl->bHasAuthRecord)
     {
         OutSession.AuthRecord = Impl->AuthRecord;

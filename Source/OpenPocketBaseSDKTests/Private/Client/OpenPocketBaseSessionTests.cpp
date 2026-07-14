@@ -54,6 +54,14 @@ public:
         Test->TestFalse(TEXT("Logout snapshot is unauthenticated"), State->Events[1].bAuthenticated);
         Test->TestEqual(TEXT("Logout advances generation"), State->Events[1].AuthGeneration, static_cast<int64>(2));
         Test->TestFalse(TEXT("Logout clears the client synchronously"), State->Client->IsAuthenticated());
+        FOpenPocketBaseSessionSnapshot CurrentSession;
+        Test->TestFalse(
+            TEXT("The current session is unauthenticated after logout"),
+            State->Client->GetCurrentSession(CurrentSession));
+        Test->TestEqual(
+            TEXT("The current session retains the logout reason"),
+            CurrentSession.Reason,
+            EOpenPocketBaseSessionChangeReason::LoggedOut);
         Test->TestEqual(TEXT("Logout does not invent a server endpoint"), State->Transport->GetRequestCount(), 1);
         State->Client->Shutdown();
         return true;
