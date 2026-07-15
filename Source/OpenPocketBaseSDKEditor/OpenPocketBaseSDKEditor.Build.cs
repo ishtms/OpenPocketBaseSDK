@@ -14,6 +14,7 @@ public class OpenPocketBaseSDKEditor : ModuleRules
                 "CoreUObject",
                 "DataValidation",
                 "Engine",
+                "Json",
                 "Projects",
                 "UnrealEd"
             });
