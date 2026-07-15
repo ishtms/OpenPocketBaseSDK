@@ -19,11 +19,13 @@ export type IconName =
   | "info"
   | "menu"
   | "mobile"
+  | "moon"
   | "radio"
   | "search"
   | "sensor"
   | "shield"
   | "spark"
+  | "sun"
   | "terminal"
   | "x"
   | "zap";
@@ -47,11 +49,13 @@ const paths: Record<IconName, ReactNode> = {
   info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></>,
   menu: <><path d="M4 7h16M4 12h16M4 17h16"/></>,
   mobile: <><rect x="7" y="2" width="10" height="20"/><path d="M11 18h2"/></>,
+  moon: <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/>,
   radio: <><path d="M5.6 18.4a9 9 0 0 1 0-12.8M9.2 14.8a4 4 0 0 1 0-5.6M18.4 5.6a9 9 0 0 1 0 12.8M14.8 9.2a4 4 0 0 1 0 5.6"/><circle cx="12" cy="12" r="1"/></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>,
   sensor: <><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></>,
   shield: <path d="M12 3 4 6v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6Z"/>,
   spark: <path d="m12 2 1.6 5.4L19 9l-5.4 1.6L12 16l-1.6-5.4L5 9l5.4-1.6ZM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z"/>,
+  sun: <><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
   terminal: <><path d="m4 7 5 5-5 5"/><path d="M12 17h8"/></>,
   x: <><path d="m6 6 12 12M18 6 6 18"/></>,
   zap: <path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>,

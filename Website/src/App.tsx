@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { docs, docsBySlug, navigation, searchDocs, type DocBlock, type DocPage } from "./docs";
 import { Icon, OpenMobileMark, type IconName } from "./icons";
+import { applyTheme, getInitialTheme, nextTheme, saveTheme, type Theme } from "./theme";
 
 const sourceUrl = "https://github.com/ishtms/pb_sdk_private";
 
@@ -121,7 +122,7 @@ function Sidebar({ activeSlug, open, onClose, onSearch }: { activeSlug: string; 
   );
 }
 
-function Topbar({ page, onMenu, onSearch }: { page: DocPage; onMenu: () => void; onSearch: () => void }) {
+function Topbar({ page, theme, onMenu, onSearch, onThemeToggle }: { page: DocPage; theme: Theme; onMenu: () => void; onSearch: () => void; onThemeToggle: () => void }) {
   return (
     <header className="topbar">
       <div className="topbar-path">
@@ -134,6 +135,10 @@ function Topbar({ page, onMenu, onSearch }: { page: DocPage; onMenu: () => void;
       </div>
       <div className="topbar-actions">
         <button className="topbar-search" onClick={onSearch} aria-label="Search documentation"><Icon name="search" /><span>Search</span><kbd>⌘ K</kbd></button>
+        <button className="theme-toggle" onClick={onThemeToggle} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+          <Icon name={theme === "dark" ? "sun" : "moon"} />
+          <span>{theme === "dark" ? "Light" : "Dark"}</span>
+        </button>
         <a href={sourceUrl} target="_blank" rel="noreferrer"><Icon name="github" /><span>Source</span><Icon name="external" /></a>
       </div>
     </header>
@@ -307,6 +312,11 @@ function App() {
   const [activeSection, setActiveSection] = useState(page.sections[0]?.id ?? "");
   const [scrollProgress, setScrollProgress] = useState(0);
   const [toast, setToast] = useState(false);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -353,6 +363,14 @@ function App() {
     window.setTimeout(() => setToast(false), 1600);
   };
 
+  const toggleTheme = () => {
+    setTheme((current) => {
+      const updated = nextTheme(current);
+      saveTheme(updated);
+      return updated;
+    });
+  };
+
   return (
     <div className="app-shell">
       <div className="ambient-glow" />
@@ -360,7 +378,7 @@ function App() {
       <ProductRail onMenu={() => setSidebarOpen(true)} />
       <Sidebar activeSlug={slug} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSearch={() => setSearchOpen(true)} />
       <div className="main-shell">
-        <Topbar page={page} onMenu={() => setSidebarOpen(true)} onSearch={() => setSearchOpen(true)} />
+        <Topbar page={page} theme={theme} onMenu={() => setSidebarOpen(true)} onSearch={() => setSearchOpen(true)} onThemeToggle={toggleTheme} />
         <div className="content-shell">
           <main className="doc-main">
             <PageHeader page={page} />

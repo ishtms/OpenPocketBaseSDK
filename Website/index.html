@@ -10,6 +10,20 @@
     />
     <link rel="icon" type="image/svg+xml" href="/openmobile-mark.svg" />
     <title>OpenPocketBase SDK | OpenMobile Docs</title>
+    <script>
+      (() => {
+        let saved = null;
+        try {
+          saved = localStorage.getItem("openmobile-theme");
+        } catch {}
+        const theme = saved === "light" || saved === "dark"
+          ? saved
+          : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === "light" ? "#f5f2ed" : "#090909";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
