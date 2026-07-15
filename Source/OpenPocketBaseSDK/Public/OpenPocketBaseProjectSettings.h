@@ -66,7 +66,10 @@ public:
 
     virtual FName GetCategoryName() const override;
 
-    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Settings")
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Settings",
+        meta = (ReturnDisplayName = "Resolved"))
     bool TryResolveProfile(
         FName Profile,
         FOpenPocketBaseClientConfig& OutConfig,

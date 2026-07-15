@@ -171,6 +171,20 @@ bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters
                         Property->HasAnyPropertyFlags(CPF_AdvancedDisplay));
                 }
             }
+
+            if (Function->HasAnyFunctionFlags(FUNC_BlueprintCallable) &&
+                CastField<FBoolProperty>(Function->GetReturnProperty()) != nullptr)
+            {
+                const FString ReturnDisplayName =
+                    Function->GetMetaData(TEXT("ReturnDisplayName"));
+                TestFalse(
+                    *FString::Printf(
+                        TEXT("%s.%s names its Boolean output"),
+                        *Class->GetName(),
+                        *Function->GetName()),
+                    ReturnDisplayName.IsEmpty() ||
+                        ReturnDisplayName == TEXT("Return Value"));
+            }
         }
     }
 

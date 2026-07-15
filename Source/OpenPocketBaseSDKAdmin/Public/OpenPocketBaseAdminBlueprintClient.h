@@ -33,6 +33,7 @@ public:
             HidePin = "WorldContextObject",
             DisplayName = "Initialize Privileged PocketBase",
             ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Succeeded",
             DevelopmentOnly))
     static bool InitializeAdminClient(
         const UObject* WorldContextObject,
@@ -45,10 +46,20 @@ public:
 
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> GetNativeClient() const;
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Admin", meta = (DevelopmentOnly))
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Admin",
+        meta = (
+            DevelopmentOnly,
+            ReturnDisplayName = "Ready"))
     bool IsReady() const;
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Admin", meta = (DevelopmentOnly))
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Admin",
+        meta = (
+            DevelopmentOnly,
+            ReturnDisplayName = "Authenticated"))
     bool IsAuthenticated() const;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (DevelopmentOnly))

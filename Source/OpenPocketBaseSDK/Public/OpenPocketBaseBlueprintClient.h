@@ -55,7 +55,12 @@ public:
 
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> GetNativeClient() const;
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client", meta = (DisplayName = "Is PocketBase Client Ready"))
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Client",
+        meta = (
+            DisplayName = "Is PocketBase Client Ready",
+            ReturnDisplayName = "Ready"))
     bool IsReady() const;
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Client")
@@ -73,7 +78,10 @@ public:
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
     FOpenPocketBaseCapabilityReport GetCapabilityReport() const;
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Authentication")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Authentication",
+        meta = (ReturnDisplayName = "Authenticated"))
     bool IsAuthenticated() const;
 
     UFUNCTION(
@@ -83,7 +91,8 @@ public:
             BlueprintInternalUseOnly = "true",
             DeprecatedFunction,
             DeprecationMessage = "Replace this node with Get Current Auth Record.",
-            DisplayName = "Get Current Auth Record (Legacy)"))
+            DisplayName = "Get Current Auth Record (Legacy)",
+            ReturnDisplayName = "Found"))
     bool GetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
 
     UFUNCTION(
@@ -92,7 +101,8 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             DisplayName = "Get Current Auth Record",
-            ExpandBoolAsExecs = "ReturnValue"))
+            ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Found"))
     bool TryGetCurrentAuthRecord(FOpenPocketBaseRecord& OutRecord) const;
 
     UFUNCTION(
@@ -102,7 +112,8 @@ public:
             BlueprintInternalUseOnly = "true",
             DeprecatedFunction,
             DeprecationMessage = "Replace this node with Get Current Session.",
-            DisplayName = "Get Current Session (Legacy)"))
+            DisplayName = "Get Current Session (Legacy)",
+            ReturnDisplayName = "Authenticated"))
     bool GetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
 
     UFUNCTION(
@@ -111,7 +122,8 @@ public:
         Category = "Open PocketBase|Session",
         meta = (
             DisplayName = "Get Current Session",
-            ExpandBoolAsExecs = "ReturnValue"))
+            ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Authenticated"))
     bool TryGetCurrentSession(FOpenPocketBaseSessionSnapshot& OutSession) const;
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Session")

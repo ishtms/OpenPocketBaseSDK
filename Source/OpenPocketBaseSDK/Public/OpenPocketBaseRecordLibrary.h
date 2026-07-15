@@ -73,13 +73,22 @@ public:
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Has Field"))
     static bool HasField(const FOpenPocketBaseRecord& Record, const FString& FieldName);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Is Null"))
     static bool IsFieldNull(const FOpenPocketBaseRecord& Record, const FString& FieldName);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Found"))
     static bool TryGetStringField(
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
@@ -91,7 +100,10 @@ public:
         const FString& FieldName,
         FString& OutValue);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Found"))
     static bool TryGetIntegerField(
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
@@ -103,37 +115,55 @@ public:
         const FString& FieldName,
         int64& OutValue);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Found"))
     static bool TryGetNumberField(
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
         double& OutValue);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Found"))
     static bool TryGetBooleanField(
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
         bool& OutValue);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Found"))
     static bool TryGetDateField(
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
         FDateTime& OutValue);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Found"))
     static bool TryGetStringArrayField(
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
         TArray<FString>& OutValue);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (ReturnDisplayName = "Found"))
     static bool TryGetObjectField(
         const FOpenPocketBaseRecord& Record,
         const FString& FieldName,
         FJsonObjectWrapper& OutValue);
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Utilities",
+        meta = (ReturnDisplayName = "Parsed"))
     static bool TryParsePocketBaseDate(const FString& Value, FDateTime& OutDateTime);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")

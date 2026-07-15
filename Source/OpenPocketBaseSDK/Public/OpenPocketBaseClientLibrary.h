@@ -20,7 +20,8 @@ public:
             WorldContext = "WorldContextObject",
             DefaultToSelf = "WorldContextObject",
             HidePin = "WorldContextObject",
-            ExpandBoolAsExecs = "ReturnValue"))
+            ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Succeeded"))
     static bool InitializePocketBase(
         const UObject* WorldContextObject,
         const FString& BaseUrl,
@@ -35,7 +36,8 @@ public:
             WorldContext = "WorldContextObject",
             DefaultToSelf = "WorldContextObject",
             HidePin = "WorldContextObject",
-            ExpandBoolAsExecs = "ReturnValue"))
+            ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Succeeded"))
     static bool InitializePocketBaseWithConfig(
         const UObject* WorldContextObject,
         const FOpenPocketBaseClientConfig& Config,
@@ -60,7 +62,8 @@ public:
             WorldContext = "WorldContextObject",
             DefaultToSelf = "WorldContextObject",
             HidePin = "WorldContextObject",
-            ExpandBoolAsExecs = "ReturnValue"))
+            ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Succeeded"))
     static bool CreateNamedPocketBaseClient(
         const UObject* WorldContextObject,
         FName ClientName,
@@ -87,7 +90,8 @@ public:
             DisplayName = "Shutdown PocketBase",
             WorldContext = "WorldContextObject",
             DefaultToSelf = "WorldContextObject",
-            HidePin = "WorldContextObject"))
+            HidePin = "WorldContextObject",
+            ReturnDisplayName = "Shut Down"))
     static bool ShutdownPocketBase(const UObject* WorldContextObject);
 
     UFUNCTION(
@@ -97,7 +101,8 @@ public:
             DisplayName = "Remove Named PocketBase Client",
             WorldContext = "WorldContextObject",
             DefaultToSelf = "WorldContextObject",
-            HidePin = "WorldContextObject"))
+            HidePin = "WorldContextObject",
+            ReturnDisplayName = "Removed"))
     static bool RemoveNamedPocketBaseClient(
         const UObject* WorldContextObject,
         FName ClientName);

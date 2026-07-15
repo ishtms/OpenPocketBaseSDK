@@ -42,7 +42,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Realtime")
     void Unsubscribe();
 
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Realtime")
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Realtime",
+        meta = (ReturnDisplayName = "Active"))
     bool IsActive() const;
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Realtime")
