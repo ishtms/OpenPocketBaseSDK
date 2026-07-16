@@ -1,8 +1,11 @@
+#include "BlueprintCompilationManager.h"
 #include "EdGraphUtilities.h"
+#include "Engine/Blueprint.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
 #include "OpenPocketBaseEditorValidation.h"
+#include "Schema/OpenPocketBaseSchemaCompilerExtension.h"
 #include "Schema/OpenPocketBaseSchemaGraphPinFactory.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogOpenPocketBaseEditor, Log, All);
@@ -14,6 +17,10 @@ public:
     {
         SchemaPinFactory = MakeShared<FOpenPocketBaseSchemaGraphPinFactory>();
         FEdGraphUtilities::RegisterVisualPinFactory(SchemaPinFactory);
+        SchemaCompilerExtension = NewObject<UOpenPocketBaseSchemaCompilerExtension>();
+        FBlueprintCompilationManager::RegisterCompilerExtension(
+            UBlueprint::StaticClass(),
+            SchemaCompilerExtension);
 
         ValidationCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("OpenPocketBase.ValidateProject"),
@@ -72,6 +79,7 @@ private:
 
     IConsoleObject* ValidationCommand = nullptr;
     TSharedPtr<FGraphPanelPinFactory> SchemaPinFactory;
+    UOpenPocketBaseSchemaCompilerExtension* SchemaCompilerExtension = nullptr;
 };
 
 IMPLEMENT_MODULE(FOpenPocketBaseSDKEditorModule, OpenPocketBaseSDKEditor)
