@@ -101,7 +101,9 @@ FOpenPocketBaseFieldRef* FieldMemory(const UScriptStruct* Struct, uint8* Memory)
 
 bool FOpenPocketBaseSchemaPickerModel::SupportsCollectionStruct(const UScriptStruct* Struct)
 {
-    return Struct == FOpenPocketBaseCollectionRef::StaticStruct();
+    return Struct != nullptr &&
+        (Struct == FOpenPocketBaseCollectionRef::StaticStruct() ||
+         Struct->IsChildOf(FOpenPocketBaseCollectionRef::StaticStruct()));
 }
 
 bool FOpenPocketBaseSchemaPickerModel::SupportsFieldStruct(const UScriptStruct* Struct)
@@ -109,6 +111,25 @@ bool FOpenPocketBaseSchemaPickerModel::SupportsFieldStruct(const UScriptStruct* 
     return Struct != nullptr &&
         (Struct == FOpenPocketBaseFieldRef::StaticStruct() ||
          Struct->IsChildOf(FOpenPocketBaseFieldRef::StaticStruct()));
+}
+
+bool FOpenPocketBaseSchemaPickerModel::AcceptsCollection(
+    const UScriptStruct* ReferenceStruct,
+    const FOpenPocketBaseCollectionRef& Collection)
+{
+    if (ReferenceStruct == FOpenPocketBaseCollectionRef::StaticStruct())
+    {
+        return Collection.IsSet();
+    }
+    if (ReferenceStruct == FOpenPocketBaseAuthCollectionRef::StaticStruct())
+    {
+        return FOpenPocketBaseAuthCollectionRef::Accepts(Collection);
+    }
+    if (ReferenceStruct == FOpenPocketBaseWritableCollectionRef::StaticStruct())
+    {
+        return FOpenPocketBaseWritableCollectionRef::Accepts(Collection);
+    }
+    return false;
 }
 
 bool FOpenPocketBaseSchemaPickerModel::AcceptsField(
@@ -157,6 +178,7 @@ bool FOpenPocketBaseSchemaPickerModel::AcceptsField(
 
 void FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
     const TArray<UOpenPocketBaseSchema*>& Schemas,
+    const UScriptStruct* ReferenceStruct,
     const bool bIncludeSystemCollections,
     TArray<FOpenPocketBaseSchemaPickerChoice>& OutChoices)
 {
@@ -177,6 +199,10 @@ void FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
 
             FOpenPocketBaseSchemaPickerChoice Choice;
             if (!Schema->MakeCollectionRef(Collection.Id, Choice.Collection))
+            {
+                continue;
+            }
+            if (!AcceptsCollection(ReferenceStruct, Choice.Collection))
             {
                 continue;
             }
@@ -377,6 +403,7 @@ FString FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
 }
 
 EOpenPocketBaseSchemaReferenceStatus FOpenPocketBaseSchemaPickerModel::ValidateCollection(
+    const UScriptStruct* ReferenceStruct,
     const FOpenPocketBaseCollectionRef& Ref,
     FText& OutMessage)
 {
@@ -405,6 +432,13 @@ EOpenPocketBaseSchemaReferenceStatus FOpenPocketBaseSchemaPickerModel::ValidateC
         OutMessage = FText::Format(
             LOCTEXT("MissingCollection", "Collection '{0}' no longer exists in the imported schema."),
             FText::FromString(Ref.Name));
+        return EOpenPocketBaseSchemaReferenceStatus::MissingCollection;
+    }
+    if (!AcceptsCollection(ReferenceStruct, Ref))
+    {
+        OutMessage = FText::Format(
+            LOCTEXT("WrongCollectionType", "Collection '{0}' does not have the type required by this pin."),
+            FText::FromString(Collection->Name));
         return EOpenPocketBaseSchemaReferenceStatus::MissingCollection;
     }
     return EOpenPocketBaseSchemaReferenceStatus::Valid;

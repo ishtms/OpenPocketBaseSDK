@@ -79,6 +79,20 @@ bool FOpenPocketBaseCollectionRef::IsSet() const
     return SchemaId.IsValid() && !CollectionId.IsEmpty() && !Name.IsEmpty();
 }
 
+bool FOpenPocketBaseAuthCollectionRef::Accepts(
+    const FOpenPocketBaseCollectionRef& Collection)
+{
+    return Collection.IsSet() && Collection.Type == EOpenPocketBaseCollectionType::Auth;
+}
+
+bool FOpenPocketBaseWritableCollectionRef::Accepts(
+    const FOpenPocketBaseCollectionRef& Collection)
+{
+    return Collection.IsSet() &&
+        (Collection.Type == EOpenPocketBaseCollectionType::Base ||
+         Collection.Type == EOpenPocketBaseCollectionType::Auth);
+}
+
 bool FOpenPocketBaseFieldRef::IsSet() const
 {
     return SchemaId.IsValid() && !CollectionId.IsEmpty() && !FieldId.IsEmpty() && !Name.IsEmpty();

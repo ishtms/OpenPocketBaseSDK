@@ -56,6 +56,18 @@ bool FOpenPocketBaseSchemaReferencesTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseCollectionRef UsersRef;
     TestTrue(TEXT("Auth collection references are available"), Schema->MakeCollectionRef(TEXT("sdk_users"), UsersRef));
+    FOpenPocketBaseAuthCollectionRef AuthUsersRef;
+    TestTrue(
+        TEXT("Auth collection pins accept auth collections"),
+        Schema->MakeTypedCollectionRef(TEXT("sdk_users"), AuthUsersRef));
+    FOpenPocketBaseAuthCollectionRef WrongAuthRef;
+    TestFalse(
+        TEXT("Auth collection pins reject base collections"),
+        Schema->MakeTypedCollectionRef(TEXT("sdk_tasks"), WrongAuthRef));
+    FOpenPocketBaseWritableCollectionRef WritableTasksRef;
+    TestTrue(
+        TEXT("Writable collection pins accept base collections"),
+        Schema->MakeTypedCollectionRef(TEXT("sdk_tasks"), WritableTasksRef));
     TestFalse(TEXT("Cross-collection field use is rejected"), DoneRef.BelongsTo(UsersRef));
 
     Schema->Collections[0].Fields[1].Name = TEXT("completed");

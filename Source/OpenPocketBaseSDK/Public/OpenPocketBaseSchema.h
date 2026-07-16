@@ -131,6 +131,22 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseCollectionRef
 };
 
 USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseAuthCollectionRef : public FOpenPocketBaseCollectionRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseCollectionRef& Collection);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseWritableCollectionRef : public FOpenPocketBaseCollectionRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseCollectionRef& Collection);
+};
+
+USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseFieldRef
 {
     GENERATED_BODY()
@@ -262,6 +278,23 @@ public:
 
     const FOpenPocketBaseSchemaCollection* FindCollection(const FString& IdOrName) const;
     bool MakeCollectionRef(const FString& IdOrName, FOpenPocketBaseCollectionRef& OutRef) const;
+
+    template <typename CollectionRefType>
+    bool MakeTypedCollectionRef(
+        const FString& IdOrName,
+        CollectionRefType& OutRef) const
+    {
+        OutRef = {};
+        FOpenPocketBaseCollectionRef Collection;
+        if (!MakeCollectionRef(IdOrName, Collection) || !CollectionRefType::Accepts(Collection))
+        {
+            return false;
+        }
+
+        static_cast<FOpenPocketBaseCollectionRef&>(OutRef) = MoveTemp(Collection);
+        return true;
+    }
+
     bool MakeFieldRef(
         const FOpenPocketBaseCollectionRef& Collection,
         const FString& IdOrName,

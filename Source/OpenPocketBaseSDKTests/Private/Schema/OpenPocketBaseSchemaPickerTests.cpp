@@ -58,7 +58,11 @@ bool FOpenPocketBaseSchemaPickerChoicesTest::RunTest(const FString& Parameters)
     const TArray<UOpenPocketBaseSchema*> Schemas = {Schema};
 
     TArray<FOpenPocketBaseSchemaPickerChoice> Collections;
-    FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(Schemas, false, Collections);
+    FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
+        Schemas,
+        FOpenPocketBaseCollectionRef::StaticStruct(),
+        false,
+        Collections);
     TestEqual(TEXT("System collections stay out of the normal picker"), Collections.Num(), 1);
     if (Collections.IsEmpty())
     {

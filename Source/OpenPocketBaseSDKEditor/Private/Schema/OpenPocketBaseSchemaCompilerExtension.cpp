@@ -102,7 +102,10 @@ void UOpenPocketBaseSchemaCompilerExtension::ProcessBlueprintCompiled(
                     FOpenPocketBaseSchemaPickerModel::ParseCollectionDefault(
                         Pin->GetDefaultAsString(),
                         Ref);
-                    Status = FOpenPocketBaseSchemaPickerModel::ValidateCollection(Ref, Message);
+                    Status = FOpenPocketBaseSchemaPickerModel::ValidateCollection(
+                        ReferenceStruct,
+                        Ref,
+                        Message);
                 }
                 else if (FOpenPocketBaseSchemaPickerModel::SupportsFieldStruct(ReferenceStruct))
                 {

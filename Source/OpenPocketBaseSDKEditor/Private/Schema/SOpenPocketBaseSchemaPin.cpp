@@ -170,6 +170,7 @@ void SOpenPocketBaseSchemaPin::RefreshChoices()
     {
         FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
             Schemas,
+            GetReferenceStruct(),
             bShowSystemCollections,
             Choices);
     }
@@ -305,7 +306,10 @@ FText SOpenPocketBaseSchemaPin::GetCurrentToolTip() const
         FOpenPocketBaseSchemaPickerModel::ParseCollectionDefault(
             GraphPinObj->GetDefaultAsString(),
             Ref);
-        FOpenPocketBaseSchemaPickerModel::ValidateCollection(Ref, Message);
+        FOpenPocketBaseSchemaPickerModel::ValidateCollection(
+            GetReferenceStruct(),
+            Ref,
+            Message);
     }
     else
     {
@@ -334,7 +338,10 @@ FSlateColor SOpenPocketBaseSchemaPin::GetCurrentColor() const
         FOpenPocketBaseSchemaPickerModel::ParseCollectionDefault(
             GraphPinObj->GetDefaultAsString(),
             Ref);
-        Status = FOpenPocketBaseSchemaPickerModel::ValidateCollection(Ref, Message);
+        Status = FOpenPocketBaseSchemaPickerModel::ValidateCollection(
+            GetReferenceStruct(),
+            Ref,
+            Message);
     }
     else
     {

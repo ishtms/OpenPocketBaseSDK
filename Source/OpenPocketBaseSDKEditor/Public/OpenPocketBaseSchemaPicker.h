@@ -38,12 +38,16 @@ class OPENPOCKETBASESDKEDITOR_API FOpenPocketBaseSchemaPickerModel
 public:
     static bool SupportsCollectionStruct(const UScriptStruct* Struct);
     static bool SupportsFieldStruct(const UScriptStruct* Struct);
+    static bool AcceptsCollection(
+        const UScriptStruct* ReferenceStruct,
+        const FOpenPocketBaseCollectionRef& Collection);
     static bool AcceptsField(
         const UScriptStruct* ReferenceStruct,
         const FOpenPocketBaseFieldRef& Field);
 
     static void BuildCollectionChoices(
         const TArray<UOpenPocketBaseSchema*>& Schemas,
+        const UScriptStruct* ReferenceStruct,
         bool bIncludeSystemCollections,
         TArray<FOpenPocketBaseSchemaPickerChoice>& OutChoices);
     static void BuildFieldChoices(
@@ -64,6 +68,7 @@ public:
         const FOpenPocketBaseFieldRef& Ref);
 
     static EOpenPocketBaseSchemaReferenceStatus ValidateCollection(
+        const UScriptStruct* ReferenceStruct,
         const FOpenPocketBaseCollectionRef& Ref,
         FText& OutMessage);
     static EOpenPocketBaseSchemaReferenceStatus ValidateField(
