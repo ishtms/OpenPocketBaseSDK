@@ -1,7 +1,9 @@
+#include "EdGraphUtilities.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
 #include "OpenPocketBaseEditorValidation.h"
+#include "Schema/OpenPocketBaseSchemaGraphPinFactory.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogOpenPocketBaseEditor, Log, All);
 
@@ -10,6 +12,9 @@ class FOpenPocketBaseSDKEditorModule final : public IModuleInterface
 public:
     virtual void StartupModule() override
     {
+        SchemaPinFactory = MakeShared<FOpenPocketBaseSchemaGraphPinFactory>();
+        FEdGraphUtilities::RegisterVisualPinFactory(SchemaPinFactory);
+
         ValidationCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("OpenPocketBase.ValidateProject"),
             TEXT("Validates Open PocketBase project settings and credential boundaries."),
@@ -30,6 +35,12 @@ public:
 
     virtual void ShutdownModule() override
     {
+        if (SchemaPinFactory.IsValid())
+        {
+            FEdGraphUtilities::UnregisterVisualPinFactory(SchemaPinFactory);
+            SchemaPinFactory.Reset();
+        }
+
         if (ValidationCommand != nullptr)
         {
             IConsoleManager::Get().UnregisterConsoleObject(ValidationCommand, false);
@@ -60,6 +71,7 @@ private:
     }
 
     IConsoleObject* ValidationCommand = nullptr;
+    TSharedPtr<FGraphPanelPinFactory> SchemaPinFactory;
 };
 
 IMPLEMENT_MODULE(FOpenPocketBaseSDKEditorModule, OpenPocketBaseSDKEditor)
