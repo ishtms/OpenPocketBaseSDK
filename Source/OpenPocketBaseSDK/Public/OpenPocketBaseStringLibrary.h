@@ -12,8 +12,10 @@
 #include "OpenPocketBaseFile.h"
 #include "OpenPocketBaseFilter.h"
 #include "OpenPocketBaseProjectSettings.h"
+#include "OpenPocketBaseQuery.h"
 #include "OpenPocketBaseRealtime.h"
 #include "OpenPocketBaseRecord.h"
+#include "OpenPocketBaseSchema.h"
 #include "OpenPocketBaseSession.h"
 
 #include "OpenPocketBaseStringLibrary.generated.h"
@@ -66,6 +68,51 @@ public:
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Collection)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseCollectionToString(const FOpenPocketBaseCollection& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Collection Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseCollectionRefToString(const FOpenPocketBaseCollectionRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Auth Collection Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseAuthCollectionRefToString(const FOpenPocketBaseAuthCollectionRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Writable Collection Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseWritableCollectionRefToString(const FOpenPocketBaseWritableCollectionRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Schema Collection)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseSchemaCollectionToString(const FOpenPocketBaseSchemaCollection& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Schema Field)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseSchemaFieldToString(const FOpenPocketBaseSchemaField& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseFieldRefToString(const FOpenPocketBaseFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Any Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseAnyFieldRefToString(const FOpenPocketBaseAnyFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (String Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseStringFieldRefToString(const FOpenPocketBaseStringFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Number Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseNumberFieldRefToString(const FOpenPocketBaseNumberFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Boolean Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseBooleanFieldRefToString(const FOpenPocketBaseBooleanFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Date Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseDateFieldRefToString(const FOpenPocketBaseDateFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (String Array Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseStringArrayFieldRefToString(const FOpenPocketBaseStringArrayFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (JSON Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseJsonFieldRefToString(const FOpenPocketBaseJsonFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Relation Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseRelationFieldRefToString(const FOpenPocketBaseRelationFieldRef& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (File Field Reference)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseFileFieldRefToString(const FOpenPocketBaseFileFieldRef& Value);
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Custom Route Request)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseCustomRouteRequestToString(const FOpenPocketBaseCustomRouteRequest& Value);
@@ -141,6 +188,12 @@ public:
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Project Profile)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseProjectProfileToString(const FOpenPocketBaseProjectProfile& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Sort)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseSortToString(const FOpenPocketBaseSort& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Expand)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseExpandToString(const FOpenPocketBaseExpand& Value);
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Realtime Event)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseRealtimeEventToString(const FOpenPocketBaseRealtimeEvent& Value);
@@ -252,4 +305,16 @@ public:
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Transfer Phase)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseTransferPhaseToString(EOpenPocketBaseTransferPhase Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Collection Type)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseCollectionTypeToString(EOpenPocketBaseCollectionType Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Field Type)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseFieldTypeToString(EOpenPocketBaseFieldType Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Field Value Type)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseFieldValueTypeToString(EOpenPocketBaseFieldValueType Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Sort Direction)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseSortDirectionToString(EOpenPocketBaseSortDirection Value);
 };
