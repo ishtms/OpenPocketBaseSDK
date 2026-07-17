@@ -428,7 +428,7 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
     FOpenPocketBaseRealtimeOptions Options;
-    Options.Filter = FOpenPocketBaseFilter::Boolean(
+    Options.Filter = FOpenPocketBaseFilter::DynamicBoolean(
         TEXT("done"),
         EOpenPocketBaseBooleanComparison::Equals,
         false);

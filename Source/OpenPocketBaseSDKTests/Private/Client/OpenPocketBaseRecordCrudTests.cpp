@@ -196,10 +196,10 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
     }
 
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("title"), TEXT("Created"));
-    Body.SetNumberField(TEXT("score"), 2.0, EOpenPocketBaseFieldModifier::Append);
-    Body.SetStringArrayField(TEXT("tags"), {TEXT("urgent")}, EOpenPocketBaseFieldModifier::Prepend);
-    Body.SetStringArrayField(TEXT("tags"), {TEXT("old")}, EOpenPocketBaseFieldModifier::Remove);
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Created"));
+    Body.SetDynamicNumberField(TEXT("score"), 2.0, EOpenPocketBaseFieldModifier::Append);
+    Body.SetDynamicStringArrayField(TEXT("tags"), {TEXT("urgent")}, EOpenPocketBaseFieldModifier::Prepend);
+    Body.SetDynamicStringArrayField(TEXT("tags"), {TEXT("old")}, EOpenPocketBaseFieldModifier::Remove);
 
     FOpenPocketBaseRecordOptions RecordOptions;
     RecordOptions.Expand = {TEXT("owner.team")};
@@ -260,7 +260,7 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
         });
 
     State->Client->Collection(TEXT("tasks")).GetFirstListItem(
-        FOpenPocketBaseFilter::String(
+        FOpenPocketBaseFilter::DynamicString(
             TEXT("status"),
             EOpenPocketBaseStringComparison::Equals,
             TEXT("open")),
@@ -369,7 +369,7 @@ bool FOpenPocketBaseRecordMutationErrorTest::RunTest(const FString& Parameters)
     }
 
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("title"), TEXT("Created"));
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Created"));
     FOpenPocketBaseRecordOptions Options;
     Options.RequestOptions.MaxReadRetries = 5;
 

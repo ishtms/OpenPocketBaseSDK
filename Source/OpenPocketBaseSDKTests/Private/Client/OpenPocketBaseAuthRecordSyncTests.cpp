@@ -289,7 +289,7 @@ bool FOpenPocketBaseAuthRecordSyncTest::RunTest(const FString& Parameters)
                 return;
             }
             FOpenPocketBaseRecordBody Body;
-            Body.SetStringField(TEXT("displayName"), TEXT("Updated Player"));
+            Body.SetDynamicStringField(TEXT("displayName"), TEXT("Updated Player"));
             State->Client->Collection(TEXT("users")).Update(
                 TEXT("user00000000001"),
                 MoveTemp(Body),
@@ -360,7 +360,7 @@ bool FOpenPocketBaseAuthRecordPersistenceFailureTest::RunTest(const FString& Par
                 return;
             }
             FOpenPocketBaseRecordBody Body;
-            Body.SetStringField(TEXT("displayName"), TEXT("Updated Player"));
+            Body.SetDynamicStringField(TEXT("displayName"), TEXT("Updated Player"));
             State->Client->Collection(TEXT("users")).Update(
                 TEXT("user00000000001"),
                 MoveTemp(Body),
@@ -448,7 +448,7 @@ bool FOpenPocketBaseAuthRecordRefreshRaceTest::RunTest(const FString& Parameters
                 });
 
             FOpenPocketBaseRecordBody Body;
-            Body.SetStringField(TEXT("displayName"), TEXT("Updated Player"));
+            Body.SetDynamicStringField(TEXT("displayName"), TEXT("Updated Player"));
             State->Client->Collection(TEXT("users")).Update(
                 TEXT("user00000000001"),
                 MoveTemp(Body),
@@ -570,7 +570,7 @@ bool FOpenPocketBaseBatchAuthRecordSyncTest::RunTest(const FString& Parameters)
                 return;
             }
             FOpenPocketBaseRecordBody Body;
-            Body.SetStringField(TEXT("displayName"), TEXT("Updated Player"));
+            Body.SetDynamicStringField(TEXT("displayName"), TEXT("Updated Player"));
             FOpenPocketBaseBatchRequest Request;
             Request.AddUpdate(
                 TEXT("users"),

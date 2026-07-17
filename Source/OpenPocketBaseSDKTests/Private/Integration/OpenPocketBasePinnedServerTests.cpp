@@ -137,7 +137,7 @@ void DeleteIntegrationRecord(
 void GetFirstIntegrationRecord(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
-    FOpenPocketBaseFilter Filter = FOpenPocketBaseFilter::String(
+    FOpenPocketBaseFilter Filter = FOpenPocketBaseFilter::DynamicString(
         TEXT("id"),
         EOpenPocketBaseStringComparison::Equals,
         TEXT("task00000000002"));
@@ -164,8 +164,8 @@ void UpdateIntegrationRecord(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("title"), TEXT("Updated integration task"));
-    Body.SetNumberField(TEXT("score"), 2.0, EOpenPocketBaseFieldModifier::Append);
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Updated integration task"));
+    Body.SetDynamicNumberField(TEXT("score"), 2.0, EOpenPocketBaseFieldModifier::Append);
     State->Client->Collection(TEXT("sdk_tasks")).Update(
         TEXT("task00000000002"),
         MoveTemp(Body),
@@ -185,9 +185,9 @@ void CreateIntegrationRecord(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("id"), TEXT("task00000000002"));
-    Body.SetStringField(TEXT("title"), TEXT("Created integration task"));
-    Body.SetNumberField(TEXT("score"), 3.0);
+    Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000002"));
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Created integration task"));
+    Body.SetDynamicNumberField(TEXT("score"), 3.0);
     State->Client->Collection(TEXT("sdk_tasks")).Create(
         MoveTemp(Body),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -226,10 +226,10 @@ void RunFailingIntegrationBatch(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
     FOpenPocketBaseRecordBody FirstBody;
-    FirstBody.SetStringField(TEXT("id"), TEXT("task00000000005"));
-    FirstBody.SetStringField(TEXT("title"), TEXT("Must be rolled back"));
+    FirstBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000005"));
+    FirstBody.SetDynamicStringField(TEXT("title"), TEXT("Must be rolled back"));
     FOpenPocketBaseRecordBody InvalidBody;
-    InvalidBody.SetStringField(TEXT("id"), TEXT("task00000000006"));
+    InvalidBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000006"));
 
     FOpenPocketBaseBatchRequest Batch;
     Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(FirstBody));
@@ -258,13 +258,13 @@ void RunSuccessfulIntegrationBatch(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
     FOpenPocketBaseRecordBody CreateBody;
-    CreateBody.SetStringField(TEXT("id"), TEXT("task00000000003"));
-    CreateBody.SetStringField(TEXT("title"), TEXT("Batch create"));
+    CreateBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000003"));
+    CreateBody.SetDynamicStringField(TEXT("title"), TEXT("Batch create"));
     FOpenPocketBaseRecordBody UpdateBody;
-    UpdateBody.SetStringField(TEXT("title"), TEXT("Batch update"));
+    UpdateBody.SetDynamicStringField(TEXT("title"), TEXT("Batch update"));
     FOpenPocketBaseRecordBody UpsertBody;
-    UpsertBody.SetStringField(TEXT("id"), TEXT("task00000000004"));
-    UpsertBody.SetStringField(TEXT("title"), TEXT("Batch upsert"));
+    UpsertBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000004"));
+    UpsertBody.SetDynamicStringField(TEXT("title"), TEXT("Batch upsert"));
 
     FOpenPocketBaseBatchRequest Batch;
     Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(CreateBody));
@@ -1044,8 +1044,8 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
             }
 
             FOpenPocketBaseRecordBody Body;
-            Body.SetStringField(TEXT("id"), TEXT("task00000000007"));
-            Body.SetStringField(TEXT("title"), TEXT("Multipart integration task"));
+            Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000007"));
+            Body.SetDynamicStringField(TEXT("title"), TEXT("Multipart integration task"));
             FOpenPocketBaseFileInput File;
             File.FieldName = TEXT("attachments");
             File.FileName = TEXT("disk-proof.txt");
@@ -1069,7 +1069,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
                     State->UploadedFileName = GetFirstFileName(CreateResult.GetValue());
 
                     FOpenPocketBaseRecordBody UpdateBody;
-                    UpdateBody.SetStringField(TEXT("title"), TEXT("Multipart integration updated"));
+                    UpdateBody.SetDynamicStringField(TEXT("title"), TEXT("Multipart integration updated"));
                     FOpenPocketBaseFileInput InlineFile;
                     InlineFile.FieldName = TEXT("attachments");
                     InlineFile.FileName = TEXT("memory-proof.txt");
@@ -1181,8 +1181,8 @@ void CreatePinnedRealtimeRecord(
     }
     State->bMutationStarted = true;
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("id"), TEXT("task00000000008"));
-    Body.SetStringField(TEXT("title"), TEXT("Realtime integration task"));
+    Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000008"));
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Realtime integration task"));
     State->Client->Collection(TEXT("sdk_tasks")).Create(
         MoveTemp(Body),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -1374,8 +1374,8 @@ void CreatePinnedRealtimeChaosRecord(
     }
     State->bMutationStarted = true;
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("id"), TEXT("task00000000009"));
-    Body.SetStringField(TEXT("title"), TEXT("Realtime chaos integration task"));
+    Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000009"));
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Realtime chaos integration task"));
     State->Client->Collection(TEXT("sdk_tasks")).Create(
         MoveTemp(Body),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)

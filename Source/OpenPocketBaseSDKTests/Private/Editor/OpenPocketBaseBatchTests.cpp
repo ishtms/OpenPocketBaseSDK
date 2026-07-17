@@ -186,12 +186,12 @@ TSharedRef<FBatchTestState, ESPMode::ThreadSafe> MakeBatchState(FAutomationTestB
 FOpenPocketBaseBatchRequest MakeCompleteBatch()
 {
     FOpenPocketBaseRecordBody CreateBody;
-    CreateBody.SetStringField(TEXT("title"), TEXT("Create"));
+    CreateBody.SetDynamicStringField(TEXT("title"), TEXT("Create"));
     FOpenPocketBaseRecordBody UpdateBody;
-    UpdateBody.SetStringField(TEXT("title"), TEXT("Update"));
+    UpdateBody.SetDynamicStringField(TEXT("title"), TEXT("Update"));
     FOpenPocketBaseRecordBody UpsertBody;
-    UpsertBody.SetStringField(TEXT("id"), TEXT("task00000000003"));
-    UpsertBody.SetStringField(TEXT("title"), TEXT("Upsert"));
+    UpsertBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000003"));
+    UpsertBody.SetDynamicStringField(TEXT("title"), TEXT("Upsert"));
 
     FOpenPocketBaseBatchRequest Batch;
     Batch
@@ -213,7 +213,7 @@ bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
     FOpenPocketBaseCollection Collection;
     Collection.Name = TEXT("tasks");
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("title"), TEXT("Create"));
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Create"));
 
     const FOpenPocketBaseBatchRequest Empty = UOpenPocketBaseBatchLibrary::NewBatch();
     const FOpenPocketBaseBatchRequest WithCreate = UOpenPocketBaseBatchLibrary::WithCreate(
@@ -350,7 +350,7 @@ bool FOpenPocketBaseBatchBoundsTest::RunTest(const FString& Parameters)
     State->Client->SendBatch(MakeCompleteBatch(), OnFailure, CountOptions);
 
     FOpenPocketBaseRecordBody LargeBody;
-    LargeBody.SetStringField(TEXT("title"), FString::ChrN(2048, TEXT('x')));
+    LargeBody.SetDynamicStringField(TEXT("title"), FString::ChrN(2048, TEXT('x')));
     FOpenPocketBaseBatchRequest LargeBatch;
     LargeBatch.AddCreate(TEXT("tasks"), MoveTemp(LargeBody));
     FOpenPocketBaseBatchOptions BodyOptions;

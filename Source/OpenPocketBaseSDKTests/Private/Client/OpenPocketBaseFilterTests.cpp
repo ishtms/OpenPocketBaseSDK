@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseFilter.h"
+#include "OpenPocketBaseSchema.h"
 
 #include <limits>
 
@@ -90,19 +91,62 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseComposableFilterTest::RunTest(const FString& Parameters)
 {
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    Schema->SchemaId = FGuid(3, 5, 8, 13);
+
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("sdk_tasks");
+
+    FOpenPocketBaseSchemaField Done;
+    Done.Id = TEXT("done_id");
+    Done.Name = TEXT("done");
+    Done.Type = EOpenPocketBaseFieldType::Boolean;
+    Tasks.Fields.Add(Done);
+
+    FOpenPocketBaseSchemaField Title;
+    Title.Id = TEXT("title_id");
+    Title.Name = TEXT("title");
+    Title.Type = EOpenPocketBaseFieldType::Text;
+    Tasks.Fields.Add(Title);
+
+    FOpenPocketBaseSchemaField Updated;
+    Updated.Id = TEXT("updated_id");
+    Updated.Name = TEXT("updated");
+    Updated.Type = EOpenPocketBaseFieldType::Date;
+    Tasks.Fields.Add(Updated);
+
+    FOpenPocketBaseSchemaCollection Other;
+    Other.Id = TEXT("other_id");
+    Other.Name = TEXT("other");
+    FOpenPocketBaseSchemaField OtherTitle = Title;
+    OtherTitle.Id = TEXT("other_title_id");
+    Other.Fields.Add(OtherTitle);
+    Schema->Collections = {Tasks, Other};
+
+    FOpenPocketBaseCollectionRef TasksRef;
+    Schema->MakeCollectionRef(Tasks.Id, TasksRef);
+    FOpenPocketBaseBooleanFieldRef DoneRef;
+    Schema->MakeTypedFieldRef(TasksRef, Done.Id, DoneRef);
+    FOpenPocketBaseStringFieldRef TitleRef;
+    Schema->MakeTypedFieldRef(TasksRef, Title.Id, TitleRef);
+    FOpenPocketBaseDateFieldRef UpdatedRef;
+    Schema->MakeTypedFieldRef(TasksRef, Updated.Id, UpdatedRef);
+
     const FOpenPocketBaseFilter Filter = FOpenPocketBaseFilter::Boolean(
-        TEXT("done"),
+        DoneRef,
         EOpenPocketBaseBooleanComparison::Equals,
         false).And(FOpenPocketBaseFilter::String(
-            TEXT("owner.name"),
+            TitleRef,
             EOpenPocketBaseStringComparison::Contains,
             TEXT("x\"") TEXT(" || true")));
 
     TestTrue(TEXT("Typed filters are valid"), Filter.IsValid());
+    TestTrue(TEXT("Typed filters retain collection ownership"), Filter.BelongsTo(TasksRef));
     TestEqual(
         TEXT("Typed filters escape values and preserve grouping"),
         Filter.ToString(),
-        FString(TEXT("(done = false) && (owner.name ~ \"x\\\" || true\")")));
+        FString(TEXT("(done = false) && (title ~ \"x\\\" || true\")")));
 
     const FOpenPocketBaseFilter Empty;
     TestEqual(
@@ -110,15 +154,19 @@ bool FOpenPocketBaseComposableFilterTest::RunTest(const FString& Parameters)
         Empty.Or(Filter).ToString(),
         Filter.ToString());
 
-    const FOpenPocketBaseFilter Invalid = FOpenPocketBaseFilter::String(
-        TEXT("done || true"),
+    FOpenPocketBaseCollectionRef OtherRef;
+    Schema->MakeCollectionRef(Other.Id, OtherRef);
+    FOpenPocketBaseStringFieldRef OtherTitleRef;
+    Schema->MakeTypedFieldRef(OtherRef, OtherTitle.Id, OtherTitleRef);
+    const FOpenPocketBaseFilter Invalid = Filter.And(FOpenPocketBaseFilter::String(
+        OtherTitleRef,
         EOpenPocketBaseStringComparison::Equals,
-        TEXT("value"));
-    TestFalse(TEXT("Invalid field paths are rejected"), Invalid.IsValid());
-    TestFalse(TEXT("Invalid filters remain invalid when composed"), Invalid.And(Filter).IsValid());
+        TEXT("value")));
+    TestFalse(TEXT("Filters from different collections cannot be combined"), Invalid.IsValid());
+    TestFalse(TEXT("Collection mismatches explain the error"), Invalid.ErrorMessage.IsEmpty());
 
     const FOpenPocketBaseFilter Date = FOpenPocketBaseFilter::Date(
-        TEXT("updated"),
+        UpdatedRef,
         EOpenPocketBaseDateComparison::OnOrAfter,
         FDateTime(2026, 8, 23, 10, 30, 0));
     TestEqual(

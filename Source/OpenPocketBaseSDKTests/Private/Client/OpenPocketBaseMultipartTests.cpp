@@ -57,8 +57,8 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
     }
 
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("title"), TEXT("Multipart record"));
-    Body.SetStringArrayField(TEXT("tags"), {TEXT("one"), TEXT("two")});
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Multipart record"));
+    Body.SetDynamicStringArrayField(TEXT("tags"), {TEXT("one"), TEXT("two")});
 
     FOpenPocketBaseFileInput InlineFile;
     InlineFile.FieldName = TEXT("avatar");

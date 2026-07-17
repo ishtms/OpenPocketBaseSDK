@@ -113,7 +113,7 @@ FString UOpenPocketBaseStringLibrary::FormatStruct(
             Value,
             Json,
             0,
-            0,
+            CPF_Transient,
             0,
             &ExportCallback,
             true))

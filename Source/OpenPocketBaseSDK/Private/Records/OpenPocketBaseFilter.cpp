@@ -108,6 +108,23 @@ FOpenPocketBaseFilter MakeInvalidFilter(FString Message)
 }
 
 FOpenPocketBaseFilter MakeComparison(
+    const FOpenPocketBaseFieldRef& Field,
+    const TCHAR* Operator,
+    FString EncodedValue)
+{
+    if (!Field.IsSet() || !IsValidField(Field.Name))
+    {
+        return MakeInvalidFilter(TEXT("Choose a valid collection field for the filter."));
+    }
+
+    FOpenPocketBaseFilter Filter;
+    Filter.Expression = FString::Printf(TEXT("%s %s %s"), *Field.Name, Operator, *EncodedValue);
+    Filter.SchemaId = Field.SchemaId;
+    Filter.CollectionId = Field.CollectionId;
+    return Filter;
+}
+
+FOpenPocketBaseFilter MakeDynamicComparison(
     FString Field,
     const TCHAR* Operator,
     FString EncodedValue)
@@ -115,7 +132,7 @@ FOpenPocketBaseFilter MakeComparison(
     Field.TrimStartAndEndInline();
     if (!IsValidField(Field))
     {
-        return MakeInvalidFilter(TEXT("Filter fields must be valid collection field paths."));
+        return MakeInvalidFilter(TEXT("Dynamic filter fields must be valid collection field paths."));
     }
 
     FOpenPocketBaseFilter Filter;
@@ -219,6 +236,11 @@ FOpenPocketBaseFilter CombineFilters(
     {
         return A;
     }
+    if (A.SchemaId.IsValid() && B.SchemaId.IsValid() &&
+        (A.SchemaId != B.SchemaId || A.CollectionId != B.CollectionId))
+    {
+        return MakeInvalidFilter(TEXT("Filters from different collections cannot be combined."));
+    }
 
     FOpenPocketBaseFilter Filter;
     Filter.Expression = FString::Printf(
@@ -226,6 +248,8 @@ FOpenPocketBaseFilter CombineFilters(
         *A.Expression,
         Operator,
         *B.Expression);
+    Filter.SchemaId = A.SchemaId.IsValid() ? A.SchemaId : B.SchemaId;
+    Filter.CollectionId = !A.CollectionId.IsEmpty() ? A.CollectionId : B.CollectionId;
     if (Filter.Expression.Len() > 64 * 1024)
     {
         return MakeInvalidFilter(TEXT("The combined filter exceeds the supported length."));
@@ -335,14 +359,83 @@ void FOpenPocketBaseFilterParams::Reset()
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::String(
+    const FOpenPocketBaseStringFieldRef& Field,
+    const EOpenPocketBaseStringComparison Comparison,
+    const FString& Value)
+{
+    if (!FOpenPocketBaseStringFieldRef::Accepts(Field))
+    {
+        return MakeInvalidFilter(TEXT("Choose a string field for this filter."));
+    }
+    return MakeComparison(Field, StringOperator(Comparison), EncodeString(Value));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::Number(
+    const FOpenPocketBaseNumberFieldRef& Field,
+    const EOpenPocketBaseNumberComparison Comparison,
+    const double Value)
+{
+    if (!FMath::IsFinite(Value))
+    {
+        return MakeInvalidFilter(TEXT("Filter numbers must be finite."));
+    }
+    if (!FOpenPocketBaseNumberFieldRef::Accepts(Field))
+    {
+        return MakeInvalidFilter(TEXT("Choose a number field for this filter."));
+    }
+    return MakeComparison(Field, NumberOperator(Comparison), EncodeNumber(Value));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::Boolean(
+    const FOpenPocketBaseBooleanFieldRef& Field,
+    const EOpenPocketBaseBooleanComparison Comparison,
+    const bool bValue)
+{
+    if (!FOpenPocketBaseBooleanFieldRef::Accepts(Field))
+    {
+        return MakeInvalidFilter(TEXT("Choose a boolean field for this filter."));
+    }
+    return MakeComparison(
+        Field,
+        BooleanOperator(Comparison),
+        bValue ? TEXT("true") : TEXT("false"));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::Date(
+    const FOpenPocketBaseDateFieldRef& Field,
+    const EOpenPocketBaseDateComparison Comparison,
+    const FDateTime& Value)
+{
+    if (!FOpenPocketBaseDateFieldRef::Accepts(Field))
+    {
+        return MakeInvalidFilter(TEXT("Choose a date field for this filter."));
+    }
+    return MakeComparison(
+        Field,
+        DateOperator(Comparison),
+        EncodeString(OpenPocketBase::Date::Format(Value)));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::Null(
+    const FOpenPocketBaseAnyFieldRef& Field,
+    const EOpenPocketBaseNullComparison Comparison)
+{
+    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field))
+    {
+        return MakeInvalidFilter(TEXT("Choose a field for this filter."));
+    }
+    return MakeComparison(Field, NullOperator(Comparison), TEXT("null"));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicString(
     FString Field,
     const EOpenPocketBaseStringComparison Comparison,
     const FString& Value)
 {
-    return MakeComparison(MoveTemp(Field), StringOperator(Comparison), EncodeString(Value));
+    return MakeDynamicComparison(MoveTemp(Field), StringOperator(Comparison), EncodeString(Value));
 }
 
-FOpenPocketBaseFilter FOpenPocketBaseFilter::Number(
+FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicNumber(
     FString Field,
     const EOpenPocketBaseNumberComparison Comparison,
     const double Value)
@@ -351,36 +444,36 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Number(
     {
         return MakeInvalidFilter(TEXT("Filter numbers must be finite."));
     }
-    return MakeComparison(MoveTemp(Field), NumberOperator(Comparison), EncodeNumber(Value));
+    return MakeDynamicComparison(MoveTemp(Field), NumberOperator(Comparison), EncodeNumber(Value));
 }
 
-FOpenPocketBaseFilter FOpenPocketBaseFilter::Boolean(
+FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicBoolean(
     FString Field,
     const EOpenPocketBaseBooleanComparison Comparison,
     const bool bValue)
 {
-    return MakeComparison(
+    return MakeDynamicComparison(
         MoveTemp(Field),
         BooleanOperator(Comparison),
         bValue ? TEXT("true") : TEXT("false"));
 }
 
-FOpenPocketBaseFilter FOpenPocketBaseFilter::Date(
+FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicDate(
     FString Field,
     const EOpenPocketBaseDateComparison Comparison,
     const FDateTime& Value)
 {
-    return MakeComparison(
+    return MakeDynamicComparison(
         MoveTemp(Field),
         DateOperator(Comparison),
         EncodeString(OpenPocketBase::Date::Format(Value)));
 }
 
-FOpenPocketBaseFilter FOpenPocketBaseFilter::Null(
+FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicNull(
     FString Field,
     const EOpenPocketBaseNullComparison Comparison)
 {
-    return MakeComparison(MoveTemp(Field), NullOperator(Comparison), TEXT("null"));
+    return MakeDynamicComparison(MoveTemp(Field), NullOperator(Comparison), TEXT("null"));
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::Raw(FString InExpression)
@@ -414,6 +507,12 @@ bool FOpenPocketBaseFilter::IsEmpty() const
 bool FOpenPocketBaseFilter::IsValid() const
 {
     return bValid;
+}
+
+bool FOpenPocketBaseFilter::BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const
+{
+    return !SchemaId.IsValid() ||
+        (Collection.IsSet() && SchemaId == Collection.SchemaId && CollectionId == Collection.CollectionId);
 }
 
 const FString& FOpenPocketBaseFilter::ToString() const

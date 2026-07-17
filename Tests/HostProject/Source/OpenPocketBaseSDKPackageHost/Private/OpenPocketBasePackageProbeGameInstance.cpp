@@ -245,8 +245,8 @@ void UOpenPocketBasePackageProbeGameInstance::BeginTransferProbe()
             }
 
             FOpenPocketBaseRecordBody Body;
-            Body.SetStringField(TEXT("id"), TEXT("pkgprobe0000001"));
-            Body.SetStringField(TEXT("title"), TEXT("Packaged transfer proof"));
+            Body.SetDynamicStringField(TEXT("id"), TEXT("pkgprobe0000001"));
+            Body.SetDynamicStringField(TEXT("title"), TEXT("Packaged transfer proof"));
             FOpenPocketBaseFileInput File;
             File.FieldName = TEXT("attachments");
             File.FileName = TEXT("packaged-proof.txt");
@@ -452,8 +452,8 @@ void UOpenPocketBasePackageProbeGameInstance::BeginRealtimeManagerProbe()
         }
         Probe->bRealtimeMutationStarted = true;
         FOpenPocketBaseRecordBody Body;
-        Body.SetStringField(TEXT("id"), TEXT("pkgrealtime0001"));
-        Body.SetStringField(TEXT("title"), TEXT("Packaged realtime manager proof"));
+        Body.SetDynamicStringField(TEXT("id"), TEXT("pkgrealtime0001"));
+        Body.SetDynamicStringField(TEXT("title"), TEXT("Packaged realtime manager proof"));
         Probe->Request = Probe->Client->Collection(TEXT("sdk_tasks")).Create(
             MoveTemp(Body),
             [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)

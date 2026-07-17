@@ -5,6 +5,7 @@
 #include "JsonObjectWrapper.h"
 #include "OpenPocketBaseError.h"
 #include "OpenPocketBaseFilter.h"
+#include "OpenPocketBaseSchema.h"
 
 #include "OpenPocketBaseRecord.generated.h"
 
@@ -14,7 +15,8 @@ enum class EOpenPocketBaseFieldState : uint8
     Found,
     Missing,
     Null,
-    WrongType
+    WrongType,
+    WrongCollection
 };
 
 UENUM(BlueprintType)
@@ -40,33 +42,71 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
     FJsonObjectWrapper Data;
 
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    bool bValid = true;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    FString ErrorMessage;
+
+    UPROPERTY(Transient)
+    FGuid SchemaId;
+
+    UPROPERTY(Transient)
+    FString CollectionId;
+
     FOpenPocketBaseRecordBody& SetStringField(
-        const FString& FieldName,
+        const FOpenPocketBaseStringFieldRef& Field,
         const FString& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     FOpenPocketBaseRecordBody& SetNumberField(
-        const FString& FieldName,
+        const FOpenPocketBaseNumberFieldRef& Field,
         double Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     FOpenPocketBaseRecordBody& SetBooleanField(
-        const FString& FieldName,
+        const FOpenPocketBaseBooleanFieldRef& Field,
         bool bValue,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     FOpenPocketBaseRecordBody& SetNullField(
-        const FString& FieldName,
+        const FOpenPocketBaseAnyFieldRef& Field,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     FOpenPocketBaseRecordBody& SetStringArrayField(
+        const FOpenPocketBaseStringArrayFieldRef& Field,
+        const TArray<FString>& Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    FOpenPocketBaseRecordBody& SetDynamicStringField(
+        const FString& FieldName,
+        const FString& Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& SetDynamicNumberField(
+        const FString& FieldName,
+        double Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& SetDynamicBooleanField(
+        const FString& FieldName,
+        bool bValue,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& SetDynamicNullField(
+        const FString& FieldName,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& SetDynamicStringArrayField(
         const FString& FieldName,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
+    bool IsValid() const;
+    bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
+
     static FString MakeModifiedFieldName(
         const FString& FieldName,
         EOpenPocketBaseFieldModifier Modifier);
+
+private:
+    bool AcceptField(const FOpenPocketBaseFieldRef& Field);
 };
 
 USTRUCT(BlueprintType)

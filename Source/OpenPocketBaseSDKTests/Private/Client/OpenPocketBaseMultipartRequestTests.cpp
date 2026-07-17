@@ -246,7 +246,7 @@ bool FOpenPocketBaseMultipartRequestTest::RunTest(const FString& Parameters)
     }
 
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("title"), TEXT("Uploaded"));
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Uploaded"));
     FOpenPocketBaseFileInput File;
     File.FieldName = TEXT("attachment");
     File.FileName = TEXT("sample.bin");
@@ -320,7 +320,7 @@ bool FOpenPocketBaseUploadTeardownTest::RunTest(const FString& Parameters)
     }
 
     FOpenPocketBaseRecordBody Body;
-    Body.SetStringField(TEXT("title"), TEXT("Teardown"));
+    Body.SetDynamicStringField(TEXT("title"), TEXT("Teardown"));
     FOpenPocketBaseFileInput File;
     File.FieldName = TEXT("attachment");
     File.FileName = TEXT("teardown.txt");

@@ -453,7 +453,7 @@ bool FOpenPocketBaseAssistedOAuthTest::RunTest(const FString& Parameters)
     FOpenPocketBaseAssistedOAuth2Options Options;
     Options.Provider = TEXT("github");
     Options.Scopes = {TEXT("read:user"), TEXT("user:email")};
-    Options.CreateData.SetStringField(TEXT("name"), TEXT("Assisted Player"));
+    Options.CreateData.SetDynamicStringField(TEXT("name"), TEXT("Assisted Player"));
     State->Handle = State->Client->Collection(TEXT("sdk_users")).AuthWithOAuth2(
         MoveTemp(Options),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)

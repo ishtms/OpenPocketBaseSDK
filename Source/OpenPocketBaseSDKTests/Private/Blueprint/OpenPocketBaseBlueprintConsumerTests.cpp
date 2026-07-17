@@ -18,6 +18,8 @@
 #include "OpenPocketBaseRecordLibrary.h"
 #include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseRealtimeLibrary.h"
+#include "OpenPocketBaseSchema.h"
+#include "OpenPocketBaseSchemaPicker.h"
 #include "OpenPocketBaseSubsystem.h"
 #include "UObject/Field.h"
 #include "UObject/UObjectIterator.h"
@@ -739,6 +741,63 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     FilterNode->PostPlacedNewNode();
     FilterNode->AllocateDefaultPins();
     Graph->AddNode(FilterNode, true, false);
+
+    UOpenPocketBaseSchema* TestSchema = NewObject<UOpenPocketBaseSchema>(
+        GetTransientPackage(),
+        TEXT("OpenPocketBaseConsumerSchema"));
+    TestSchema->SchemaId = FGuid(144, 233, 377, 610);
+    FOpenPocketBaseSchemaCollection TasksCollection;
+    TasksCollection.Id = TEXT("tasks_id");
+    TasksCollection.Name = TEXT("sdk_tasks");
+    FOpenPocketBaseSchemaField TitleField;
+    TitleField.Id = TEXT("title_id");
+    TitleField.Name = TEXT("title");
+    TitleField.Type = EOpenPocketBaseFieldType::Text;
+    FOpenPocketBaseSchemaField DoneField;
+    DoneField.Id = TEXT("done_id");
+    DoneField.Name = TEXT("done");
+    DoneField.Type = EOpenPocketBaseFieldType::Boolean;
+    TasksCollection.Fields = {TitleField, DoneField};
+    TestSchema->Collections = {TasksCollection};
+
+    FOpenPocketBaseCollectionRef TasksRef;
+    FOpenPocketBaseStringFieldRef TitleRef;
+    FOpenPocketBaseBooleanFieldRef DoneRef;
+    TestSchema->MakeCollectionRef(TasksCollection.Id, TasksRef);
+    TestSchema->MakeTypedFieldRef(TasksRef, TitleField.Id, TitleRef);
+    TestSchema->MakeTypedFieldRef(TasksRef, DoneField.Id, DoneRef);
+    FieldNode->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseStringFieldRef::StaticStruct(),
+            TitleRef);
+    BodyNode->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseStringFieldRef::StaticStruct(),
+            TitleRef);
+    FilterNode->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseBooleanFieldRef::StaticStruct(),
+            DoneRef);
+
+    UEdGraphPin* BodyFieldPin = BodyNode->FindPin(TEXT("Field"), EGPD_Input);
+    TestNotNull(TEXT("Record body nodes expose a typed field picker"), BodyFieldPin);
+    if (BodyFieldPin != nullptr)
+    {
+        TestEqual(
+            TEXT("Record body field pickers exclude read-only fields"),
+            BodyNode->GetPinMetaData(BodyFieldPin->PinName, TEXT("OpenPocketBaseFieldAccess")),
+            FString(TEXT("Write")));
+    }
+
+    UEdGraphPin* FilterFieldPin = FilterNode->FindPin(TEXT("Field"), EGPD_Input);
+    TestNotNull(TEXT("Filter nodes expose a typed field picker"), FilterFieldPin);
+    if (FilterFieldPin != nullptr)
+    {
+        TestTrue(
+            TEXT("Boolean filters only accept Boolean schema fields"),
+            FilterFieldPin->PinType.PinSubCategoryObject.Get() ==
+                FOpenPocketBaseBooleanFieldRef::StaticStruct());
+    }
 
     UK2Node_CallFunction* FileUrlNode = NewObject<UK2Node_CallFunction>(Graph);
     FileUrlNode->SetFromFunction(UOpenPocketBaseFileLibrary::StaticClass()->FindFunctionByName(

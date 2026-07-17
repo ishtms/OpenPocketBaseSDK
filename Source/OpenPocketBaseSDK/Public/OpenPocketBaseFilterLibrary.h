@@ -17,7 +17,7 @@ public:
         Category = "Open PocketBase|Records|Filters",
         meta = (DisplayName = "String Filter", Keywords = "where query equals contains"))
     static FOpenPocketBaseFilter StringFilter(
-        const FString& Field,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseStringFieldRef Field,
         EOpenPocketBaseStringComparison Comparison,
         const FString& Value);
 
@@ -26,7 +26,7 @@ public:
         Category = "Open PocketBase|Records|Filters",
         meta = (DisplayName = "Number Filter", Keywords = "where query compare"))
     static FOpenPocketBaseFilter NumberFilter(
-        const FString& Field,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseNumberFieldRef Field,
         EOpenPocketBaseNumberComparison Comparison,
         double Value);
 
@@ -35,7 +35,7 @@ public:
         Category = "Open PocketBase|Records|Filters",
         meta = (DisplayName = "Boolean Filter", Keywords = "where query bool true false"))
     static FOpenPocketBaseFilter BooleanFilter(
-        const FString& Field,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseBooleanFieldRef Field,
         EOpenPocketBaseBooleanComparison Comparison,
         bool bValue);
 
@@ -44,7 +44,7 @@ public:
         Category = "Open PocketBase|Records|Filters",
         meta = (DisplayName = "Date Filter", Keywords = "where query time compare"))
     static FOpenPocketBaseFilter DateFilter(
-        const FString& Field,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseDateFieldRef Field,
         EOpenPocketBaseDateComparison Comparison,
         FDateTime Value);
 
@@ -53,7 +53,7 @@ public:
         Category = "Open PocketBase|Records|Filters",
         meta = (DisplayName = "Null Filter", Keywords = "where query empty null"))
     static FOpenPocketBaseFilter NullFilter(
-        const FString& Field,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseAnyFieldRef Field,
         EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
 
     UFUNCTION(

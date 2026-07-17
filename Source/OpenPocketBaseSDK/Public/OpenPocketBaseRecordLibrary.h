@@ -30,7 +30,7 @@ public:
         meta = (DisplayName = "With String Field", Keywords = "record body set add"))
     static FOpenPocketBaseRecordBody WithStringField(
         FOpenPocketBaseRecordBody Body,
-        const FString& FieldName,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseStringFieldRef Field,
         const FString& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
@@ -40,7 +40,7 @@ public:
         meta = (DisplayName = "With Number Field", Keywords = "record body set add"))
     static FOpenPocketBaseRecordBody WithNumberField(
         FOpenPocketBaseRecordBody Body,
-        const FString& FieldName,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseNumberFieldRef Field,
         double Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
@@ -50,7 +50,7 @@ public:
         meta = (DisplayName = "With Boolean Field", Keywords = "record body set add bool true false"))
     static FOpenPocketBaseRecordBody WithBooleanField(
         FOpenPocketBaseRecordBody Body,
-        const FString& FieldName,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseBooleanFieldRef Field,
         bool bValue,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
@@ -60,7 +60,7 @@ public:
         meta = (DisplayName = "With Null Field", Keywords = "record body set add empty"))
     static FOpenPocketBaseRecordBody WithNullField(
         FOpenPocketBaseRecordBody Body,
-        const FString& FieldName,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseAnyFieldRef Field,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     UFUNCTION(
@@ -69,7 +69,7 @@ public:
         meta = (DisplayName = "With String Array Field", Keywords = "record body set add list"))
     static FOpenPocketBaseRecordBody WithStringArrayField(
         FOpenPocketBaseRecordBody Body,
-        const FString& FieldName,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseStringArrayFieldRef Field,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
@@ -77,13 +77,17 @@ public:
         BlueprintPure,
         Category = "Open PocketBase|Records",
         meta = (ReturnDisplayName = "Has Field"))
-    static bool HasField(const FOpenPocketBaseRecord& Record, const FString& FieldName);
+    static bool HasField(
+        const FOpenPocketBaseRecord& Record,
+        FOpenPocketBaseAnyFieldRef Field);
 
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records",
         meta = (ReturnDisplayName = "Is Null"))
-    static bool IsFieldNull(const FOpenPocketBaseRecord& Record, const FString& FieldName);
+    static bool IsFieldNull(
+        const FOpenPocketBaseRecord& Record,
+        FOpenPocketBaseAnyFieldRef Field);
 
     UFUNCTION(
         BlueprintPure,
@@ -91,13 +95,13 @@ public:
         meta = (ReturnDisplayName = "Found"))
     static bool TryGetStringField(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseStringFieldRef Field,
         FString& OutValue);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
     static EOpenPocketBaseFieldState GetStringFieldState(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseStringFieldRef Field,
         FString& OutValue);
 
     UFUNCTION(
@@ -106,13 +110,13 @@ public:
         meta = (ReturnDisplayName = "Found"))
     static bool TryGetIntegerField(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseNumberFieldRef Field,
         int64& OutValue);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
     static EOpenPocketBaseFieldState GetIntegerFieldState(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseNumberFieldRef Field,
         int64& OutValue);
 
     UFUNCTION(
@@ -121,7 +125,7 @@ public:
         meta = (ReturnDisplayName = "Found"))
     static bool TryGetNumberField(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseNumberFieldRef Field,
         double& OutValue);
 
     UFUNCTION(
@@ -130,7 +134,7 @@ public:
         meta = (ReturnDisplayName = "Found"))
     static bool TryGetBooleanField(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseBooleanFieldRef Field,
         bool& OutValue);
 
     UFUNCTION(
@@ -139,7 +143,7 @@ public:
         meta = (ReturnDisplayName = "Found"))
     static bool TryGetDateField(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseDateFieldRef Field,
         FDateTime& OutValue);
 
     UFUNCTION(
@@ -148,7 +152,7 @@ public:
         meta = (ReturnDisplayName = "Found"))
     static bool TryGetStringArrayField(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseStringArrayFieldRef Field,
         TArray<FString>& OutValue);
 
     UFUNCTION(
@@ -157,7 +161,7 @@ public:
         meta = (ReturnDisplayName = "Found"))
     static bool TryGetObjectField(
         const FOpenPocketBaseRecord& Record,
-        const FString& FieldName,
+        FOpenPocketBaseJsonFieldRef Field,
         FJsonObjectWrapper& OutValue);
 
     UFUNCTION(

@@ -436,7 +436,7 @@ bool FOpenPocketBaseMutationNoAuthReplayTest::RunTest(const FString& Parameters)
                 return;
             }
             FOpenPocketBaseRecordBody Body;
-            Body.SetStringField(TEXT("title"), TEXT("Must not replay"));
+            Body.SetDynamicStringField(TEXT("title"), TEXT("Must not replay"));
             State->Client->Collection(TEXT("tasks")).Create(
                 MoveTemp(Body),
                 [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& CreateResult)

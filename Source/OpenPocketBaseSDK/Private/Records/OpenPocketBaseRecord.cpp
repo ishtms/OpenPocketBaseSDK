@@ -44,7 +44,55 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::operator=(
     {
         Data.JsonObject.Reset();
     }
+    bValid = Other.bValid;
+    ErrorMessage = Other.ErrorMessage;
+    SchemaId = Other.SchemaId;
+    CollectionId = Other.CollectionId;
     return *this;
+}
+
+bool FOpenPocketBaseRecordBody::AcceptField(const FOpenPocketBaseFieldRef& Field)
+{
+    if (!bValid)
+    {
+        return false;
+    }
+    if (!Field.IsSet())
+    {
+        bValid = false;
+        ErrorMessage = TEXT("Choose a valid collection field for the record body.");
+        return false;
+    }
+    if (Field.bReadOnly)
+    {
+        bValid = false;
+        ErrorMessage = FString::Printf(TEXT("Field '%s' is read-only."), *Field.Name);
+        return false;
+    }
+    if (!SchemaId.IsValid())
+    {
+        SchemaId = Field.SchemaId;
+        CollectionId = Field.CollectionId;
+        return true;
+    }
+    if (SchemaId != Field.SchemaId || CollectionId != Field.CollectionId)
+    {
+        bValid = false;
+        ErrorMessage = TEXT("A record body cannot contain fields from different collections.");
+        return false;
+    }
+    return true;
+}
+
+bool FOpenPocketBaseRecordBody::IsValid() const
+{
+    return bValid;
+}
+
+bool FOpenPocketBaseRecordBody::BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const
+{
+    return !SchemaId.IsValid() ||
+        (Collection.IsSet() && SchemaId == Collection.SchemaId && CollectionId == Collection.CollectionId);
 }
 
 FString FOpenPocketBaseRecordBody::MakeModifiedFieldName(
@@ -65,6 +113,105 @@ FString FOpenPocketBaseRecordBody::MakeModifiedFieldName(
 }
 
 FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringField(
+    const FOpenPocketBaseStringFieldRef& Field,
+    const FString& Value,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    if (!FOpenPocketBaseStringFieldRef::Accepts(Field) || !AcceptField(Field))
+    {
+        if (bValid)
+        {
+            bValid = false;
+            ErrorMessage = TEXT("Choose a writable string field for the record body.");
+        }
+        return *this;
+    }
+    GetOrCreateBodyObject(*this)->SetStringField(MakeModifiedFieldName(Field.Name, Modifier), Value);
+    return *this;
+}
+
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
+    const FOpenPocketBaseNumberFieldRef& Field,
+    const double Value,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    if (!FOpenPocketBaseNumberFieldRef::Accepts(Field) || !AcceptField(Field))
+    {
+        if (bValid)
+        {
+            bValid = false;
+            ErrorMessage = TEXT("Choose a writable number field for the record body.");
+        }
+        return *this;
+    }
+    GetOrCreateBodyObject(*this)->SetNumberField(MakeModifiedFieldName(Field.Name, Modifier), Value);
+    return *this;
+}
+
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetBooleanField(
+    const FOpenPocketBaseBooleanFieldRef& Field,
+    const bool bValue,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    if (!FOpenPocketBaseBooleanFieldRef::Accepts(Field) || !AcceptField(Field))
+    {
+        if (bValid)
+        {
+            bValid = false;
+            ErrorMessage = TEXT("Choose a writable boolean field for the record body.");
+        }
+        return *this;
+    }
+    GetOrCreateBodyObject(*this)->SetBoolField(MakeModifiedFieldName(Field.Name, Modifier), bValue);
+    return *this;
+}
+
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNullField(
+    const FOpenPocketBaseAnyFieldRef& Field,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field) || !AcceptField(Field))
+    {
+        if (bValid)
+        {
+            bValid = false;
+            ErrorMessage = TEXT("Choose a writable field for the record body.");
+        }
+        return *this;
+    }
+    GetOrCreateBodyObject(*this)->SetField(
+        MakeModifiedFieldName(Field.Name, Modifier),
+        MakeShared<FJsonValueNull>());
+    return *this;
+}
+
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringArrayField(
+    const FOpenPocketBaseStringArrayFieldRef& Field,
+    const TArray<FString>& Value,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    if (!FOpenPocketBaseStringArrayFieldRef::Accepts(Field) || !AcceptField(Field))
+    {
+        if (bValid)
+        {
+            bValid = false;
+            ErrorMessage = TEXT("Choose a writable string-array field for the record body.");
+        }
+        return *this;
+    }
+    TArray<TSharedPtr<FJsonValue>> JsonValues;
+    JsonValues.Reserve(Value.Num());
+    for (const FString& Item : Value)
+    {
+        JsonValues.Add(MakeShared<FJsonValueString>(Item));
+    }
+    GetOrCreateBodyObject(*this)->SetArrayField(
+        MakeModifiedFieldName(Field.Name, Modifier),
+        MoveTemp(JsonValues));
+    return *this;
+}
+
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicStringField(
     const FString& FieldName,
     const FString& Value,
     const EOpenPocketBaseFieldModifier Modifier)
@@ -73,7 +220,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringField(
     return *this;
 }
 
-FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicNumberField(
     const FString& FieldName,
     const double Value,
     const EOpenPocketBaseFieldModifier Modifier)
@@ -82,7 +229,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
     return *this;
 }
 
-FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetBooleanField(
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicBooleanField(
     const FString& FieldName,
     const bool bValue,
     const EOpenPocketBaseFieldModifier Modifier)
@@ -91,7 +238,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetBooleanField(
     return *this;
 }
 
-FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNullField(
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicNullField(
     const FString& FieldName,
     const EOpenPocketBaseFieldModifier Modifier)
 {
@@ -101,7 +248,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNullField(
     return *this;
 }
 
-FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringArrayField(
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicStringArrayField(
     const FString& FieldName,
     const TArray<FString>& Value,
     const EOpenPocketBaseFieldModifier Modifier)

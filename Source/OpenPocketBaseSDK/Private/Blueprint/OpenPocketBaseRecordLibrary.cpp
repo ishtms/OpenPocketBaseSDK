@@ -8,18 +8,27 @@
 
 namespace
 {
-TSharedPtr<FJsonValue> FindValue(const FOpenPocketBaseRecord& Record, const FString& FieldName)
+TSharedPtr<FJsonValue> FindValue(
+    const FOpenPocketBaseRecord& Record,
+    const FOpenPocketBaseFieldRef& Field)
 {
-    if (!Record.Data.JsonObject.IsValid())
+    if (!Field.IsSet() || Record.CollectionId != Field.CollectionId || !Record.Data.JsonObject.IsValid())
     {
         return nullptr;
     }
 
-    return Record.Data.JsonObject->TryGetField(FieldName);
+    return Record.Data.JsonObject->TryGetField(Field.Name);
 }
 
-EOpenPocketBaseFieldState GetBaseState(const TSharedPtr<FJsonValue>& Value)
+EOpenPocketBaseFieldState GetBaseState(
+    const FOpenPocketBaseRecord& Record,
+    const FOpenPocketBaseFieldRef& Field,
+    const TSharedPtr<FJsonValue>& Value)
 {
+    if (!Field.IsSet() || Record.CollectionId != Field.CollectionId)
+    {
+        return EOpenPocketBaseFieldState::WrongCollection;
+    }
     if (!Value.IsValid())
     {
         return EOpenPocketBaseFieldState::Missing;
@@ -55,84 +64,85 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::NewRecordBody()
 
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithStringField(
     FOpenPocketBaseRecordBody Body,
-    const FString& FieldName,
+    const FOpenPocketBaseStringFieldRef Field,
     const FString& Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
-    Body.SetStringField(FieldName, Value, Modifier);
+    Body.SetStringField(Field, Value, Modifier);
     return Body;
 }
 
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithNumberField(
     FOpenPocketBaseRecordBody Body,
-    const FString& FieldName,
+    const FOpenPocketBaseNumberFieldRef Field,
     const double Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
-    Body.SetNumberField(FieldName, Value, Modifier);
+    Body.SetNumberField(Field, Value, Modifier);
     return Body;
 }
 
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithBooleanField(
     FOpenPocketBaseRecordBody Body,
-    const FString& FieldName,
+    const FOpenPocketBaseBooleanFieldRef Field,
     const bool bValue,
     const EOpenPocketBaseFieldModifier Modifier)
 {
-    Body.SetBooleanField(FieldName, bValue, Modifier);
+    Body.SetBooleanField(Field, bValue, Modifier);
     return Body;
 }
 
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithNullField(
     FOpenPocketBaseRecordBody Body,
-    const FString& FieldName,
+    const FOpenPocketBaseAnyFieldRef Field,
     const EOpenPocketBaseFieldModifier Modifier)
 {
-    Body.SetNullField(FieldName, Modifier);
+    Body.SetNullField(Field, Modifier);
     return Body;
 }
 
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithStringArrayField(
     FOpenPocketBaseRecordBody Body,
-    const FString& FieldName,
+    const FOpenPocketBaseStringArrayFieldRef Field,
     const TArray<FString>& Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
-    Body.SetStringArrayField(FieldName, Value, Modifier);
+    Body.SetStringArrayField(Field, Value, Modifier);
     return Body;
 }
 
 bool UOpenPocketBaseRecordLibrary::HasField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName)
+    const FOpenPocketBaseAnyFieldRef Field)
 {
-    return Record.Data.JsonObject.IsValid() && Record.Data.JsonObject->HasField(FieldName);
+    return Field.IsSet() && Record.CollectionId == Field.CollectionId &&
+        Record.Data.JsonObject.IsValid() && Record.Data.JsonObject->HasField(Field.Name);
 }
 
 bool UOpenPocketBaseRecordLibrary::IsFieldNull(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName)
+    const FOpenPocketBaseAnyFieldRef Field)
 {
-    const TSharedPtr<FJsonValue> Value = FindValue(Record, FieldName);
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
     return Value.IsValid() && Value->IsNull();
 }
 
 bool UOpenPocketBaseRecordLibrary::TryGetStringField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseStringFieldRef Field,
     FString& OutValue)
 {
-    return GetStringFieldState(Record, FieldName, OutValue) == EOpenPocketBaseFieldState::Found;
+    return GetStringFieldState(Record, Field, OutValue) == EOpenPocketBaseFieldState::Found;
 }
 
 EOpenPocketBaseFieldState UOpenPocketBaseRecordLibrary::GetStringFieldState(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseStringFieldRef Field,
     FString& OutValue)
 {
     OutValue.Reset();
-    const TSharedPtr<FJsonValue> Value = FindValue(Record, FieldName);
-    const EOpenPocketBaseFieldState BaseState = GetBaseState(Value);
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
+    const EOpenPocketBaseFieldState BaseState = GetBaseState(Record, Field, Value);
     if (BaseState != EOpenPocketBaseFieldState::Found)
     {
         return BaseState;
@@ -144,20 +154,20 @@ EOpenPocketBaseFieldState UOpenPocketBaseRecordLibrary::GetStringFieldState(
 
 bool UOpenPocketBaseRecordLibrary::TryGetIntegerField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseNumberFieldRef Field,
     int64& OutValue)
 {
-    return GetIntegerFieldState(Record, FieldName, OutValue) == EOpenPocketBaseFieldState::Found;
+    return GetIntegerFieldState(Record, Field, OutValue) == EOpenPocketBaseFieldState::Found;
 }
 
 EOpenPocketBaseFieldState UOpenPocketBaseRecordLibrary::GetIntegerFieldState(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseNumberFieldRef Field,
     int64& OutValue)
 {
     OutValue = 0;
-    const TSharedPtr<FJsonValue> Value = FindValue(Record, FieldName);
-    const EOpenPocketBaseFieldState BaseState = GetBaseState(Value);
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
+    const EOpenPocketBaseFieldState BaseState = GetBaseState(Record, Field, Value);
     if (BaseState != EOpenPocketBaseFieldState::Found)
     {
         return BaseState;
@@ -176,31 +186,32 @@ EOpenPocketBaseFieldState UOpenPocketBaseRecordLibrary::GetIntegerFieldState(
 
 bool UOpenPocketBaseRecordLibrary::TryGetNumberField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseNumberFieldRef Field,
     double& OutValue)
 {
     OutValue = 0;
-    const TSharedPtr<FJsonValue> Value = FindValue(Record, FieldName);
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
     return Value.IsValid() && Value->Type == EJson::Number && Value->TryGetNumber(OutValue);
 }
 
 bool UOpenPocketBaseRecordLibrary::TryGetBooleanField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseBooleanFieldRef Field,
     bool& OutValue)
 {
     OutValue = false;
-    const TSharedPtr<FJsonValue> Value = FindValue(Record, FieldName);
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
     return Value.IsValid() && Value->Type == EJson::Boolean && Value->TryGetBool(OutValue);
 }
 
 bool UOpenPocketBaseRecordLibrary::TryGetDateField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseDateFieldRef Field,
     FDateTime& OutValue)
 {
     FString DateString;
-    if (!TryGetStringField(Record, FieldName, DateString))
+    const TSharedPtr<FJsonValue> JsonValue = FindValue(Record, Field);
+    if (!JsonValue.IsValid() || !JsonValue->TryGetString(DateString))
     {
         return false;
     }
@@ -209,11 +220,11 @@ bool UOpenPocketBaseRecordLibrary::TryGetDateField(
 
 bool UOpenPocketBaseRecordLibrary::TryGetStringArrayField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseStringArrayFieldRef Field,
     TArray<FString>& OutValue)
 {
     OutValue.Reset();
-    const TSharedPtr<FJsonValue> Value = FindValue(Record, FieldName);
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
     const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
     if (!Value.IsValid() ||
         Value->Type != EJson::Array ||
@@ -239,11 +250,11 @@ bool UOpenPocketBaseRecordLibrary::TryGetStringArrayField(
 
 bool UOpenPocketBaseRecordLibrary::TryGetObjectField(
     const FOpenPocketBaseRecord& Record,
-    const FString& FieldName,
+    const FOpenPocketBaseJsonFieldRef Field,
     FJsonObjectWrapper& OutValue)
 {
     OutValue = FJsonObjectWrapper();
-    const TSharedPtr<FJsonValue> Value = FindValue(Record, FieldName);
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
     const TSharedPtr<FJsonObject>* Object = nullptr;
     if (!Value.IsValid() ||
         Value->Type != EJson::Object ||

@@ -387,7 +387,7 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
                             Valid.TransactionId = State->Authorization.TransactionId;
                             Valid.CallbackUrl = State->Authorization.RedirectUrl + TEXT("?state=") +
                                 State->Authorization.State + TEXT("&code=valid-secret-code");
-                            Valid.CreateData.SetStringField(TEXT("name"), TEXT("OAuth Player"));
+                            Valid.CreateData.SetDynamicStringField(TEXT("name"), TEXT("OAuth Player"));
                             Auth.CompleteOAuth2(
                                 Valid,
                                 [State, Auth, Valid](

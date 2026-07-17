@@ -1,7 +1,7 @@
 #include "OpenPocketBaseFilterLibrary.h"
 
 FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::StringFilter(
-    const FString& Field,
+    const FOpenPocketBaseStringFieldRef Field,
     const EOpenPocketBaseStringComparison Comparison,
     const FString& Value)
 {
@@ -9,7 +9,7 @@ FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::StringFilter(
 }
 
 FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::NumberFilter(
-    const FString& Field,
+    const FOpenPocketBaseNumberFieldRef Field,
     const EOpenPocketBaseNumberComparison Comparison,
     const double Value)
 {
@@ -17,7 +17,7 @@ FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::NumberFilter(
 }
 
 FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::BooleanFilter(
-    const FString& Field,
+    const FOpenPocketBaseBooleanFieldRef Field,
     const EOpenPocketBaseBooleanComparison Comparison,
     const bool bValue)
 {
@@ -25,7 +25,7 @@ FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::BooleanFilter(
 }
 
 FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::DateFilter(
-    const FString& Field,
+    const FOpenPocketBaseDateFieldRef Field,
     const EOpenPocketBaseDateComparison Comparison,
     const FDateTime Value)
 {
@@ -33,7 +33,7 @@ FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::DateFilter(
 }
 
 FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::NullFilter(
-    const FString& Field,
+    const FOpenPocketBaseAnyFieldRef Field,
     const EOpenPocketBaseNullComparison Comparison)
 {
     return FOpenPocketBaseFilter::Null(Field, Comparison);

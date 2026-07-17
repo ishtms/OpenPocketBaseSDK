@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "OpenPocketBaseError.h"
+#include "OpenPocketBaseSchema.h"
 
 #include "OpenPocketBaseFilter.generated.h"
 
@@ -106,23 +107,48 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Filters")
     FString ErrorMessage;
 
+    UPROPERTY(Transient)
+    FGuid SchemaId;
+
+    UPROPERTY(Transient)
+    FString CollectionId;
+
     static FOpenPocketBaseFilter String(
-        FString Field,
+        const FOpenPocketBaseStringFieldRef& Field,
         EOpenPocketBaseStringComparison Comparison,
         const FString& Value);
     static FOpenPocketBaseFilter Number(
-        FString Field,
+        const FOpenPocketBaseNumberFieldRef& Field,
         EOpenPocketBaseNumberComparison Comparison,
         double Value);
     static FOpenPocketBaseFilter Boolean(
-        FString Field,
+        const FOpenPocketBaseBooleanFieldRef& Field,
         EOpenPocketBaseBooleanComparison Comparison,
         bool bValue);
     static FOpenPocketBaseFilter Date(
-        FString Field,
+        const FOpenPocketBaseDateFieldRef& Field,
         EOpenPocketBaseDateComparison Comparison,
         const FDateTime& Value);
     static FOpenPocketBaseFilter Null(
+        const FOpenPocketBaseAnyFieldRef& Field,
+        EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
+    static FOpenPocketBaseFilter DynamicString(
+        FString Field,
+        EOpenPocketBaseStringComparison Comparison,
+        const FString& Value);
+    static FOpenPocketBaseFilter DynamicNumber(
+        FString Field,
+        EOpenPocketBaseNumberComparison Comparison,
+        double Value);
+    static FOpenPocketBaseFilter DynamicBoolean(
+        FString Field,
+        EOpenPocketBaseBooleanComparison Comparison,
+        bool bValue);
+    static FOpenPocketBaseFilter DynamicDate(
+        FString Field,
+        EOpenPocketBaseDateComparison Comparison,
+        const FDateTime& Value);
+    static FOpenPocketBaseFilter DynamicNull(
         FString Field,
         EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
     static FOpenPocketBaseFilter Raw(FString Expression);
@@ -131,6 +157,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
     FOpenPocketBaseFilter Or(const FOpenPocketBaseFilter& Other) const;
     bool IsEmpty() const;
     bool IsValid() const;
+    bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
     const FString& ToString() const;
 
     static bool TryBind(
