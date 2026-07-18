@@ -519,7 +519,7 @@ bool FOpenPocketBasePinnedRemainingAuthTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    const FOpenPocketBaseCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
+    const FOpenPocketBaseDynamicCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
     Auth.ListAuthMethods(
         [State, Auth](TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Methods) mutable
         {

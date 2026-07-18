@@ -968,13 +968,13 @@ void UOpenPocketBaseRestoreSessionAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseListAuthMethodsAsyncAction*
 UOpenPocketBaseListAuthMethodsAsyncAction::ListAuthenticationMethods(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseListAuthMethodsAsyncAction* Action =
         NewObject<UOpenPocketBaseListAuthMethodsAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -998,7 +998,7 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseListAuthMethodsAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).ListAuthMethods(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).ListAuthMethods(
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Result)
         {
             UOpenPocketBaseListAuthMethodsAsyncAction* Action = WeakThis.Get();
@@ -1032,13 +1032,13 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseRequestOtpAsyncAction* UOpenPocketBaseRequestOtpAsyncAction::RequestOneTimePassword(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FString InEmail,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseRequestOtpAsyncAction* Action = NewObject<UOpenPocketBaseRequestOtpAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->Email = MoveTemp(InEmail);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -1063,7 +1063,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseRequestOtpAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).RequestOtp(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).RequestOtp(
         MoveTemp(Email),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>&& Result)
         {
@@ -1098,7 +1098,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithOneTimePassword(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FString InOtpId,
     FString InOneTimePassword,
     FOpenPocketBaseMfaContinuation InMfa,
@@ -1106,7 +1106,7 @@ UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithO
 {
     UOpenPocketBaseOtpAuthAsyncAction* Action = NewObject<UOpenPocketBaseOtpAuthAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->OtpId = MoveTemp(InOtpId);
     Action->Password = MoveTemp(InOneTimePassword);
     Action->Mfa = MoveTemp(InMfa);
@@ -1136,7 +1136,7 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseOtpAuthAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).AuthWithOtp(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).AuthWithOtp(
         MoveTemp(OtpId),
         MoveTemp(Password),
         MoveTemp(Mfa),
@@ -1193,13 +1193,13 @@ void UOpenPocketBaseOtpAuthAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseBeginOAuth2AsyncAction* UOpenPocketBaseBeginOAuth2AsyncAction::BeginManualOAuth2(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FOpenPocketBaseOAuth2StartOptions InOptions)
 {
     UOpenPocketBaseBeginOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseBeginOAuth2AsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -1223,7 +1223,7 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseBeginOAuth2AsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).BeginOAuth2(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).BeginOAuth2(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&& Result)
         {
@@ -1258,13 +1258,13 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseCompleteOAuth2AsyncAction*
 UOpenPocketBaseCompleteOAuth2AsyncAction::CompleteManualOAuth2(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FOpenPocketBaseOAuth2Callback InCallback)
 {
     UOpenPocketBaseCompleteOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseCompleteOAuth2AsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->Callback = MoveTemp(InCallback);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -1291,7 +1291,7 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseCompleteOAuth2AsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).CompleteOAuth2(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).CompleteOAuth2(
         MoveTemp(Callback),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -1346,13 +1346,13 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAssistedOAuth2AsyncAction*
 UOpenPocketBaseAssistedOAuth2AsyncAction::LogInWithOAuth2(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FOpenPocketBaseAssistedOAuth2Options InOptions)
 {
     UOpenPocketBaseAssistedOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseAssistedOAuth2AsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -1379,7 +1379,7 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseAssistedOAuth2AsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).AuthWithOAuth2(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).AuthWithOAuth2(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -1434,7 +1434,7 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateAction(
     const EOpenPocketBaseAccountActionKind InKind,
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FString InPrimary,
     FString InSecondary,
     FString InTertiary,
@@ -1444,7 +1444,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateActi
         NewObject<UOpenPocketBaseAccountAsyncAction>();
     Action->Client = InAuthCollection.Client;
     Action->Kind = InKind;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->Primary = MoveTemp(InPrimary);
     Action->Secondary = MoveTemp(InSecondary);
     Action->Tertiary = MoveTemp(InTertiary);
@@ -1454,7 +1454,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateActi
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPasswordReset(
-    FOpenPocketBaseCollection AuthCollection,
+    FOpenPocketBaseAuthCollection AuthCollection,
     FString Email,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1468,7 +1468,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPas
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPasswordReset(
-    FOpenPocketBaseCollection AuthCollection,
+    FOpenPocketBaseAuthCollection AuthCollection,
     FString Token,
     FString NewPassword,
     FString ConfirmPassword,
@@ -1484,7 +1484,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPas
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestVerification(
-    FOpenPocketBaseCollection AuthCollection,
+    FOpenPocketBaseAuthCollection AuthCollection,
     FString Email,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1498,7 +1498,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestVer
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmVerification(
-    FOpenPocketBaseCollection AuthCollection,
+    FOpenPocketBaseAuthCollection AuthCollection,
     FString Token,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1512,7 +1512,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmVer
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEmailChange(
-    FOpenPocketBaseCollection AuthCollection,
+    FOpenPocketBaseAuthCollection AuthCollection,
     FString NewEmail,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1526,7 +1526,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEma
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEmailChange(
-    FOpenPocketBaseCollection AuthCollection,
+    FOpenPocketBaseAuthCollection AuthCollection,
     FString Token,
     FString CurrentPassword,
     FOpenPocketBaseRequestOptions Options)
@@ -1541,7 +1541,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEma
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::UnlinkExternalAuth(
-    FOpenPocketBaseCollection AuthCollection,
+    FOpenPocketBaseAuthCollection AuthCollection,
     FString RecordId,
     FString Provider,
     FOpenPocketBaseRequestOptions Options)
@@ -1599,7 +1599,7 @@ void UOpenPocketBaseAccountAsyncAction::Activate()
             Action->Finish();
         };
 
-    FOpenPocketBaseCollectionService Auth = NativeClient->DynamicCollection(AuthCollection);
+    FOpenPocketBaseAuthCollectionService Auth = NativeClient->AuthCollection(AuthCollection);
     switch (Kind)
     {
     case EOpenPocketBaseAccountActionKind::RequestPasswordReset:
@@ -1650,14 +1650,14 @@ void UOpenPocketBaseAccountAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseListExternalAuthsAsyncAction*
 UOpenPocketBaseListExternalAuthsAsyncAction::ListLinkedExternalAuths(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FString InRecordId,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseListExternalAuthsAsyncAction* Action =
         NewObject<UOpenPocketBaseListExternalAuthsAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -1682,7 +1682,7 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseListExternalAuthsAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).ListExternalAuths(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).ListExternalAuths(
         MoveTemp(RecordId),
         [WeakThis](TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&& Result)
         {
@@ -1719,14 +1719,14 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::LogInWithPassword(
-    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseAuthCollection InAuthCollection,
     FString InIdentity,
     FString InPassword,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBasePasswordAuthAsyncAction* Action = NewObject<UOpenPocketBasePasswordAuthAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
     Action->Identity = MoveTemp(InIdentity);
     Action->Password = MoveTemp(InPassword);
     Action->Options = MoveTemp(InOptions);
@@ -1755,7 +1755,7 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBasePasswordAuthAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(AuthCollection).AuthWithPassword(
+    RequestHandle = NativeClient->AuthCollection(AuthCollection).AuthWithPassword(
         MoveTemp(Identity),
         MoveTemp(Password),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)

@@ -22,6 +22,20 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseCollection
     bool IsValid() const;
 };
 
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseAuthCollection
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    TObjectPtr<UOpenPocketBaseClient> Client;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Authentication")
+    FOpenPocketBaseAuthCollectionRef Reference;
+
+    bool IsValid() const;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOpenPocketBaseBlueprintSessionChanged,
     FOpenPocketBaseSessionSnapshot,
@@ -71,6 +85,12 @@ public:
         Category = "Open PocketBase|Records",
         meta = (DisplayName = "Collection", Keywords = "records auth table"))
     FOpenPocketBaseCollection Collection(FOpenPocketBaseCollectionRef Reference);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Authentication",
+        meta = (DisplayName = "Auth Collection", Keywords = "users login identity"))
+    FOpenPocketBaseAuthCollection AuthCollection(FOpenPocketBaseAuthCollectionRef Reference);
 
     FOpenPocketBaseCollection DynamicCollection(FString Name);
 

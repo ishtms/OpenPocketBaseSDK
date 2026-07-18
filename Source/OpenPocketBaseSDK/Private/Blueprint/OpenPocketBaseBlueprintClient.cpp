@@ -7,6 +7,12 @@ bool FOpenPocketBaseCollection::IsValid() const
     return Client != nullptr && Client->IsReady() && !Reference.Name.IsEmpty();
 }
 
+bool FOpenPocketBaseAuthCollection::IsValid() const
+{
+    return Client != nullptr && Client->IsReady() &&
+        FOpenPocketBaseAuthCollectionRef::Accepts(Reference);
+}
+
 UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
     UObject* Outer,
     const FOpenPocketBaseClientConfig& Config,
@@ -81,6 +87,15 @@ FOpenPocketBaseCollection UOpenPocketBaseClient::Collection(
     FOpenPocketBaseCollectionRef Reference)
 {
     FOpenPocketBaseCollection Collection;
+    Collection.Client = this;
+    Collection.Reference = MoveTemp(Reference);
+    return Collection;
+}
+
+FOpenPocketBaseAuthCollection UOpenPocketBaseClient::AuthCollection(
+    FOpenPocketBaseAuthCollectionRef Reference)
+{
+    FOpenPocketBaseAuthCollection Collection;
     Collection.Client = this;
     Collection.Reference = MoveTemp(Reference);
     return Collection;

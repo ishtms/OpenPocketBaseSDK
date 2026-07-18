@@ -335,7 +335,7 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
     Options.Provider = TEXT("github");
     Options.RedirectUrl = TEXT("https://game.example.test/oauth/callback");
     Options.Scopes = {TEXT("read:user"), TEXT("user:email")};
-    const FOpenPocketBaseCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
+    const FOpenPocketBaseDynamicCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
     Auth.BeginOAuth2(
         MoveTemp(Options),
         [State, Auth](TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&& Result) mutable
@@ -484,7 +484,7 @@ bool FOpenPocketBaseOAuthCapacityTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    const FOpenPocketBaseCollectionService Auth =
+    const FOpenPocketBaseDynamicCollectionService Auth =
         State->Client->DynamicCollection(TEXT("sdk_users"));
     for (int32 Index = 0; Index < 17; ++Index)
     {

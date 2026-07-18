@@ -157,6 +157,37 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
         TEXT("Collection handles do not expose an untyped name"),
         FOpenPocketBaseCollection::StaticStruct()->FindPropertyByName(TEXT("Name")));
 
+    const UFunction* AuthCollectionFunction = UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, AuthCollection));
+    const FStructProperty* AuthCollectionReferenceParameter = AuthCollectionFunction != nullptr
+        ? CastField<FStructProperty>(AuthCollectionFunction->FindPropertyByName(TEXT("Reference")))
+        : nullptr;
+    TestNotNull(TEXT("Auth Collection uses a schema picker parameter"), AuthCollectionReferenceParameter);
+    if (AuthCollectionReferenceParameter != nullptr)
+    {
+        TestEqual(
+            TEXT("Auth Collection accepts only auth collection references"),
+            AuthCollectionReferenceParameter->Struct->GetFName(),
+            FOpenPocketBaseAuthCollectionRef::StaticStruct()->GetFName());
+    }
+    TestNotNull(
+        TEXT("Auth collection handles retain their schema reference"),
+        FOpenPocketBaseAuthCollection::StaticStruct()->FindPropertyByName(TEXT("Reference")));
+
+    const UFunction* PasswordLogin = UOpenPocketBasePasswordAuthAsyncAction::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBasePasswordAuthAsyncAction, LogInWithPassword));
+    const FStructProperty* PasswordAuthCollection = PasswordLogin != nullptr
+        ? CastField<FStructProperty>(PasswordLogin->FindPropertyByName(TEXT("AuthCollection")))
+        : nullptr;
+    TestNotNull(TEXT("Password login accepts an auth collection value"), PasswordAuthCollection);
+    if (PasswordAuthCollection != nullptr)
+    {
+        TestEqual(
+            TEXT("Password login rejects generic collection handles"),
+            PasswordAuthCollection->Struct->GetFName(),
+            FOpenPocketBaseAuthCollection::StaticStruct()->GetFName());
+    }
+
     const auto TestTypedArray = [this](
         const UScriptStruct* OptionsType,
         const FName PropertyName,

@@ -162,7 +162,7 @@ bool FOpenPocketBaseRemainingAuthTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    const FOpenPocketBaseCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
+    const FOpenPocketBaseDynamicCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
     FOpenPocketBaseMfaContinuation OversizedContinuation;
     OversizedContinuation.Id = FString::ChrN(257, TEXT('x'));
     Auth.AuthWithOtp(

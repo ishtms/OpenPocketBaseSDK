@@ -3647,9 +3647,16 @@ FOpenPocketBaseCollectionService FOpenPocketBaseClient::Collection(
     return FOpenPocketBaseCollectionService(AsShared(), MoveTemp(CollectionReference));
 }
 
-FOpenPocketBaseCollectionService FOpenPocketBaseClient::DynamicCollection(FString CollectionName)
+FOpenPocketBaseAuthCollectionService FOpenPocketBaseClient::AuthCollection(
+    FOpenPocketBaseAuthCollectionRef CollectionReference)
 {
-    return FOpenPocketBaseCollectionService(AsShared(), MoveTemp(CollectionName));
+    return FOpenPocketBaseAuthCollectionService(AsShared(), MoveTemp(CollectionReference));
+}
+
+FOpenPocketBaseDynamicCollectionService FOpenPocketBaseClient::DynamicCollection(
+    FString CollectionName)
+{
+    return FOpenPocketBaseDynamicCollectionService(AsShared(), MoveTemp(CollectionName));
 }
 
 FOpenPocketBaseFileService FOpenPocketBaseClient::Files()
@@ -4822,6 +4829,27 @@ FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
 {
 }
 
+FOpenPocketBaseAuthCollectionService::FOpenPocketBaseAuthCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FOpenPocketBaseAuthCollectionRef InCollection)
+    : FOpenPocketBaseCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+{
+}
+
+FOpenPocketBaseAuthCollectionService::FOpenPocketBaseAuthCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FString InCollection)
+    : FOpenPocketBaseCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+{
+}
+
+FOpenPocketBaseDynamicCollectionService::FOpenPocketBaseDynamicCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FString InCollection)
+    : FOpenPocketBaseAuthCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+{
+}
+
 FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
     FString InCollection)
@@ -4833,6 +4861,12 @@ FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
 bool FOpenPocketBaseCollectionService::IsValid() const
 {
     return IsSafePathSegment(Collection) && Client.IsValid();
+}
+
+bool FOpenPocketBaseAuthCollectionService::IsValid() const
+{
+    return FOpenPocketBaseCollectionService::IsValid() &&
+        (!Reference.IsSet() || FOpenPocketBaseAuthCollectionRef::Accepts(Reference));
 }
 
 bool FOpenPocketBaseCollectionService::ValidateRecordOptions(
@@ -5568,7 +5602,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Delete(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListAuthMethods(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListAuthMethods(
     FOpenPocketBaseAuthMethodsCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
 {
@@ -5619,7 +5653,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListAuthMethods(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestOtp(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestOtp(
     FString Email,
     FOpenPocketBaseOtpRequestCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
@@ -5673,7 +5707,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestOtp(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithPassword(
     FString Identity,
     FString Password,
     FOpenPocketBaseAuthAttemptCallback OnComplete,
@@ -5755,7 +5789,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithPassword(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithOtp(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOtp(
     FString OtpId,
     FString Password,
     FOpenPocketBaseMfaContinuation Mfa,
@@ -5841,7 +5875,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithOtp(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::BeginOAuth2(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::BeginOAuth2(
     FOpenPocketBaseOAuth2StartOptions Options,
     FOpenPocketBaseOAuth2AuthorizationCallback OnComplete) const
 {
@@ -5939,7 +5973,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::BeginOAuth2(
         RequestOptions);
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CompleteOAuth2(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::CompleteOAuth2(
     FOpenPocketBaseOAuth2Callback Callback,
     FOpenPocketBaseAuthAttemptCallback OnComplete) const
 {
@@ -6075,7 +6109,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CompleteOAuth2(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithOAuth2(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOAuth2(
     FOpenPocketBaseAssistedOAuth2Options Options,
     FOpenPocketBaseAuthAttemptCallback OnComplete) const
 {
@@ -6153,7 +6187,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::AuthWithOAuth2(
         MoveTemp(OnComplete));
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::SendAccountPost(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::SendAccountPost(
     FString Route,
     TMap<FString, FString> BodyFields,
     const bool bUseAuth,
@@ -6226,7 +6260,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::SendAccountPost(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestPasswordReset(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestPasswordReset(
     FString Email,
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
@@ -6250,7 +6284,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestPasswordRe
         MoveTemp(Options));
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmPasswordReset(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmPasswordReset(
     FString Token,
     FString Password,
     FString PasswordConfirm,
@@ -6279,7 +6313,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmPasswordRe
         MoveTemp(Options));
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestVerification(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestVerification(
     FString Email,
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
@@ -6302,7 +6336,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestVerificati
         MoveTemp(Options));
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmVerification(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmVerification(
     FString Token,
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
@@ -6349,7 +6383,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmVerificati
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestEmailChange(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestEmailChange(
     FString NewEmail,
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
@@ -6372,7 +6406,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::RequestEmailChang
         MoveTemp(Options));
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmEmailChange(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmEmailChange(
     FString Token,
     FString Password,
     FOpenPocketBaseBoolCallback OnComplete,
@@ -6418,7 +6452,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ConfirmEmailChang
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListExternalAuths(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListExternalAuths(
     FString RecordId,
     FOpenPocketBaseExternalAuthsCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
@@ -6486,7 +6520,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListExternalAuths
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UnlinkExternalAuth(
+FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::UnlinkExternalAuth(
     FString RecordId,
     FString Provider,
     FOpenPocketBaseBoolCallback OnComplete,
