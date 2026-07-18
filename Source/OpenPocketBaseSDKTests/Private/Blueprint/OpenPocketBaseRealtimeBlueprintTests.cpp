@@ -138,7 +138,7 @@ bool FOpenPocketBaseRealtimeBlueprintTest::RunTest(const FString& Parameters)
     }
     Client->AddToRoot();
 
-    const FOpenPocketBaseCollection Collection = Client->Collection(TEXT("messages"));
+    const FOpenPocketBaseCollection Collection = Client->DynamicCollection(TEXT("messages"));
     UOpenPocketBaseSubscription* Subscription = nullptr;
     TestTrue(
         TEXT("Subscribe to Records starts from a collection value"),

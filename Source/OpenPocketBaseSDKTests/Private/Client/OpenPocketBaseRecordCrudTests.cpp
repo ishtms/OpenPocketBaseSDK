@@ -208,7 +208,7 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
         UOpenPocketBaseRecordLibrary::MakeExcerptField(TEXT("title"), 40, true),
         TEXT("expand.owner.*")};
 
-    State->Client->Collection(TEXT("tasks")).Create(
+    State->Client->DynamicCollection(TEXT("tasks")).Create(
         Body,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -242,7 +242,7 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
         },
         RecordOptions);
 
-    State->Client->Collection(TEXT("tasks_id")).Update(
+    State->Client->DynamicCollection(TEXT("tasks_id")).Update(
         TEXT("task123"),
         Body,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -251,7 +251,7 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
             ++State->CompletionCount;
         });
 
-    State->Client->Collection(TEXT("tasks")).Delete(
+    State->Client->DynamicCollection(TEXT("tasks")).Delete(
         TEXT("task123"),
         [State](TOpenPocketBaseResult<bool>&& Result)
         {
@@ -259,7 +259,7 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
             ++State->CompletionCount;
         });
 
-    State->Client->Collection(TEXT("tasks")).GetFirstListItem(
+    State->Client->DynamicCollection(TEXT("tasks")).GetFirstListItem(
         FOpenPocketBaseFilter::DynamicString(
             TEXT("status"),
             EOpenPocketBaseStringComparison::Equals,
@@ -373,7 +373,7 @@ bool FOpenPocketBaseRecordMutationErrorTest::RunTest(const FString& Parameters)
     FOpenPocketBaseRecordOptions Options;
     Options.RequestOptions.MaxReadRetries = 5;
 
-    State->Client->Collection(TEXT("tasks")).Create(
+    State->Client->DynamicCollection(TEXT("tasks")).Create(
         Body,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -384,7 +384,7 @@ bool FOpenPocketBaseRecordMutationErrorTest::RunTest(const FString& Parameters)
             ++State->CompletionCount;
         },
         Options);
-    State->Client->Collection(TEXT("tasks")).Update(
+    State->Client->DynamicCollection(TEXT("tasks")).Update(
         TEXT("task123"),
         Body,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -396,7 +396,7 @@ bool FOpenPocketBaseRecordMutationErrorTest::RunTest(const FString& Parameters)
             ++State->CompletionCount;
         },
         Options);
-    State->Client->Collection(TEXT("tasks")).Delete(
+    State->Client->DynamicCollection(TEXT("tasks")).Delete(
         TEXT("task123"),
         [State](TOpenPocketBaseResult<bool>&& Result)
         {

@@ -275,7 +275,7 @@ bool FOpenPocketBaseProactiveSingleFlightTest::RunTest(const FString& Parameters
         return false;
     }
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -289,7 +289,7 @@ bool FOpenPocketBaseProactiveSingleFlightTest::RunTest(const FString& Parameters
 
             const auto StartRead = [State]()
             {
-                State->Client->Collection(TEXT("tasks")).GetOne(
+                State->Client->DynamicCollection(TEXT("tasks")).GetOne(
                     TEXT("task00000000001"),
                     [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& ReadResult)
                     {
@@ -360,7 +360,7 @@ bool FOpenPocketBaseReadAuthReplayTest::RunTest(const FString& Parameters)
         CreateOpenPocketBaseSecureStore(),
         MakeShared<FFixedOpenPocketBaseClock, ESPMode::ThreadSafe>(),
         Error);
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
@@ -371,7 +371,7 @@ bool FOpenPocketBaseReadAuthReplayTest::RunTest(const FString& Parameters)
                 State->bCompleted = true;
                 return;
             }
-            State->Client->Collection(TEXT("tasks")).GetOne(
+            State->Client->DynamicCollection(TEXT("tasks")).GetOne(
                 TEXT("task00000000001"),
                 [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& ReadResult)
                 {
@@ -424,7 +424,7 @@ bool FOpenPocketBaseMutationNoAuthReplayTest::RunTest(const FString& Parameters)
         CreateOpenPocketBaseSecureStore(),
         MakeShared<FFixedOpenPocketBaseClock, ESPMode::ThreadSafe>(),
         Error);
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
@@ -437,7 +437,7 @@ bool FOpenPocketBaseMutationNoAuthReplayTest::RunTest(const FString& Parameters)
             }
             FOpenPocketBaseRecordBody Body;
             Body.SetDynamicStringField(TEXT("title"), TEXT("Must not replay"));
-            State->Client->Collection(TEXT("tasks")).Create(
+            State->Client->DynamicCollection(TEXT("tasks")).Create(
                 MoveTemp(Body),
                 [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& CreateResult)
                 {
@@ -492,7 +492,7 @@ bool FOpenPocketBaseInjectedClockRetryTest::RunTest(const FString& Parameters)
     Options.RequestOptions.MaxReadRetries = 1;
     Options.RequestOptions.RetryBaseDelaySeconds = 1.0;
     Options.RequestOptions.RetryJitterFraction = 0;
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("task00000000001"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {

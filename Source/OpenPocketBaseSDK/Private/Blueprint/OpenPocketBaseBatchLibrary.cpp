@@ -12,7 +12,7 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithCreate(
     const TArray<FString>& Expand,
     const TArray<FString>& Fields)
 {
-    Batch.AddCreate(MoveTemp(Collection.Name), MoveTemp(Body), Expand, Fields);
+    Batch.AddCreate(MoveTemp(Collection.Reference.Name), MoveTemp(Body), Expand, Fields);
     return Batch;
 }
 
@@ -25,7 +25,7 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpdate(
     const TArray<FString>& Fields)
 {
     Batch.AddUpdate(
-        MoveTemp(Collection.Name),
+        MoveTemp(Collection.Reference.Name),
         RecordId,
         MoveTemp(Body),
         Expand,
@@ -40,7 +40,7 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpsert(
     const TArray<FString>& Expand,
     const TArray<FString>& Fields)
 {
-    Batch.AddUpsert(MoveTemp(Collection.Name), MoveTemp(Body), Expand, Fields);
+    Batch.AddUpsert(MoveTemp(Collection.Reference.Name), MoveTemp(Body), Expand, Fields);
     return Batch;
 }
 
@@ -49,6 +49,6 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithDelete(
     FOpenPocketBaseCollection Collection,
     const FString& RecordId)
 {
-    Batch.AddDelete(MoveTemp(Collection.Name), RecordId);
+    Batch.AddDelete(MoveTemp(Collection.Reference.Name), RecordId);
     return Batch;
 }

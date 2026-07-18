@@ -2878,7 +2878,7 @@ private:
             return;
         }
         const TSharedRef<FAssistedOAuthOperation, ESPMode::ThreadSafe> Self = AsShared();
-        SetChildHandle(Client->Collection(AuthCollection).ListAuthMethods(
+        SetChildHandle(Client->DynamicCollection(AuthCollection).ListAuthMethods(
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Result)
             {
                 Self->HandleDiscovery(MoveTemp(Result));
@@ -3086,7 +3086,7 @@ private:
         Callback.Mfa = Options.Mfa;
         Callback.RequestOptions = Options.RequestOptions;
         const TSharedRef<FAssistedOAuthOperation, ESPMode::ThreadSafe> Self = AsShared();
-        SetChildHandle(Client->Collection(AuthCollection).CompleteOAuth2(
+        SetChildHandle(Client->DynamicCollection(AuthCollection).CompleteOAuth2(
             MoveTemp(Callback),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
             {
@@ -3362,7 +3362,7 @@ private:
         PageOptions.Page = NextPage;
         const TSharedRef<FOpenPocketBaseFullListOperation, ESPMode::ThreadSafe> Self = AsShared();
         const FOpenPocketBaseRequestHandle PageRequest =
-            PinnedClient->Collection(Collection).GetList(
+            PinnedClient->DynamicCollection(Collection).GetList(
                 MoveTemp(PageOptions),
                 [Self](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
                 {
@@ -3612,7 +3612,13 @@ FOpenPocketBaseClient::~FOpenPocketBaseClient()
     Shutdown();
 }
 
-FOpenPocketBaseCollectionService FOpenPocketBaseClient::Collection(FString CollectionName)
+FOpenPocketBaseCollectionService FOpenPocketBaseClient::Collection(
+    FOpenPocketBaseCollectionRef CollectionReference)
+{
+    return FOpenPocketBaseCollectionService(AsShared(), MoveTemp(CollectionReference));
+}
+
+FOpenPocketBaseCollectionService FOpenPocketBaseClient::DynamicCollection(FString CollectionName)
 {
     return FOpenPocketBaseCollectionService(AsShared(), MoveTemp(CollectionName));
 }
@@ -4776,6 +4782,15 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
                     EOpenPocketBaseTransferPhase::Downloading);
             }
         });
+}
+
+FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FOpenPocketBaseCollectionRef InCollection)
+    : Client(MoveTemp(InClient))
+    , Collection(InCollection.Name)
+    , Reference(MoveTemp(InCollection))
+{
 }
 
 FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
@@ -6332,7 +6347,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::ListExternalAuths
     ListOptions.Filter = MoveTemp(Filter);
     ListOptions.bSkipTotal = true;
     ListOptions.RequestOptions = MoveTemp(Options);
-    return PinnedClient->Collection(TEXT("_externalAuths")).GetList(
+    return PinnedClient->DynamicCollection(TEXT("_externalAuths")).GetList(
         MoveTemp(ListOptions),
         [OnComplete = MoveTemp(OnComplete)](
             TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result) mutable
@@ -6422,7 +6437,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UnlinkExternalAut
     FOpenPocketBaseRecordOptions FindOptions;
     FindOptions.RequestOptions = Options;
     FOpenPocketBaseRequestHandle FindHandle =
-        PinnedClient->Collection(TEXT("_externalAuths")).GetFirstListItem(
+        PinnedClient->DynamicCollection(TEXT("_externalAuths")).GetFirstListItem(
             MoveTemp(Filter),
             [PinnedClient, Chain, Completion, RequestState, Options](
                 TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result) mutable
@@ -6448,7 +6463,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UnlinkExternalAut
                 }
 
                 FOpenPocketBaseRequestHandle DeleteHandle =
-                    PinnedClient->Collection(TEXT("_externalAuths")).Delete(
+                    PinnedClient->DynamicCollection(TEXT("_externalAuths")).Delete(
                         Result.GetValue().Id,
                         [Completion, RequestState](TOpenPocketBaseResult<bool>&& DeleteResult) mutable
                         {

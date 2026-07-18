@@ -242,7 +242,7 @@ bool FOpenPocketBaseFileTokenTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
@@ -284,7 +284,7 @@ bool FOpenPocketBaseProtectedFileErrorTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)

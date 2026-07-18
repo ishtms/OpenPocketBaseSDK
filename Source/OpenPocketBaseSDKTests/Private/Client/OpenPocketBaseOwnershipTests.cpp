@@ -118,14 +118,14 @@ bool FOpenPocketBaseNativeOwnershipIsolationTest::RunTest(const FString& Paramet
         return false;
     }
 
-    State->FirstClient->Collection(TEXT("users")).AuthWithPassword(
+    State->FirstClient->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("first@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
             ++State->CompletionCount;
         });
-    State->SecondClient->Collection(TEXT("users")).AuthWithPassword(
+    State->SecondClient->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("second@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -182,9 +182,9 @@ bool FOpenPocketBaseGameInstanceOwnershipTest::RunTest(const FString& Parameters
         UOpenPocketBaseClientLibrary::GetNamedPocketBaseClient(GameInstance, TEXT("secondary")),
         NamedClient);
 
-    const FOpenPocketBaseCollection Collection = DefaultClient->Collection(TEXT(" sdk_tasks "));
+    const FOpenPocketBaseCollection Collection = DefaultClient->DynamicCollection(TEXT(" sdk_tasks "));
     TestTrue(TEXT("A ready client creates a valid collection value"), Collection.IsValid());
-    TestEqual(TEXT("Collection names are trimmed"), Collection.Name, FString(TEXT("sdk_tasks")));
+    TestEqual(TEXT("Collection names are trimmed"), Collection.Reference.Name, FString(TEXT("sdk_tasks")));
     TestEqual(TEXT("Collection values retain their client"), Collection.Client.Get(), DefaultClient);
 
     UOpenPocketBaseClient* ReusedClient = nullptr;

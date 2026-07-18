@@ -436,7 +436,7 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
     Options.Fields = {TEXT("id"), TEXT("title")};
     Options.QueryParameters.Add(TEXT("locale"), TEXT("en-GB"));
     Options.Headers.Add(TEXT("X-Tenant"), TEXT("game-one"));
-    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Collection(TEXT("sdk_tasks"))
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->DynamicCollection(TEXT("sdk_tasks"))
         .SubscribeToRecords({}, Options);
     TestTrue(TEXT("Approved options are accepted"), SubscriptionResult.IsSuccess());
     if (!SubscriptionResult.IsSuccess())

@@ -95,7 +95,7 @@ bool FOpenPocketBaseBlueprintFacadeTest::RunTest(const FString& Parameters)
     }
     State->Client->AddToRoot();
 
-    State->Client->GetNativeClient()->Collection(TEXT("tasks")).GetOne(
+    State->Client->GetNativeClient()->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("shared123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {

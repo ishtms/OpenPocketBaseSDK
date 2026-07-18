@@ -17,7 +17,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseCollection
     TObjectPtr<UOpenPocketBaseClient> Client;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
-    FString Name;
+    FOpenPocketBaseCollectionRef Reference;
 
     bool IsValid() const;
 };
@@ -70,7 +70,9 @@ public:
         BlueprintPure,
         Category = "Open PocketBase|Records",
         meta = (DisplayName = "Collection", Keywords = "records auth table"))
-    FOpenPocketBaseCollection Collection(FString Name);
+    FOpenPocketBaseCollection Collection(FOpenPocketBaseCollectionRef Reference);
+
+    FOpenPocketBaseCollection DynamicCollection(FString Name);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")
     FOpenPocketBaseCapabilityInfo GetCapability(EOpenPocketBaseCapability Capability) const;

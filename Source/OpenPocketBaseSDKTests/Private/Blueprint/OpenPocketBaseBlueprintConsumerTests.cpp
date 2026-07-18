@@ -129,6 +129,26 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
             RealtimeFilterStructProperty->Struct->GetFName(),
             FName(TEXT("OpenPocketBaseFilter")));
     }
+
+    const UFunction* CollectionFunction = UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, Collection));
+    const FStructProperty* CollectionReferenceParameter = CollectionFunction != nullptr
+        ? CastField<FStructProperty>(CollectionFunction->FindPropertyByName(TEXT("Reference")))
+        : nullptr;
+    TestNotNull(TEXT("Collection uses a schema picker parameter"), CollectionReferenceParameter);
+    if (CollectionReferenceParameter != nullptr)
+    {
+        TestEqual(
+            TEXT("Collection accepts a stable collection reference"),
+            CollectionReferenceParameter->Struct->GetFName(),
+            FOpenPocketBaseCollectionRef::StaticStruct()->GetFName());
+    }
+    TestNotNull(
+        TEXT("Collection handles retain their schema reference"),
+        FOpenPocketBaseCollection::StaticStruct()->FindPropertyByName(TEXT("Reference")));
+    TestNull(
+        TEXT("Collection handles do not expose an untyped name"),
+        FOpenPocketBaseCollection::StaticStruct()->FindPropertyByName(TEXT("Name")));
     return true;
 }
 
@@ -470,6 +490,18 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     CollectionNode->PostPlacedNewNode();
     CollectionNode->AllocateDefaultPins();
     Graph->AddNode(CollectionNode, true, false);
+    UOpenPocketBaseSchema* CollectionSchema = NewObject<UOpenPocketBaseSchema>(
+        GetTransientPackage(),
+        TEXT("OpenPocketBaseCollectionSchema"));
+    CollectionSchema->SchemaId = FGuid(89, 144, 233, 377);
+    FOpenPocketBaseSchemaCollection CollectionDefinition;
+    CollectionDefinition.Id = TEXT("tasks_id");
+    CollectionDefinition.Name = TEXT("sdk_tasks");
+    CollectionSchema->Collections = {CollectionDefinition};
+    FOpenPocketBaseCollectionRef CollectionReference;
+    CollectionSchema->MakeCollectionRef(CollectionDefinition.Id, CollectionReference);
+    CollectionNode->FindPinChecked(TEXT("Reference"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(CollectionReference);
     const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
     TestTrue(
         TEXT("A retrieved client connects directly to Collection"),

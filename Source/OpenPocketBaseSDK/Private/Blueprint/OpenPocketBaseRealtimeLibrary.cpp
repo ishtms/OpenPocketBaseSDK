@@ -43,7 +43,7 @@ bool UOpenPocketBaseRealtimeLibrary::SubscribeToRecords(
         return false;
     }
     return SetSubscriptionResult(
-        Collection.Client->SubscribeToRecords(MoveTemp(Collection.Name), Options, Error),
+        Collection.Client->SubscribeToRecords(MoveTemp(Collection.Reference.Name), Options, Error),
         Subscription,
         Error);
 }
@@ -64,7 +64,7 @@ bool UOpenPocketBaseRealtimeLibrary::SubscribeToRecord(
     }
     return SetSubscriptionResult(
         Collection.Client->SubscribeToRecord(
-            MoveTemp(Collection.Name),
+            MoveTemp(Collection.Reference.Name),
             RecordId,
             Options,
             Error),

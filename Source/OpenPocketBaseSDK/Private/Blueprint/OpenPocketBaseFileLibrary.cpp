@@ -20,7 +20,7 @@ bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
     }
 
     FOpenPocketBaseFileUrlResult Result = NativeClient->Files().BuildUrl(
-        MoveTemp(Collection.Name),
+        MoveTemp(Collection.Reference.Name),
         MoveTemp(RecordId),
         MoveTemp(FileName),
         MoveTemp(Options));

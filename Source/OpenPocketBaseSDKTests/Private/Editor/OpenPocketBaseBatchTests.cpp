@@ -211,7 +211,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
 {
     FOpenPocketBaseCollection Collection;
-    Collection.Name = TEXT("tasks");
+    Collection.Reference.Name = TEXT("tasks");
     FOpenPocketBaseRecordBody Body;
     Body.SetDynamicStringField(TEXT("title"), TEXT("Create"));
 

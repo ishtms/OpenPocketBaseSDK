@@ -269,7 +269,7 @@ bool FOpenPocketBaseScriptedErrorsTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseRequestOptions Options;
     Options.bRetryEligibleReads = false;
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("transport-error"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -281,7 +281,7 @@ bool FOpenPocketBaseScriptedErrorsTest::RunTest(const FString& Parameters)
             }
         },
         Options);
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("timeout"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -348,7 +348,7 @@ bool FOpenPocketBaseScriptedRedirectsTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseRequestOptions Options;
     Options.bRetryEligibleReads = false;
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("task123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -356,7 +356,7 @@ bool FOpenPocketBaseScriptedRedirectsTest::RunTest(const FString& Parameters)
             State->bSameOriginSucceeded = Result.IsSuccess();
         },
         Options);
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("task456"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -368,7 +368,7 @@ bool FOpenPocketBaseScriptedRedirectsTest::RunTest(const FString& Parameters)
             }
         },
         Options);
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("task789"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -379,7 +379,7 @@ bool FOpenPocketBaseScriptedRedirectsTest::RunTest(const FString& Parameters)
             }
         },
         Options);
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("task999"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -423,7 +423,7 @@ bool FOpenPocketBaseScriptedLateCallbackTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    const FOpenPocketBaseRequestHandle Handle = State->Client->Collection(TEXT("tasks")).GetOne(
+    const FOpenPocketBaseRequestHandle Handle = State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("late123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -465,7 +465,7 @@ bool FOpenPocketBaseScriptedTeardownTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("shutdown"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {

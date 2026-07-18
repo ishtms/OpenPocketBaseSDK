@@ -266,7 +266,7 @@ bool FOpenPocketBaseBoundedFullListTest::RunTest(const FString& Parameters)
     Options.ListOptions.PerPage = 2;
     Options.ListOptions.bSkipTotal = true;
     Options.MaxItems = 3;
-    State->Handle = State->Client->Collection(TEXT("tasks")).GetFullList(
+    State->Handle = State->Client->DynamicCollection(TEXT("tasks")).GetFullList(
         Options,
         [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {
@@ -301,7 +301,7 @@ bool FOpenPocketBaseCancelFullListTest::RunTest(const FString& Parameters)
     Options.ListOptions.PerPage = 2;
     Options.ListOptions.bSkipTotal = true;
     Options.MaxPages = 5;
-    State->Handle = State->Client->Collection(TEXT("tasks")).GetFullList(
+    State->Handle = State->Client->DynamicCollection(TEXT("tasks")).GetFullList(
         Options,
         [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {
@@ -333,7 +333,7 @@ bool FOpenPocketBasePageBoundedFullListTest::RunTest(const FString& Parameters)
     Options.ListOptions.PerPage = 2;
     Options.ListOptions.bSkipTotal = true;
     Options.MaxPages = 1;
-    State->Handle = State->Client->Collection(TEXT("tasks")).GetFullList(
+    State->Handle = State->Client->DynamicCollection(TEXT("tasks")).GetFullList(
         Options,
         [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {
@@ -361,7 +361,7 @@ bool FOpenPocketBaseRejectUnboundedFullListTest::RunTest(const FString& Paramete
     {
         return false;
     }
-    State->Client->Collection(TEXT("tasks")).GetFullList(
+    State->Client->DynamicCollection(TEXT("tasks")).GetFullList(
         {},
         [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {
@@ -393,7 +393,7 @@ bool FOpenPocketBaseSkipTotalTest::RunTest(const FString& Parameters)
     FOpenPocketBaseListOptions Options;
     Options.PerPage = 2;
     Options.bSkipTotal = true;
-    State->Client->Collection(TEXT("tasks")).GetList(
+    State->Client->DynamicCollection(TEXT("tasks")).GetList(
         Options,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
         {

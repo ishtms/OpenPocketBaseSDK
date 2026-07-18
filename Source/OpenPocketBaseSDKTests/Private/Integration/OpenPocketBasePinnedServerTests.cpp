@@ -121,7 +121,7 @@ void CompleteCrudFailure(
 void DeleteIntegrationRecord(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
-    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Delete(
         TEXT("task00000000002"),
         [State](TOpenPocketBaseResult<bool>&& Result)
         {
@@ -144,7 +144,7 @@ void GetFirstIntegrationRecord(
 
     FOpenPocketBaseRecordOptions Options;
     Options.Fields = {TEXT("id"), TEXT("title:excerpt(12,true)"), TEXT("score")};
-    State->Client->Collection(TEXT("sdk_tasks")).GetFirstListItem(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).GetFirstListItem(
         MoveTemp(Filter),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -166,7 +166,7 @@ void UpdateIntegrationRecord(
     FOpenPocketBaseRecordBody Body;
     Body.SetDynamicStringField(TEXT("title"), TEXT("Updated integration task"));
     Body.SetDynamicNumberField(TEXT("score"), 2.0, EOpenPocketBaseFieldModifier::Append);
-    State->Client->Collection(TEXT("sdk_tasks")).Update(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Update(
         TEXT("task00000000002"),
         MoveTemp(Body),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -188,7 +188,7 @@ void CreateIntegrationRecord(
     Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000002"));
     Body.SetDynamicStringField(TEXT("title"), TEXT("Created integration task"));
     Body.SetDynamicNumberField(TEXT("score"), 3.0);
-    State->Client->Collection(TEXT("sdk_tasks")).Create(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Create(
         MoveTemp(Body),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -206,7 +206,7 @@ void CreateIntegrationRecord(
 void VerifyRolledBackBatchRecord(
     const TSharedRef<FPinnedServerState, ESPMode::ThreadSafe>& State)
 {
-    State->Client->Collection(TEXT("sdk_tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).GetOne(
         TEXT("task00000000005"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -315,7 +315,7 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -360,7 +360,7 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
             ++State->CompletionCount;
         });
 
-    State->Client->Collection(TEXT("sdk_tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).GetOne(
         TEXT("task00000000001"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -379,7 +379,7 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
     FOpenPocketBaseListOptions ListOptions;
     ListOptions.Page = 1;
     ListOptions.PerPage = 30;
-    State->Client->Collection(TEXT("sdk_tasks")).GetList(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).GetList(
         ListOptions,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
         {
@@ -399,7 +399,7 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
     FullListOptions.ListOptions.PerPage = 30;
     FullListOptions.ListOptions.bSkipTotal = true;
     FullListOptions.MaxPages = 1;
-    State->Client->Collection(TEXT("sdk_tasks")).GetFullList(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).GetFullList(
         FullListOptions,
         [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {
@@ -489,7 +489,7 @@ bool FOpenPocketBasePinnedRemainingAuthTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    const FOpenPocketBaseCollectionService Auth = State->Client->Collection(TEXT("sdk_users"));
+    const FOpenPocketBaseCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
     Auth.ListAuthMethods(
         [State, Auth](TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Methods) mutable
         {
@@ -552,7 +552,7 @@ public:
     void Start()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+        State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
             TEXT("player@example.com"),
             TEXT("correct-horse-battery"),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -570,7 +570,7 @@ private:
     void RequestPasswordReset()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).RequestPasswordReset(
+        State->Client->DynamicCollection(TEXT("sdk_users")).RequestPasswordReset(
             TEXT("missing-password-reset@example.invalid"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -587,7 +587,7 @@ private:
     void ConfirmInvalidPasswordReset()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ConfirmPasswordReset(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmPasswordReset(
             TEXT("invalid-password-reset-token"),
             TEXT("replacement-password"),
             TEXT("replacement-password"),
@@ -606,7 +606,7 @@ private:
     void RequestVerification()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).RequestVerification(
+        State->Client->DynamicCollection(TEXT("sdk_users")).RequestVerification(
             TEXT("missing-verification@example.invalid"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -623,7 +623,7 @@ private:
     void ConfirmInvalidVerification()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ConfirmVerification(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmVerification(
             TEXT("invalid-verification-token"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -640,7 +640,7 @@ private:
     void ListExternalAuths()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ListExternalAuths(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ListExternalAuths(
             TEXT("user00000000001"),
             [Self](TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&& Result)
             {
@@ -664,7 +664,7 @@ private:
     void UnlinkExternalAuth()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).UnlinkExternalAuth(
+        State->Client->DynamicCollection(TEXT("sdk_users")).UnlinkExternalAuth(
             TEXT("user00000000001"),
             TEXT("github"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
@@ -682,7 +682,7 @@ private:
     void RequestUnauthenticatedEmailChange()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->AnonymousClient->Collection(TEXT("sdk_users")).RequestEmailChange(
+        State->AnonymousClient->DynamicCollection(TEXT("sdk_users")).RequestEmailChange(
             TEXT("new-player@example.invalid"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -699,7 +699,7 @@ private:
     void ConfirmInvalidEmailChange()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ConfirmEmailChange(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmEmailChange(
             TEXT("invalid-email-change-token"),
             TEXT("correct-horse-battery"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
@@ -847,7 +847,7 @@ void FinishPinnedUpload(
         return;
     }
 
-    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Delete(
         TEXT("task00000000007"),
         [State](TOpenPocketBaseResult<bool>&& Result)
         {
@@ -1031,7 +1031,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
@@ -1051,7 +1051,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
             File.FileName = TEXT("disk-proof.txt");
             File.ContentType = TEXT("text/plain");
             File.FilePath = State->TempFile;
-            State->Client->Collection(TEXT("sdk_tasks")).CreateWithFiles(
+            State->Client->DynamicCollection(TEXT("sdk_tasks")).CreateWithFiles(
                 MoveTemp(Body),
                 {MoveTemp(File)},
                 [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& CreateResult)
@@ -1077,7 +1077,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
                     InlineFile.Modifier = EOpenPocketBaseFieldModifier::Append;
                     InlineFile.bUseFilePath = false;
                     InlineFile.Bytes = {'m', 'e', 'm', 'o', 'r', 'y'};
-                    State->Client->Collection(TEXT("sdk_tasks")).UpdateWithFiles(
+                    State->Client->DynamicCollection(TEXT("sdk_tasks")).UpdateWithFiles(
                         TEXT("task00000000007"),
                         MoveTemp(UpdateBody),
                         {MoveTemp(InlineFile)},
@@ -1157,7 +1157,7 @@ private:
 void DeletePinnedRealtimeRecord(
     const TSharedRef<FPinnedRealtimeState, ESPMode::ThreadSafe>& State)
 {
-    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Delete(
         TEXT("task00000000008"),
         [State](TOpenPocketBaseResult<bool>&& Result)
         {
@@ -1183,7 +1183,7 @@ void CreatePinnedRealtimeRecord(
     FOpenPocketBaseRecordBody Body;
     Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000008"));
     Body.SetDynamicStringField(TEXT("title"), TEXT("Realtime integration task"));
-    State->Client->Collection(TEXT("sdk_tasks")).Create(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Create(
         MoveTemp(Body),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -1227,7 +1227,7 @@ bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
@@ -1268,7 +1268,7 @@ bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
                     RealtimeError));
             };
             FOpenPocketBaseSubscriptionResult SubscriptionResult =
-                State->Client->Collection(TEXT("sdk_tasks"))
+                State->Client->DynamicCollection(TEXT("sdk_tasks"))
                     .SubscribeToRecords(MoveTemp(Callbacks));
             if (!SubscriptionResult.IsSuccess())
             {
@@ -1350,7 +1350,7 @@ private:
 void DeletePinnedRealtimeChaosRecord(
     const TSharedRef<FPinnedRealtimeChaosState, ESPMode::ThreadSafe>& State)
 {
-    State->Client->Collection(TEXT("sdk_tasks")).Delete(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Delete(
         TEXT("task00000000009"),
         [State](TOpenPocketBaseResult<bool>&& Result)
         {
@@ -1376,7 +1376,7 @@ void CreatePinnedRealtimeChaosRecord(
     FOpenPocketBaseRecordBody Body;
     Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000009"));
     Body.SetDynamicStringField(TEXT("title"), TEXT("Realtime chaos integration task"));
-    State->Client->Collection(TEXT("sdk_tasks")).Create(
+    State->Client->DynamicCollection(TEXT("sdk_tasks")).Create(
         MoveTemp(Body),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -1421,7 +1421,7 @@ bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
@@ -1478,7 +1478,7 @@ bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
                 ++State->ResyncCount;
             };
             FOpenPocketBaseSubscriptionResult SubscriptionResult =
-                State->Client->Collection(TEXT("sdk_tasks"))
+                State->Client->DynamicCollection(TEXT("sdk_tasks"))
                     .SubscribeToRecords(MoveTemp(Callbacks));
             if (!SubscriptionResult.IsSuccess())
             {

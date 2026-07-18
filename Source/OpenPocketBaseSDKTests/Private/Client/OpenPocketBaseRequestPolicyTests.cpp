@@ -252,7 +252,7 @@ bool FOpenPocketBaseReadRetryPolicyTest::RunTest(const FString& Parameters)
     Options.RetryBaseDelaySeconds = 0;
     Options.RetryMaxDelaySeconds = 0;
     Options.RetryJitterFraction = 0;
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("retry123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -290,7 +290,7 @@ bool FOpenPocketBaseMutationRetryPolicyTest::RunTest(const FString& Parameters)
     Options.MaxReadRetries = 5;
     Options.RetryBaseDelaySeconds = 0;
     Options.RetryMaxDelaySeconds = 0;
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -337,7 +337,7 @@ bool FOpenPocketBaseResponseLimitPolicyTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseRequestOptions Options;
     Options.MaxResponseBytes = 1024;
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("large123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -384,7 +384,7 @@ bool FOpenPocketBaseRetryCancellationPolicyTest::RunTest(const FString& Paramete
     Options.MaxReadRetries = 1;
     Options.RetryBaseDelaySeconds = 30;
     Options.RetryMaxDelaySeconds = 30;
-    const FOpenPocketBaseRequestHandle Handle = State->Client->Collection(TEXT("tasks")).GetOne(
+    const FOpenPocketBaseRequestHandle Handle = State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("retry123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -424,7 +424,7 @@ bool FOpenPocketBaseRequestKeyPolicyTest::RunTest(const FString& Parameters)
     FOpenPocketBaseRequestOptions Options;
     Options.RequestKey = TEXT("loadout");
     Options.bCancelPreviousRequestWithSameKey = true;
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("first123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -435,7 +435,7 @@ bool FOpenPocketBaseRequestKeyPolicyTest::RunTest(const FString& Parameters)
             State->bFirstCompleted = true;
         },
         Options);
-    State->RemainingHandle = State->Client->Collection(TEXT("tasks")).GetOne(
+    State->RemainingHandle = State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("second123"),
         [](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -467,13 +467,13 @@ bool FOpenPocketBaseRequestKeyDefaultPolicyTest::RunTest(const FString& Paramete
 
     FOpenPocketBaseRequestOptions Options;
     Options.RequestKey = TEXT("shared-key");
-    const FOpenPocketBaseRequestHandle First = Client->Collection(TEXT("tasks")).GetOne(
+    const FOpenPocketBaseRequestHandle First = Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("first123"),
         [](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
         },
         Options);
-    const FOpenPocketBaseRequestHandle Second = Client->Collection(TEXT("tasks")).GetOne(
+    const FOpenPocketBaseRequestHandle Second = Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("second123"),
         [](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -511,14 +511,14 @@ bool FOpenPocketBaseMutationRequestKeyPolicyTest::RunTest(const FString& Paramet
     FOpenPocketBaseRequestOptions Options;
     Options.RequestKey = TEXT("login");
     Options.bCancelPreviousRequestWithSameKey = true;
-    const FOpenPocketBaseRequestHandle First = Client->Collection(TEXT("users")).AuthWithPassword(
+    const FOpenPocketBaseRequestHandle First = Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("first@example.com"),
         TEXT("private-password"),
         [](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
         },
         Options);
-    const FOpenPocketBaseRequestHandle Second = Client->Collection(TEXT("users")).AuthWithPassword(
+    const FOpenPocketBaseRequestHandle Second = Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("second@example.com"),
         TEXT("private-password"),
         [](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)

@@ -454,7 +454,7 @@ bool FOpenPocketBaseAssistedOAuthTest::RunTest(const FString& Parameters)
     Options.Provider = TEXT("github");
     Options.Scopes = {TEXT("read:user"), TEXT("user:email")};
     Options.CreateData.SetDynamicStringField(TEXT("name"), TEXT("Assisted Player"));
-    State->Handle = State->Client->Collection(TEXT("sdk_users")).AuthWithOAuth2(
+    State->Handle = State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithOAuth2(
         MoveTemp(Options),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -503,7 +503,7 @@ bool FOpenPocketBaseAssistedOAuthCancellationTest::RunTest(const FString& Parame
 
     FOpenPocketBaseAssistedOAuth2Options Options;
     Options.Provider = TEXT("github");
-    State->Handle = State->Client->Collection(TEXT("sdk_users")).AuthWithOAuth2(
+    State->Handle = State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithOAuth2(
         MoveTemp(Options),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -548,7 +548,7 @@ bool FOpenPocketBaseAssistedOAuthPolicyTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseAssistedOAuth2Options Options;
     Options.Provider = TEXT("github");
-    State->Client->Collection(TEXT("sdk_users")).AuthWithOAuth2(
+    State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithOAuth2(
         MoveTemp(Options),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -594,7 +594,7 @@ bool FOpenPocketBaseAssistedOAuthBackgroundTest::RunTest(const FString& Paramete
 
     FOpenPocketBaseAssistedOAuth2Options Options;
     Options.Provider = TEXT("github");
-    State->Handle = State->Client->Collection(TEXT("sdk_users")).AuthWithOAuth2(
+    State->Handle = State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithOAuth2(
         MoveTemp(Options),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {

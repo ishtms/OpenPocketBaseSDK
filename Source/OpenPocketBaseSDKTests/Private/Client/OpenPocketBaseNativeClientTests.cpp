@@ -228,7 +228,7 @@ bool FOpenPocketBaseNativeGetOneTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("record id"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -274,7 +274,7 @@ bool FOpenPocketBaseNativeGetListTest::RunTest(const FString& Parameters)
     FOpenPocketBaseListOptions Options;
     Options.Page = 2;
     Options.PerPage = 25;
-    State->Client->Collection(TEXT("tasks")).GetList(
+    State->Client->DynamicCollection(TEXT("tasks")).GetList(
         Options,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
         {
@@ -311,10 +311,10 @@ bool FOpenPocketBaseUnsafePathSegmentTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    TestFalse(TEXT("A traversal-like collection is invalid"), State->Client->Collection(TEXT("..")).IsValid());
-    TestFalse(TEXT("A pre-encoded collection is invalid"), State->Client->Collection(TEXT("tasks%2Fadmin")).IsValid());
+    TestFalse(TEXT("A traversal-like collection is invalid"), State->Client->DynamicCollection(TEXT("..")).IsValid());
+    TestFalse(TEXT("A pre-encoded collection is invalid"), State->Client->DynamicCollection(TEXT("tasks%2Fadmin")).IsValid());
 
-    State->Client->Collection(TEXT("tasks")).GetOne(
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("../secret"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {

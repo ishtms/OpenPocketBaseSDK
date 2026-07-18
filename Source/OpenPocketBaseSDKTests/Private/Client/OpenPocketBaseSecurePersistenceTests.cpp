@@ -333,7 +333,7 @@ bool FOpenPocketBaseSecureRoundTripTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State, Config, Test = this](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -429,7 +429,7 @@ bool FOpenPocketBaseSecureSaveFailureTest::RunTest(const FString& Parameters)
         {
             State->Events.Add(Snapshot);
         });
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -665,7 +665,7 @@ bool FOpenPocketBaseVerifiedRestoreTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State, Config](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)

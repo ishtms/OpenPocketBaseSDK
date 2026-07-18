@@ -263,10 +263,14 @@ private:
 
     FOpenPocketBaseCollectionService(
         TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+        FOpenPocketBaseCollectionRef InCollection);
+    FOpenPocketBaseCollectionService(
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
         FString InCollection);
 
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
     FString Collection;
+    FOpenPocketBaseCollectionRef Reference;
 
     friend class FOpenPocketBaseClient;
 };
@@ -288,7 +292,8 @@ public:
 
     ~FOpenPocketBaseClient();
 
-    FOpenPocketBaseCollectionService Collection(FString CollectionName);
+    FOpenPocketBaseCollectionService Collection(FOpenPocketBaseCollectionRef CollectionReference);
+    FOpenPocketBaseCollectionService DynamicCollection(FString CollectionName);
     FOpenPocketBaseFileService Files();
 
     FOpenPocketBaseRequestHandle Health(

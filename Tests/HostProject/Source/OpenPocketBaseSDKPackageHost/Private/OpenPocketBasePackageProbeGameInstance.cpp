@@ -118,7 +118,7 @@ void UOpenPocketBasePackageProbeGameInstance::Init()
     Options.ActivityTimeoutSeconds = 10;
     Options.bRetryEligibleReads = false;
     const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
-    Request = Client->Collection(TEXT("tls_probe")).GetOne(
+    Request = Client->DynamicCollection(TEXT("tls_probe")).GetOne(
         TEXT("missing"),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -229,7 +229,7 @@ void UOpenPocketBasePackageProbeGameInstance::BeginTransferProbe()
     }
 
     const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
-    Request = Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+    Request = Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
@@ -252,7 +252,7 @@ void UOpenPocketBasePackageProbeGameInstance::BeginTransferProbe()
             File.FileName = TEXT("packaged-proof.txt");
             File.ContentType = TEXT("text/plain");
             File.FilePath = WeakThis->UploadPath;
-            WeakThis->Request = WeakThis->Client->Collection(TEXT("sdk_tasks")).CreateWithFiles(
+            WeakThis->Request = WeakThis->Client->DynamicCollection(TEXT("sdk_tasks")).CreateWithFiles(
                 MoveTemp(Body),
                 {MoveTemp(File)},
                 [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& CreateResult)
@@ -376,7 +376,7 @@ void UOpenPocketBasePackageProbeGameInstance::DeleteTransferRecord(
     }
 
     const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
-    Request = Client->Collection(TEXT("sdk_tasks")).Delete(
+    Request = Client->DynamicCollection(TEXT("sdk_tasks")).Delete(
         TransferRecordId,
         [WeakThis, bTransferSucceeded, Error = MoveTemp(Error)](
             TOpenPocketBaseResult<bool>&& DeleteResult) mutable
@@ -454,7 +454,7 @@ void UOpenPocketBasePackageProbeGameInstance::BeginRealtimeManagerProbe()
         FOpenPocketBaseRecordBody Body;
         Body.SetDynamicStringField(TEXT("id"), TEXT("pkgrealtime0001"));
         Body.SetDynamicStringField(TEXT("title"), TEXT("Packaged realtime manager proof"));
-        Probe->Request = Probe->Client->Collection(TEXT("sdk_tasks")).Create(
+        Probe->Request = Probe->Client->DynamicCollection(TEXT("sdk_tasks")).Create(
             MoveTemp(Body),
             [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
             {
@@ -486,7 +486,7 @@ void UOpenPocketBasePackageProbeGameInstance::BeginRealtimeManagerProbe()
     };
 
     FOpenPocketBaseSubscriptionResult SubscriptionResult =
-        Client->Collection(TEXT("sdk_tasks")).SubscribeToRecords(MoveTemp(Callbacks));
+        Client->DynamicCollection(TEXT("sdk_tasks")).SubscribeToRecords(MoveTemp(Callbacks));
     if (!SubscriptionResult.IsSuccess())
     {
         FinishRealtimeManagerProbe(false, SubscriptionResult.GetError());
@@ -498,7 +498,7 @@ void UOpenPocketBasePackageProbeGameInstance::BeginRealtimeManagerProbe()
 void UOpenPocketBasePackageProbeGameInstance::DeleteRealtimeManagerRecord()
 {
     const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
-    Request = Client->Collection(TEXT("sdk_tasks")).Delete(
+    Request = Client->DynamicCollection(TEXT("sdk_tasks")).Delete(
         TEXT("pkgrealtime0001"),
         [WeakThis](TOpenPocketBaseResult<bool>&& Result)
         {

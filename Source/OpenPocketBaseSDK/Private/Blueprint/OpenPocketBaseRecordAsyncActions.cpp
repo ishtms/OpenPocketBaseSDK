@@ -172,7 +172,7 @@ UOpenPocketBaseGetRecordAsyncAction* UOpenPocketBaseGetRecordAsyncAction::GetRec
 {
     UOpenPocketBaseGetRecordAsyncAction* Action = NewObject<UOpenPocketBaseGetRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -197,7 +197,7 @@ void UOpenPocketBaseGetRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseGetRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).GetOne(
+    RequestHandle = NativeClient->DynamicCollection(Collection).GetOne(
         MoveTemp(RecordId),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -239,7 +239,7 @@ UOpenPocketBaseGetFirstRecordAsyncAction* UOpenPocketBaseGetFirstRecordAsyncActi
 {
     UOpenPocketBaseGetFirstRecordAsyncAction* Action = NewObject<UOpenPocketBaseGetFirstRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->Filter = MoveTemp(InFilter);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -264,7 +264,7 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseGetFirstRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).GetFirstListItem(
+    RequestHandle = NativeClient->DynamicCollection(Collection).GetFirstListItem(
         MoveTemp(Filter),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -306,7 +306,7 @@ UOpenPocketBaseCreateRecordAsyncAction* UOpenPocketBaseCreateRecordAsyncAction::
 {
     UOpenPocketBaseCreateRecordAsyncAction* Action = NewObject<UOpenPocketBaseCreateRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -331,7 +331,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseCreateRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).Create(
+    RequestHandle = NativeClient->DynamicCollection(Collection).Create(
         MoveTemp(Body),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -377,7 +377,7 @@ UOpenPocketBaseCreateRecordWithFilesAsyncAction::CreateRecordWithFiles(
     UOpenPocketBaseCreateRecordWithFilesAsyncAction* Action =
         NewObject<UOpenPocketBaseCreateRecordWithFilesAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->Body = MoveTemp(InBody);
     Action->Files = MoveTemp(InFiles);
     Action->Options = MoveTemp(InOptions);
@@ -407,7 +407,7 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseCreateRecordWithFilesAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).CreateWithFiles(
+    RequestHandle = NativeClient->DynamicCollection(Collection).CreateWithFiles(
         MoveTemp(Body),
         MoveTemp(Files),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -475,7 +475,7 @@ UOpenPocketBaseUpdateRecordAsyncAction* UOpenPocketBaseUpdateRecordAsyncAction::
 {
     UOpenPocketBaseUpdateRecordAsyncAction* Action = NewObject<UOpenPocketBaseUpdateRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
@@ -501,7 +501,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseUpdateRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).Update(
+    RequestHandle = NativeClient->DynamicCollection(Collection).Update(
         MoveTemp(RecordId),
         MoveTemp(Body),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -549,7 +549,7 @@ UOpenPocketBaseUpdateRecordWithFilesAsyncAction::UpdateRecordWithFiles(
     UOpenPocketBaseUpdateRecordWithFilesAsyncAction* Action =
         NewObject<UOpenPocketBaseUpdateRecordWithFilesAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Body = MoveTemp(InBody);
     Action->Files = MoveTemp(InFiles);
@@ -580,7 +580,7 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseUpdateRecordWithFilesAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).UpdateWithFiles(
+    RequestHandle = NativeClient->DynamicCollection(Collection).UpdateWithFiles(
         MoveTemp(RecordId),
         MoveTemp(Body),
         MoveTemp(Files),
@@ -648,7 +648,7 @@ UOpenPocketBaseDeleteRecordAsyncAction* UOpenPocketBaseDeleteRecordAsyncAction::
 {
     UOpenPocketBaseDeleteRecordAsyncAction* Action = NewObject<UOpenPocketBaseDeleteRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -673,7 +673,7 @@ void UOpenPocketBaseDeleteRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseDeleteRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).Delete(
+    RequestHandle = NativeClient->DynamicCollection(Collection).Delete(
         MoveTemp(RecordId),
         [WeakThis](TOpenPocketBaseResult<bool>&& Result)
         {
@@ -714,7 +714,7 @@ UOpenPocketBaseListRecordsAsyncAction* UOpenPocketBaseListRecordsAsyncAction::Li
 {
     UOpenPocketBaseListRecordsAsyncAction* Action = NewObject<UOpenPocketBaseListRecordsAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -738,7 +738,7 @@ void UOpenPocketBaseListRecordsAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseListRecordsAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).GetList(
+    RequestHandle = NativeClient->DynamicCollection(Collection).GetList(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
         {
@@ -778,7 +778,7 @@ UOpenPocketBaseGetFullListAsyncAction* UOpenPocketBaseGetFullListAsyncAction::Ge
 {
     UOpenPocketBaseGetFullListAsyncAction* Action = NewObject<UOpenPocketBaseGetFullListAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Name);
+    Action->Collection = MoveTemp(InCollection.Reference.Name);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -802,7 +802,7 @@ void UOpenPocketBaseGetFullListAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseGetFullListAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(Collection).GetFullList(
+    RequestHandle = NativeClient->DynamicCollection(Collection).GetFullList(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {
@@ -974,7 +974,7 @@ UOpenPocketBaseListAuthMethodsAsyncAction::ListAuthenticationMethods(
     UOpenPocketBaseListAuthMethodsAsyncAction* Action =
         NewObject<UOpenPocketBaseListAuthMethodsAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -998,7 +998,7 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseListAuthMethodsAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).ListAuthMethods(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).ListAuthMethods(
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>&& Result)
         {
             UOpenPocketBaseListAuthMethodsAsyncAction* Action = WeakThis.Get();
@@ -1038,7 +1038,7 @@ UOpenPocketBaseRequestOtpAsyncAction* UOpenPocketBaseRequestOtpAsyncAction::Requ
 {
     UOpenPocketBaseRequestOtpAsyncAction* Action = NewObject<UOpenPocketBaseRequestOtpAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->Email = MoveTemp(InEmail);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -1063,7 +1063,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseRequestOtpAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).RequestOtp(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).RequestOtp(
         MoveTemp(Email),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>&& Result)
         {
@@ -1106,7 +1106,7 @@ UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithO
 {
     UOpenPocketBaseOtpAuthAsyncAction* Action = NewObject<UOpenPocketBaseOtpAuthAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->OtpId = MoveTemp(InOtpId);
     Action->Password = MoveTemp(InOneTimePassword);
     Action->Mfa = MoveTemp(InMfa);
@@ -1136,7 +1136,7 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseOtpAuthAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).AuthWithOtp(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).AuthWithOtp(
         MoveTemp(OtpId),
         MoveTemp(Password),
         MoveTemp(Mfa),
@@ -1199,7 +1199,7 @@ UOpenPocketBaseBeginOAuth2AsyncAction* UOpenPocketBaseBeginOAuth2AsyncAction::Be
     UOpenPocketBaseBeginOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseBeginOAuth2AsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -1223,7 +1223,7 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseBeginOAuth2AsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).BeginOAuth2(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).BeginOAuth2(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&& Result)
         {
@@ -1264,7 +1264,7 @@ UOpenPocketBaseCompleteOAuth2AsyncAction::CompleteManualOAuth2(
     UOpenPocketBaseCompleteOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseCompleteOAuth2AsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->Callback = MoveTemp(InCallback);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -1291,7 +1291,7 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseCompleteOAuth2AsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).CompleteOAuth2(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).CompleteOAuth2(
         MoveTemp(Callback),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -1352,7 +1352,7 @@ UOpenPocketBaseAssistedOAuth2AsyncAction::LogInWithOAuth2(
     UOpenPocketBaseAssistedOAuth2AsyncAction* Action =
         NewObject<UOpenPocketBaseAssistedOAuth2AsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -1379,7 +1379,7 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseAssistedOAuth2AsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).AuthWithOAuth2(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).AuthWithOAuth2(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
         {
@@ -1444,7 +1444,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateActi
         NewObject<UOpenPocketBaseAccountAsyncAction>();
     Action->Client = InAuthCollection.Client;
     Action->Kind = InKind;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->Primary = MoveTemp(InPrimary);
     Action->Secondary = MoveTemp(InSecondary);
     Action->Tertiary = MoveTemp(InTertiary);
@@ -1599,7 +1599,7 @@ void UOpenPocketBaseAccountAsyncAction::Activate()
             Action->Finish();
         };
 
-    FOpenPocketBaseCollectionService Auth = NativeClient->Collection(AuthCollection);
+    FOpenPocketBaseCollectionService Auth = NativeClient->DynamicCollection(AuthCollection);
     switch (Kind)
     {
     case EOpenPocketBaseAccountActionKind::RequestPasswordReset:
@@ -1657,7 +1657,7 @@ UOpenPocketBaseListExternalAuthsAsyncAction::ListLinkedExternalAuths(
     UOpenPocketBaseListExternalAuthsAsyncAction* Action =
         NewObject<UOpenPocketBaseListExternalAuthsAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -1682,7 +1682,7 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseListExternalAuthsAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).ListExternalAuths(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).ListExternalAuths(
         MoveTemp(RecordId),
         [WeakThis](TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&& Result)
         {
@@ -1726,7 +1726,7 @@ UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::
 {
     UOpenPocketBasePasswordAuthAsyncAction* Action = NewObject<UOpenPocketBasePasswordAuthAsyncAction>();
     Action->Client = InAuthCollection.Client;
-    Action->AuthCollection = MoveTemp(InAuthCollection.Name);
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference.Name);
     Action->Identity = MoveTemp(InIdentity);
     Action->Password = MoveTemp(InPassword);
     Action->Options = MoveTemp(InOptions);
@@ -1755,7 +1755,7 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBasePasswordAuthAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->Collection(AuthCollection).AuthWithPassword(
+    RequestHandle = NativeClient->DynamicCollection(AuthCollection).AuthWithPassword(
         MoveTemp(Identity),
         MoveTemp(Password),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)

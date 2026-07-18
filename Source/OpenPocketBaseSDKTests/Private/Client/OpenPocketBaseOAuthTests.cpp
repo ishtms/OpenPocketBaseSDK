@@ -139,7 +139,7 @@ void BeginExpiryCheck(const TSharedRef<FOAuthTestState, ESPMode::ThreadSafe>& St
     FOpenPocketBaseOAuth2StartOptions Options;
     Options.Provider = TEXT("github");
     Options.RedirectUrl = TEXT("https://game.example.test/oauth/callback");
-    State->Client->Collection(TEXT("sdk_users")).BeginOAuth2(
+    State->Client->DynamicCollection(TEXT("sdk_users")).BeginOAuth2(
         MoveTemp(Options),
         [State](TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&& Result)
         {
@@ -154,7 +154,7 @@ void BeginExpiryCheck(const TSharedRef<FOAuthTestState, ESPMode::ThreadSafe>& St
             Callback.TransactionId = Result.GetValue().TransactionId;
             Callback.CallbackUrl = Result.GetValue().RedirectUrl +
                 TEXT("?state=") + Result.GetValue().State + TEXT("&code=expired-secret-code");
-            State->Client->Collection(TEXT("sdk_users")).CompleteOAuth2(
+            State->Client->DynamicCollection(TEXT("sdk_users")).CompleteOAuth2(
                 MoveTemp(Callback),
                 [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Expired)
                 {
@@ -171,7 +171,7 @@ void BeginTeardownCheck(const TSharedRef<FOAuthTestState, ESPMode::ThreadSafe>& 
     FOpenPocketBaseOAuth2StartOptions Options;
     Options.Provider = TEXT("github");
     Options.RedirectUrl = TEXT("https://game.example.test/oauth/callback");
-    State->Client->Collection(TEXT("sdk_users")).BeginOAuth2(
+    State->Client->DynamicCollection(TEXT("sdk_users")).BeginOAuth2(
         MoveTemp(Options),
         [State](TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&& Result)
         {
@@ -186,7 +186,7 @@ void BeginTeardownCheck(const TSharedRef<FOAuthTestState, ESPMode::ThreadSafe>& 
             Callback.CallbackUrl = Result.GetValue().RedirectUrl +
                 TEXT("?state=") + Result.GetValue().State + TEXT("&code=teardown-secret-code");
             State->Client->Shutdown();
-            State->Client->Collection(TEXT("sdk_users")).CompleteOAuth2(
+            State->Client->DynamicCollection(TEXT("sdk_users")).CompleteOAuth2(
                 MoveTemp(Callback),
                 [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Teardown)
                 {
@@ -335,7 +335,7 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
     Options.Provider = TEXT("github");
     Options.RedirectUrl = TEXT("https://game.example.test/oauth/callback");
     Options.Scopes = {TEXT("read:user"), TEXT("user:email")};
-    const FOpenPocketBaseCollectionService Auth = State->Client->Collection(TEXT("sdk_users"));
+    const FOpenPocketBaseCollectionService Auth = State->Client->DynamicCollection(TEXT("sdk_users"));
     Auth.BeginOAuth2(
         MoveTemp(Options),
         [State, Auth](TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>&& Result) mutable
@@ -485,7 +485,7 @@ bool FOpenPocketBaseOAuthCapacityTest::RunTest(const FString& Parameters)
     }
 
     const FOpenPocketBaseCollectionService Auth =
-        State->Client->Collection(TEXT("sdk_users"));
+        State->Client->DynamicCollection(TEXT("sdk_users"));
     for (int32 Index = 0; Index < 17; ++Index)
     {
         FOpenPocketBaseOAuth2StartOptions Options;

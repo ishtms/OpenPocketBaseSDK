@@ -4,7 +4,7 @@
 
 bool FOpenPocketBaseCollection::IsValid() const
 {
-    return Client != nullptr && Client->IsReady() && !Name.IsEmpty();
+    return Client != nullptr && Client->IsReady() && !Reference.Name.IsEmpty();
 }
 
 UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
@@ -77,12 +77,21 @@ FString UOpenPocketBaseClient::GetBaseUrl() const
     return NativeClient.IsValid() ? NativeClient->GetBaseUrl() : FString();
 }
 
-FOpenPocketBaseCollection UOpenPocketBaseClient::Collection(FString Name)
+FOpenPocketBaseCollection UOpenPocketBaseClient::Collection(
+    FOpenPocketBaseCollectionRef Reference)
+{
+    FOpenPocketBaseCollection Collection;
+    Collection.Client = this;
+    Collection.Reference = MoveTemp(Reference);
+    return Collection;
+}
+
+FOpenPocketBaseCollection UOpenPocketBaseClient::DynamicCollection(FString Name)
 {
     Name.TrimStartAndEndInline();
     FOpenPocketBaseCollection Collection;
     Collection.Client = this;
-    Collection.Name = MoveTemp(Name);
+    Collection.Reference.Name = MoveTemp(Name);
     return Collection;
 }
 
@@ -174,7 +183,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionResult Result = NativeClient->Collection(MoveTemp(Collection))
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->DynamicCollection(MoveTemp(Collection))
         .SubscribeToRecords(MakeRealtimeCallbacks(Subscription), Options);
     if (!Result.IsSuccess())
     {
@@ -203,7 +212,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionResult Result = NativeClient->Collection(MoveTemp(Collection))
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->DynamicCollection(MoveTemp(Collection))
         .SubscribeToRecord(
             MoveTemp(RecordId),
             MakeRealtimeCallbacks(Subscription),

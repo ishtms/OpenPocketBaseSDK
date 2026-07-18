@@ -166,7 +166,7 @@ bool FOpenPocketBaseExplicitCancellationTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    const FOpenPocketBaseRequestHandle Handle = State->Client->Collection(TEXT("tasks")).GetOne(
+    const FOpenPocketBaseRequestHandle Handle = State->Client->DynamicCollection(TEXT("tasks")).GetOne(
         TEXT("task123"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -205,7 +205,7 @@ bool FOpenPocketBasePasswordAuthTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("secret-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)

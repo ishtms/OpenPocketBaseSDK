@@ -221,7 +221,7 @@ bool FOpenPocketBaseSessionLifecycleTest::RunTest(const FString& Parameters)
         {
             State->Events.Add(Snapshot);
         });
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -281,7 +281,7 @@ bool FOpenPocketBaseSingleFlightRefreshTest::RunTest(const FString& Parameters)
             State->Events.Add(Snapshot);
         });
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -357,7 +357,7 @@ bool FOpenPocketBaseRefreshLogoutRaceTest::RunTest(const FString& Parameters)
             State->Events.Add(Snapshot);
         });
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -438,7 +438,7 @@ bool FOpenPocketBaseRefreshUserSwitchRaceTest::RunTest(const FString& Parameters
             State->Events.Add(Snapshot);
         });
 
-    State->Client->Collection(TEXT("users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
         TEXT("first@example.com"),
         TEXT("private-password"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -459,7 +459,7 @@ bool FOpenPocketBaseRefreshUserSwitchRaceTest::RunTest(const FString& Parameters
                     }
                     State->bCompleted = true;
                 });
-            State->Client->Collection(TEXT("users")).AuthWithPassword(
+            State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
                 TEXT("second@example.com"),
                 TEXT("private-password"),
                 [](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& SecondResult) {});

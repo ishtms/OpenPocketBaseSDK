@@ -190,7 +190,7 @@ public:
     void Start()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+        State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
             TEXT("player@example.com"),
             TEXT("correct-horse-battery"),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
@@ -204,7 +204,7 @@ private:
     void RequestPasswordReset()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).RequestPasswordReset(
+        State->Client->DynamicCollection(TEXT("sdk_users")).RequestPasswordReset(
             TEXT("player@example.com"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -216,7 +216,7 @@ private:
     void ConfirmPasswordReset()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ConfirmPasswordReset(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmPasswordReset(
             TEXT("password-reset-token"),
             TEXT("replacement-password"),
             TEXT("replacement-password"),
@@ -230,7 +230,7 @@ private:
     void RequestVerification()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).RequestVerification(
+        State->Client->DynamicCollection(TEXT("sdk_users")).RequestVerification(
             TEXT("player@example.com"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -242,7 +242,7 @@ private:
     void ConfirmVerification()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ConfirmVerification(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmVerification(
             AccountToken(TEXT("user00000000001"), TEXT("users_id")),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -259,7 +259,7 @@ private:
     void RequestEmailChange()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).RequestEmailChange(
+        State->Client->DynamicCollection(TEXT("sdk_users")).RequestEmailChange(
             TEXT("new-player@example.com"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -271,7 +271,7 @@ private:
     void ListExternalAuths()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ListExternalAuths(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ListExternalAuths(
             TEXT("user00000000001"),
             [Self](TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&& Result)
             {
@@ -287,7 +287,7 @@ private:
     void UnlinkExternalAuth()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).UnlinkExternalAuth(
+        State->Client->DynamicCollection(TEXT("sdk_users")).UnlinkExternalAuth(
             TEXT("user00000000001"),
             TEXT("github"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
@@ -300,7 +300,7 @@ private:
     void ConfirmEmailChange()
     {
         const TSharedRef<FAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->Collection(TEXT("sdk_users")).ConfirmEmailChange(
+        State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmEmailChange(
             AccountToken(TEXT("user00000000001"), TEXT("users_id")),
             TEXT("correct-horse-battery"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
@@ -563,7 +563,7 @@ bool FOpenPocketBaseAccountUnlinkCancellationTest::RunTest(const FString& Parame
     }
 
     FOpenPocketBaseRequestHandle Handle =
-        State->Client->Collection(TEXT("sdk_users")).UnlinkExternalAuth(
+        State->Client->DynamicCollection(TEXT("sdk_users")).UnlinkExternalAuth(
             TEXT("user00000000001"),
             TEXT("github"),
             [State](TOpenPocketBaseResult<bool>&& Result)
@@ -617,7 +617,7 @@ bool FOpenPocketBaseAccountVerificationPersistenceTest::RunTest(const FString& P
         return false;
     }
 
-    State->Client->Collection(TEXT("sdk_users")).AuthWithPassword(
+    State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
         TEXT("player@example.com"),
         TEXT("correct-horse-battery"),
         [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& LoginResult)
@@ -630,7 +630,7 @@ bool FOpenPocketBaseAccountVerificationPersistenceTest::RunTest(const FString& P
             FOpenPocketBaseSessionSnapshot Before;
             State->Client->GetCurrentSession(Before);
             State->SecureStore->bFailSave = true;
-            State->Client->Collection(TEXT("sdk_users")).ConfirmVerification(
+            State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmVerification(
                 AccountToken(TEXT("user00000000001"), TEXT("users_id")),
                 [State, Before](TOpenPocketBaseResult<bool>&& Result)
                 {

@@ -774,7 +774,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::AuthenticateSuperu
                     TOpenPocketBaseResult<FOpenPocketBaseAdminIdentity>::Failure(
                         MakeAdminCancelledError()));
             });
-    FOpenPocketBaseRequestHandle Child = CoreClient->Collection(TEXT("_superusers"))
+    FOpenPocketBaseRequestHandle Child = CoreClient->DynamicCollection(TEXT("_superusers"))
         .AuthWithPassword(
             MoveTemp(Email),
             MoveTemp(Password),

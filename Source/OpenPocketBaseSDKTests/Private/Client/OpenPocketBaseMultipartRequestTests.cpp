@@ -253,7 +253,7 @@ bool FOpenPocketBaseMultipartRequestTest::RunTest(const FString& Parameters)
     File.bUseFilePath = false;
     File.Bytes = {0x01, 0x02, 0x03};
 
-    State->Client->Collection(TEXT("tasks")).CreateWithFiles(
+    State->Client->DynamicCollection(TEXT("tasks")).CreateWithFiles(
         Body,
         {File},
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -268,7 +268,7 @@ bool FOpenPocketBaseMultipartRequestTest::RunTest(const FString& Parameters)
             State->bProgressOnGameThread = State->bProgressOnGameThread && IsInGameThread();
             State->CreateProgress.Add(Progress);
         });
-    State->Client->Collection(TEXT("tasks")).UpdateWithFiles(
+    State->Client->DynamicCollection(TEXT("tasks")).UpdateWithFiles(
         TEXT("task123"),
         Body,
         {File},
@@ -326,7 +326,7 @@ bool FOpenPocketBaseUploadTeardownTest::RunTest(const FString& Parameters)
     File.FileName = TEXT("teardown.txt");
     File.ContentType = TEXT("text/plain");
     File.FilePath = State->SourcePath;
-    State->Client->Collection(TEXT("tasks")).CreateWithFiles(
+    State->Client->DynamicCollection(TEXT("tasks")).CreateWithFiles(
         MoveTemp(Body),
         {MoveTemp(File)},
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
