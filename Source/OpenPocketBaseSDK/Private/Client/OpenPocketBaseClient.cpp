@@ -1043,15 +1043,27 @@ bool TryDecodeJwtIdentity(
         IsSafePathSegment(OutRecordId) && IsSafePathSegment(OutCollectionId);
 }
 
+template <typename ValueType>
+FString JoinQueryValues(const TArray<ValueType>& Values)
+{
+    TArray<FString> QueryValues;
+    QueryValues.Reserve(Values.Num());
+    for (const ValueType& Value : Values)
+    {
+        QueryValues.Add(Value.ToQueryValue());
+    }
+    return FString::Join(QueryValues, TEXT(","));
+}
+
 FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
 {
     TArray<FString> Parts;
     Parts.Add(FString::Printf(TEXT("page=%d"), Options.Page));
     Parts.Add(FString::Printf(TEXT("perPage=%d"), Options.PerPage));
     AddQueryValue(Parts, TEXT("filter"), Options.Filter.ToString());
-    AddQueryValue(Parts, TEXT("sort"), FString::Join(Options.Sort, TEXT(",")));
-    AddQueryValue(Parts, TEXT("expand"), FString::Join(Options.Expand, TEXT(",")));
-    AddQueryValue(Parts, TEXT("fields"), FString::Join(Options.Fields, TEXT(",")));
+    AddQueryValue(Parts, TEXT("sort"), JoinQueryValues(Options.Sort));
+    AddQueryValue(Parts, TEXT("expand"), JoinQueryValues(Options.Expand));
+    AddQueryValue(Parts, TEXT("fields"), JoinQueryValues(Options.Fields));
     if (Options.bSkipTotal)
     {
         Parts.Add(TEXT("skipTotal=true"));
@@ -1062,8 +1074,8 @@ FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
 FString MakeRecordQuery(const FOpenPocketBaseRecordOptions& Options)
 {
     TArray<FString> Parts;
-    AddQueryValue(Parts, TEXT("expand"), FString::Join(Options.Expand, TEXT(",")));
-    AddQueryValue(Parts, TEXT("fields"), FString::Join(Options.Fields, TEXT(",")));
+    AddQueryValue(Parts, TEXT("expand"), JoinQueryValues(Options.Expand));
+    AddQueryValue(Parts, TEXT("fields"), JoinQueryValues(Options.Fields));
     return FString::Join(Parts, TEXT("&"));
 }
 
@@ -1104,10 +1116,10 @@ FString MakeBatchEntryPath(const FOpenPocketBaseBatchEntry& Entry)
         Path += TEXT("/") + EncodeSegment(Entry.RecordId);
     }
 
-    FOpenPocketBaseRecordOptions QueryOptions;
-    QueryOptions.Expand = Entry.Expand;
-    QueryOptions.Fields = Entry.Fields;
-    return AddQuery(MoveTemp(Path), MakeRecordQuery(QueryOptions));
+    TArray<FString> QueryParts;
+    AddQueryValue(QueryParts, TEXT("expand"), FString::Join(Entry.Expand, TEXT(",")));
+    AddQueryValue(QueryParts, TEXT("fields"), FString::Join(Entry.Fields, TEXT(",")));
+    return AddQuery(MoveTemp(Path), FString::Join(QueryParts, TEXT("&")));
 }
 
 bool ValidateBatch(
@@ -4806,6 +4818,71 @@ bool FOpenPocketBaseCollectionService::IsValid() const
     return IsSafePathSegment(Collection) && Client.IsValid();
 }
 
+bool FOpenPocketBaseCollectionService::ValidateRecordOptions(
+    const FOpenPocketBaseRecordOptions& Options,
+    FOpenPocketBaseError& OutError) const
+{
+    if (!Options.IsValid())
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Record options contain an invalid field selection or expansion."));
+        return false;
+    }
+    if (Reference.IsSet() && !Options.BelongsTo(Reference))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Record options contain a field from another collection."));
+        return false;
+    }
+    return true;
+}
+
+bool FOpenPocketBaseCollectionService::ValidateListOptions(
+    const FOpenPocketBaseListOptions& Options,
+    FOpenPocketBaseError& OutError) const
+{
+    if (!Options.IsValid())
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            Options.Filter.IsValid()
+                ? TEXT("List options contain an invalid sort, field selection, or expansion.")
+                : *Options.Filter.ErrorMessage);
+        return false;
+    }
+    if (Reference.IsSet() && !Options.BelongsTo(Reference))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("List options contain a field from another collection."));
+        return false;
+    }
+    return true;
+}
+
+bool FOpenPocketBaseCollectionService::ValidateBody(
+    const FOpenPocketBaseRecordBody& Body,
+    FOpenPocketBaseError& OutError) const
+{
+    if (!Body.IsValid())
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *Body.ErrorMessage);
+        return false;
+    }
+    if (Reference.IsSet() && !Body.BelongsTo(Reference))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The record body contains a field from another collection."));
+        return false;
+    }
+    return true;
+}
+
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
     FString RecordId,
     FOpenPocketBaseRecordCallback OnComplete,
@@ -4821,7 +4898,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    if (!ValidateRecordOptions(Options, OptionsError) ||
+        !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -4868,20 +4946,19 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || Options.Page < 1 ||
-        Options.PerPage < 1 || !Options.Filter.IsValid())
+        Options.PerPage < 1)
     {
         DispatchFailure<FOpenPocketBaseRecordPage>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                Options.Filter.IsValid()
-                    ? TEXT("Client, collection, page, and per-page values are required.")
-                    : *Options.Filter.ErrorMessage));
+                TEXT("Client, collection, page, and per-page values are required.")));
         return {};
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    if (!ValidateListOptions(Options, OptionsError) ||
+        !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseRecordPage>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -4940,7 +5017,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFullList(
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options.ListOptions.RequestOptions, OptionsError))
+    if (!ValidateListOptions(Options.ListOptions, OptionsError) ||
+        !ValidateRequestOptions(Options.ListOptions.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseFullListResult>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -5026,7 +5104,9 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Create(
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    if (!ValidateBody(Body, OptionsError) ||
+        !ValidateRecordOptions(Options, OptionsError) ||
+        !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -5091,7 +5171,9 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    if (!ValidateBody(Body, OptionsError) ||
+        !ValidateRecordOptions(Options, OptionsError) ||
+        !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -5204,7 +5286,9 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Update(
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    if (!ValidateBody(Body, OptionsError) ||
+        !ValidateRecordOptions(Options, OptionsError) ||
+        !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -5289,7 +5373,9 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
     }
 
     FOpenPocketBaseError OptionsError;
-    if (!ValidateRequestOptions(Options.RequestOptions, OptionsError))
+    if (!ValidateBody(Body, OptionsError) ||
+        !ValidateRecordOptions(Options, OptionsError) ||
+        !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
         DispatchFailure<FOpenPocketBaseRecord>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
@@ -6497,11 +6583,12 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
     FOpenPocketBaseRealtimeOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection))
+    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !Options.IsValid() ||
+        (Reference.IsSet() && !Options.BelongsTo(Reference)))
     {
         return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client and valid collection are required.")));
+            TEXT("A ready client, valid collection, and matching realtime options are required.")));
     }
     return PinnedClient->Subscribe(
         Collection + TEXT("/*"),
@@ -6516,11 +6603,12 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
-        !IsSafePathSegment(RecordId))
+        !IsSafePathSegment(RecordId) || !Options.IsValid() ||
+        (Reference.IsSet() && !Options.BelongsTo(Reference)))
     {
         return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client, valid collection, and valid record ID are required.")));
+            TEXT("A ready client, valid collection, record ID, and matching realtime options are required.")));
     }
     return PinnedClient->Subscribe(
         Collection + TEXT("/") + MoveTemp(RecordId),

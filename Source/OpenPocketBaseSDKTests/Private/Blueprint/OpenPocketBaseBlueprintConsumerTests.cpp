@@ -17,6 +17,7 @@
 #include "OpenPocketBaseBatchLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "OpenPocketBaseRecord.h"
+#include "OpenPocketBaseQueryLibrary.h"
 #include "OpenPocketBaseRealtimeLibrary.h"
 #include "OpenPocketBaseSchema.h"
 #include "OpenPocketBaseSchemaPicker.h"
@@ -82,6 +83,9 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithBooleanField"));
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithNullField"));
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithStringArrayField"));
+    TestPureFunction(UOpenPocketBaseQueryLibrary::StaticClass(), TEXT("SelectField"));
+    TestPureFunction(UOpenPocketBaseQueryLibrary::StaticClass(), TEXT("SelectTextExcerpt"));
+    TestPureFunction(UOpenPocketBaseQueryLibrary::StaticClass(), TEXT("SelectExpandedRecord"));
 
     TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("NewBatch"));
     TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("WithCreate"));
@@ -98,6 +102,9 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestNull(
         TEXT("Record body mutation is no longer exposed"),
         UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("SetRecordBodyStringField")));
+    TestNull(
+        TEXT("Excerpt syntax is no longer assembled from raw field names"),
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("MakeExcerptField")));
     TestNull(
         TEXT("Batch mutation is no longer exposed"),
         UOpenPocketBaseBatchLibrary::StaticClass()->FindFunctionByName(TEXT("AddCreate")));
@@ -149,6 +156,33 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestNull(
         TEXT("Collection handles do not expose an untyped name"),
         FOpenPocketBaseCollection::StaticStruct()->FindPropertyByName(TEXT("Name")));
+
+    const auto TestTypedArray = [this](
+        const UScriptStruct* OptionsType,
+        const FName PropertyName,
+        const UScriptStruct* ElementType)
+    {
+        const FArrayProperty* Array = CastField<FArrayProperty>(
+            OptionsType->FindPropertyByName(PropertyName));
+        const FStructProperty* Element = Array != nullptr
+            ? CastField<FStructProperty>(Array->Inner)
+            : nullptr;
+        TestNotNull(*FString::Printf(TEXT("%s uses typed values"), *PropertyName.ToString()), Element);
+        if (Element != nullptr)
+        {
+            TestEqual(
+                *FString::Printf(TEXT("%s uses the expected query type"), *PropertyName.ToString()),
+                Element->Struct->GetFName(),
+                ElementType->GetFName());
+        }
+    };
+    TestTypedArray(FOpenPocketBaseRecordOptions::StaticStruct(), TEXT("Expand"), FOpenPocketBaseExpand::StaticStruct());
+    TestTypedArray(FOpenPocketBaseRecordOptions::StaticStruct(), TEXT("Fields"), FOpenPocketBaseFieldSelection::StaticStruct());
+    TestTypedArray(FOpenPocketBaseListOptions::StaticStruct(), TEXT("Sort"), FOpenPocketBaseSort::StaticStruct());
+    TestTypedArray(FOpenPocketBaseListOptions::StaticStruct(), TEXT("Expand"), FOpenPocketBaseExpand::StaticStruct());
+    TestTypedArray(FOpenPocketBaseListOptions::StaticStruct(), TEXT("Fields"), FOpenPocketBaseFieldSelection::StaticStruct());
+    TestTypedArray(FOpenPocketBaseRealtimeOptions::StaticStruct(), TEXT("Expand"), FOpenPocketBaseExpand::StaticStruct());
+    TestTypedArray(FOpenPocketBaseRealtimeOptions::StaticStruct(), TEXT("Fields"), FOpenPocketBaseFieldSelection::StaticStruct());
     return true;
 }
 

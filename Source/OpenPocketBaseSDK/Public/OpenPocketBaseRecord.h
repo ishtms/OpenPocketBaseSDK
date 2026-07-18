@@ -5,6 +5,7 @@
 #include "JsonObjectWrapper.h"
 #include "OpenPocketBaseError.h"
 #include "OpenPocketBaseFilter.h"
+#include "OpenPocketBaseQuery.h"
 #include "OpenPocketBaseSchema.h"
 
 #include "OpenPocketBaseRecord.generated.h"
@@ -221,17 +222,21 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordOptions
     }
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
-    TArray<FString> Expand;
+    TArray<FOpenPocketBaseExpand> Expand;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
-    TArray<FString> Fields;
+    TArray<FOpenPocketBaseFieldSelection> Fields;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
     FOpenPocketBaseRequestOptions RequestOptions;
 
-    FOpenPocketBaseRecordOptions& WithExpand(TArray<FString> InExpand);
-    FOpenPocketBaseRecordOptions& WithFields(TArray<FString> InFields);
+    FOpenPocketBaseRecordOptions& WithExpand(TArray<FOpenPocketBaseExpand> InExpand);
+    FOpenPocketBaseRecordOptions& WithFields(TArray<FOpenPocketBaseFieldSelection> InFields);
+    FOpenPocketBaseRecordOptions& Including(FOpenPocketBaseExpand InExpand);
+    FOpenPocketBaseRecordOptions& Selecting(FOpenPocketBaseFieldSelection InField);
     FOpenPocketBaseRecordOptions& WithRequestOptions(FOpenPocketBaseRequestOptions InOptions);
+    bool IsValid() const;
+    bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
 };
 
 USTRUCT(BlueprintType)
@@ -249,13 +254,13 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
     FOpenPocketBaseFilter Filter;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
-    TArray<FString> Sort;
+    TArray<FOpenPocketBaseSort> Sort;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
-    TArray<FString> Expand;
+    TArray<FOpenPocketBaseExpand> Expand;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
-    TArray<FString> Fields;
+    TArray<FOpenPocketBaseFieldSelection> Fields;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", AdvancedDisplay)
     bool bSkipTotal = false;
@@ -266,11 +271,16 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
     FOpenPocketBaseListOptions& AtPage(int32 InPage);
     FOpenPocketBaseListOptions& PageSize(int32 InPerPage);
     FOpenPocketBaseListOptions& Where(FOpenPocketBaseFilter InFilter);
-    FOpenPocketBaseListOptions& WithSort(TArray<FString> InSort);
-    FOpenPocketBaseListOptions& WithExpand(TArray<FString> InExpand);
-    FOpenPocketBaseListOptions& WithFields(TArray<FString> InFields);
+    FOpenPocketBaseListOptions& WithSort(TArray<FOpenPocketBaseSort> InSort);
+    FOpenPocketBaseListOptions& WithExpand(TArray<FOpenPocketBaseExpand> InExpand);
+    FOpenPocketBaseListOptions& WithFields(TArray<FOpenPocketBaseFieldSelection> InFields);
+    FOpenPocketBaseListOptions& OrderedBy(FOpenPocketBaseSort InSort);
+    FOpenPocketBaseListOptions& Including(FOpenPocketBaseExpand InExpand);
+    FOpenPocketBaseListOptions& Selecting(FOpenPocketBaseFieldSelection InField);
     FOpenPocketBaseListOptions& SkipTotals(bool bInSkipTotal = true);
     FOpenPocketBaseListOptions& WithRequestOptions(FOpenPocketBaseRequestOptions InOptions);
+    bool IsValid() const;
+    bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
 };
 
 USTRUCT(BlueprintType)

@@ -12,12 +12,6 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseRecordLibrary final : public UBluepri
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records")
-    static FString MakeExcerptField(
-        const FString& FieldName,
-        int32 MaxLength,
-        bool bWithEllipsis = false);
-
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Body",
@@ -72,6 +66,66 @@ public:
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseStringArrayFieldRef Field,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Record Options", NativeMakeFunc))
+    static FOpenPocketBaseRecordOptions NewRecordOptions();
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Select Field"))
+    static FOpenPocketBaseRecordOptions RecordOptionsSelectField(
+        FOpenPocketBaseRecordOptions Options,
+        FOpenPocketBaseFieldSelection Field);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Include Expansion"))
+    static FOpenPocketBaseRecordOptions RecordOptionsIncludeExpansion(
+        FOpenPocketBaseRecordOptions Options,
+        FOpenPocketBaseExpand Expand);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "List Options", NativeMakeFunc))
+    static FOpenPocketBaseListOptions NewListOptions(int32 Page = 1, int32 PerPage = 30);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Where"))
+    static FOpenPocketBaseListOptions ListOptionsWhere(
+        FOpenPocketBaseListOptions Options,
+        FOpenPocketBaseFilter Filter);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Then Sort By"))
+    static FOpenPocketBaseListOptions ListOptionsThenSortBy(
+        FOpenPocketBaseListOptions Options,
+        FOpenPocketBaseSort Sort);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Select Field"))
+    static FOpenPocketBaseListOptions ListOptionsSelectField(
+        FOpenPocketBaseListOptions Options,
+        FOpenPocketBaseFieldSelection Field);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Include Expansion"))
+    static FOpenPocketBaseListOptions ListOptionsIncludeExpansion(
+        FOpenPocketBaseListOptions Options,
+        FOpenPocketBaseExpand Expand);
 
     UFUNCTION(
         BlueprintPure,

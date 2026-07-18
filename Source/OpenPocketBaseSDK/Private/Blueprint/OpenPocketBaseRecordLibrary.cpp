@@ -41,22 +41,6 @@ EOpenPocketBaseFieldState GetBaseState(
 }
 }
 
-FString UOpenPocketBaseRecordLibrary::MakeExcerptField(
-    const FString& FieldName,
-    const int32 MaxLength,
-    const bool bWithEllipsis)
-{
-    if (FieldName.IsEmpty() || MaxLength < 0)
-    {
-        return {};
-    }
-    return FString::Printf(
-        TEXT("%s:excerpt(%d,%s)"),
-        *FieldName,
-        MaxLength,
-        bWithEllipsis ? TEXT("true") : TEXT("false"));
-}
-
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::NewRecordBody()
 {
     return {};
@@ -109,6 +93,68 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithStringArrayField(
 {
     Body.SetStringArrayField(Field, Value, Modifier);
     return Body;
+}
+
+FOpenPocketBaseRecordOptions UOpenPocketBaseRecordLibrary::NewRecordOptions()
+{
+    return {};
+}
+
+FOpenPocketBaseRecordOptions UOpenPocketBaseRecordLibrary::RecordOptionsSelectField(
+    FOpenPocketBaseRecordOptions Options,
+    FOpenPocketBaseFieldSelection Field)
+{
+    Options.Selecting(MoveTemp(Field));
+    return Options;
+}
+
+FOpenPocketBaseRecordOptions UOpenPocketBaseRecordLibrary::RecordOptionsIncludeExpansion(
+    FOpenPocketBaseRecordOptions Options,
+    FOpenPocketBaseExpand Expand)
+{
+    Options.Including(MoveTemp(Expand));
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::NewListOptions(
+    const int32 Page,
+    const int32 PerPage)
+{
+    FOpenPocketBaseListOptions Options;
+    Options.AtPage(Page).PageSize(PerPage);
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsWhere(
+    FOpenPocketBaseListOptions Options,
+    FOpenPocketBaseFilter Filter)
+{
+    Options.Where(MoveTemp(Filter));
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsThenSortBy(
+    FOpenPocketBaseListOptions Options,
+    FOpenPocketBaseSort Sort)
+{
+    Options.OrderedBy(MoveTemp(Sort));
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsSelectField(
+    FOpenPocketBaseListOptions Options,
+    FOpenPocketBaseFieldSelection Field)
+{
+    Options.Selecting(MoveTemp(Field));
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsIncludeExpansion(
+    FOpenPocketBaseListOptions Options,
+    FOpenPocketBaseExpand Expand)
+{
+    Options.Including(MoveTemp(Expand));
+    return Options;
 }
 
 bool UOpenPocketBaseRecordLibrary::HasField(

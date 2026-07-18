@@ -432,8 +432,38 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
         TEXT("done"),
         EOpenPocketBaseBooleanComparison::Equals,
         false);
-    Options.Expand = {TEXT("owner")};
-    Options.Fields = {TEXT("id"), TEXT("title")};
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    Schema->SchemaId = FGuid(55, 89, 144, 233);
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("sdk_tasks");
+    FOpenPocketBaseSchemaField Id;
+    Id.Id = TEXT("id_id");
+    Id.Name = TEXT("id");
+    Id.Type = EOpenPocketBaseFieldType::Text;
+    FOpenPocketBaseSchemaField Title;
+    Title.Id = TEXT("title_id");
+    Title.Name = TEXT("title");
+    Title.Type = EOpenPocketBaseFieldType::Text;
+    FOpenPocketBaseSchemaField Owner;
+    Owner.Id = TEXT("owner_id");
+    Owner.Name = TEXT("owner");
+    Owner.Type = EOpenPocketBaseFieldType::Relation;
+    Owner.RelatedCollectionId = TEXT("users_id");
+    Tasks.Fields = {Id, Title, Owner};
+    Schema->Collections = {Tasks};
+    FOpenPocketBaseCollectionRef TasksRef;
+    Schema->MakeCollectionRef(Tasks.Id, TasksRef);
+    FOpenPocketBaseAnyFieldRef IdRef;
+    FOpenPocketBaseAnyFieldRef TitleRef;
+    FOpenPocketBaseRelationFieldRef OwnerRef;
+    Schema->MakeTypedFieldRef(TasksRef, Id.Id, IdRef);
+    Schema->MakeTypedFieldRef(TasksRef, Title.Id, TitleRef);
+    Schema->MakeTypedFieldRef(TasksRef, Owner.Id, OwnerRef);
+    Options.Expand = {OpenPocketBase::Query::Expand(OwnerRef)};
+    Options.Fields = {
+        OpenPocketBase::Query::Select(IdRef),
+        OpenPocketBase::Query::Select(TitleRef)};
     Options.QueryParameters.Add(TEXT("locale"), TEXT("en-GB"));
     Options.Headers.Add(TEXT("X-Tenant"), TEXT("game-one"));
     FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->DynamicCollection(TEXT("sdk_tasks"))

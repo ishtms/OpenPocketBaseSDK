@@ -49,6 +49,42 @@ FString FOpenPocketBaseExpand::ToQueryValue() const
     return FString::Join(Names, TEXT("."));
 }
 
+bool FOpenPocketBaseFieldSelection::IsSet() const
+{
+    return bValid &&
+        ((bAllExpandedFields && Expand.IsSet()) || (!bAllExpandedFields && Field.IsSet()));
+}
+
+bool FOpenPocketBaseFieldSelection::BelongsTo(
+    const FOpenPocketBaseCollectionRef& Collection) const
+{
+    if (!IsSet())
+    {
+        return false;
+    }
+    return Expand.IsSet() ? Expand.BelongsTo(Collection) : Field.BelongsTo(Collection);
+}
+
+FString FOpenPocketBaseFieldSelection::ToQueryValue() const
+{
+    if (!IsSet())
+    {
+        return {};
+    }
+
+    FString Terminal = bAllExpandedFields ? TEXT("*") : Field.Name;
+    if (bExcerpt)
+    {
+        Terminal += FString::Printf(
+            TEXT(":excerpt(%d,%s)"),
+            ExcerptMaxLength,
+            bExcerptWithEllipsis ? TEXT("true") : TEXT("false"));
+    }
+    return Expand.IsSet()
+        ? FString::Printf(TEXT("expand.%s.%s"), *Expand.ToQueryValue(), *Terminal)
+        : Terminal;
+}
+
 FOpenPocketBaseSort OpenPocketBase::Query::Sort(
     const FOpenPocketBaseAnyFieldRef& Field,
     const EOpenPocketBaseSortDirection Direction)
@@ -108,4 +144,100 @@ FOpenPocketBaseExpand OpenPocketBase::Query::ThenExpand(
 
     Path.Path.Add(Relation);
     return Path;
+}
+
+namespace
+{
+FOpenPocketBaseFieldSelection InvalidSelection(FString Message)
+{
+    FOpenPocketBaseFieldSelection Result;
+    Result.bValid = false;
+    Result.ErrorMessage = MoveTemp(Message);
+    return Result;
+}
+
+bool FieldMatchesExpandTarget(
+    const FOpenPocketBaseExpand& Expand,
+    const FOpenPocketBaseFieldRef& Field)
+{
+    return Expand.IsSet() && Field.IsSet() &&
+        Expand.Path.Last().SchemaId == Field.SchemaId &&
+        Expand.Path.Last().RelatedCollectionId == Field.CollectionId;
+}
+}
+
+FOpenPocketBaseFieldSelection OpenPocketBase::Query::Select(
+    const FOpenPocketBaseAnyFieldRef& Field)
+{
+    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field))
+    {
+        return InvalidSelection(TEXT("Choose a field to select."));
+    }
+    FOpenPocketBaseFieldSelection Result;
+    Result.Field = Field;
+    return Result;
+}
+
+FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExcerpt(
+    const FOpenPocketBaseStringFieldRef& Field,
+    const int32 MaxLength,
+    const bool bWithEllipsis)
+{
+    if (!FOpenPocketBaseStringFieldRef::Accepts(Field) || MaxLength < 0)
+    {
+        return InvalidSelection(TEXT("Choose a string field and a non-negative excerpt length."));
+    }
+    FOpenPocketBaseFieldSelection Result;
+    Result.Field = Field;
+    Result.bExcerpt = true;
+    Result.ExcerptMaxLength = MaxLength;
+    Result.bExcerptWithEllipsis = bWithEllipsis;
+    return Result;
+}
+
+FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExpanded(
+    FOpenPocketBaseExpand Path,
+    const FOpenPocketBaseAnyFieldRef& Field)
+{
+    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field) || !FieldMatchesExpandTarget(Path, Field))
+    {
+        return InvalidSelection(TEXT("The selected field must belong to the expanded collection."));
+    }
+    FOpenPocketBaseFieldSelection Result;
+    Result.Field = Field;
+    Result.Expand = MoveTemp(Path);
+    return Result;
+}
+
+FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExpandedExcerpt(
+    FOpenPocketBaseExpand Path,
+    const FOpenPocketBaseStringFieldRef& Field,
+    const int32 MaxLength,
+    const bool bWithEllipsis)
+{
+    if (!FOpenPocketBaseStringFieldRef::Accepts(Field) || MaxLength < 0 ||
+        !FieldMatchesExpandTarget(Path, Field))
+    {
+        return InvalidSelection(TEXT("Choose a string field from the expanded collection and a non-negative excerpt length."));
+    }
+    FOpenPocketBaseFieldSelection Result;
+    Result.Field = Field;
+    Result.Expand = MoveTemp(Path);
+    Result.bExcerpt = true;
+    Result.ExcerptMaxLength = MaxLength;
+    Result.bExcerptWithEllipsis = bWithEllipsis;
+    return Result;
+}
+
+FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExpandedRecord(
+    FOpenPocketBaseExpand Path)
+{
+    if (!Path.IsSet())
+    {
+        return InvalidSelection(TEXT("Choose a valid relation path to select an expanded record."));
+    }
+    FOpenPocketBaseFieldSelection Result;
+    Result.Expand = MoveTemp(Path);
+    Result.bAllExpandedFields = true;
+    return Result;
 }

@@ -14,6 +14,18 @@
 
 namespace
 {
+template <typename ValueType>
+FString JoinQueryValues(const TArray<ValueType>& Values)
+{
+    TArray<FString> QueryValues;
+    QueryValues.Reserve(Values.Num());
+    for (const ValueType& Value : Values)
+    {
+        QueryValues.Add(Value.ToQueryValue());
+    }
+    return FString::Join(QueryValues, TEXT(","));
+}
+
 FOpenPocketBaseError MakeRealtimeError(
     const EOpenPocketBaseErrorKind Kind,
     const TCHAR* Message,
@@ -219,6 +231,53 @@ void FOpenPocketBaseSubscriptionHandle::Unsubscribe()
 bool FOpenPocketBaseSubscriptionHandle::IsActive() const
 {
     return IsActiveQuery && IsActiveQuery();
+}
+
+bool FOpenPocketBaseRealtimeOptions::IsValid() const
+{
+    if (!Filter.IsValid())
+    {
+        return false;
+    }
+    for (const FOpenPocketBaseExpand& Value : Expand)
+    {
+        if (!Value.IsSet())
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseFieldSelection& Value : Fields)
+    {
+        if (!Value.IsSet())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool FOpenPocketBaseRealtimeOptions::BelongsTo(
+    const FOpenPocketBaseCollectionRef& Collection) const
+{
+    if (!IsValid() || !Filter.BelongsTo(Collection))
+    {
+        return false;
+    }
+    for (const FOpenPocketBaseExpand& Value : Expand)
+    {
+        if (!Value.BelongsTo(Collection))
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseFieldSelection& Value : Fields)
+    {
+        if (!Value.BelongsTo(Collection))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 namespace OpenPocketBase::Realtime
@@ -472,7 +531,7 @@ bool FConnectionManager::BuildWireTopic(
     FOpenPocketBaseError& OutError) const
 {
     if (Topic.IsEmpty() || !IsSafeValue(Topic, 2048) || Options.QueryParameters.Num() > 32 ||
-        Options.Headers.Num() > 32 || !Options.Filter.IsValid() ||
+        Options.Headers.Num() > 32 || !Options.IsValid() ||
         !IsSafeValue(Options.Filter.ToString(), 4096))
     {
         OutError = MakeRealtimeError(
@@ -488,11 +547,11 @@ bool FConnectionManager::BuildWireTopic(
     }
     if (!Options.Expand.IsEmpty())
     {
-        Query.Add(TEXT("expand"), FString::Join(Options.Expand, TEXT(",")));
+        Query.Add(TEXT("expand"), JoinQueryValues(Options.Expand));
     }
     if (!Options.Fields.IsEmpty())
     {
-        Query.Add(TEXT("fields"), FString::Join(Options.Fields, TEXT(",")));
+        Query.Add(TEXT("fields"), JoinQueryValues(Options.Fields));
     }
 
     const TSharedRef<FJsonObject> QueryObject = MakeShared<FJsonObject>();

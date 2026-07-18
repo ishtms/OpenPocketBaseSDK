@@ -195,6 +195,9 @@ public:
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Expand)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseExpandToString(const FOpenPocketBaseExpand& Value);
 
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Field Selection)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseFieldSelectionToString(const FOpenPocketBaseFieldSelection& Value);
+
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Realtime Event)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseRealtimeEventToString(const FOpenPocketBaseRealtimeEvent& Value);
 

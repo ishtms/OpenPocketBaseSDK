@@ -253,6 +253,16 @@ public:
     bool IsValid() const;
 
 private:
+    bool ValidateRecordOptions(
+        const FOpenPocketBaseRecordOptions& Options,
+        FOpenPocketBaseError& OutError) const;
+    bool ValidateListOptions(
+        const FOpenPocketBaseListOptions& Options,
+        FOpenPocketBaseError& OutError) const;
+    bool ValidateBody(
+        const FOpenPocketBaseRecordBody& Body,
+        FOpenPocketBaseError& OutError) const;
+
     FOpenPocketBaseRequestHandle SendAccountPost(
         FString Route,
         TMap<FString, FString> BodyFields,

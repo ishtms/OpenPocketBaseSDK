@@ -60,16 +60,19 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRealtimeOptions
     FOpenPocketBaseFilter Filter;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Realtime")
-    TArray<FString> Expand;
+    TArray<FOpenPocketBaseExpand> Expand;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Realtime")
-    TArray<FString> Fields;
+    TArray<FOpenPocketBaseFieldSelection> Fields;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Realtime", AdvancedDisplay)
     TMap<FString, FString> QueryParameters;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Realtime", AdvancedDisplay)
     TMap<FString, FString> Headers;
+
+    bool IsValid() const;
+    bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
 };
 
 struct OPENPOCKETBASESDK_API FOpenPocketBaseRealtimeCallbacks

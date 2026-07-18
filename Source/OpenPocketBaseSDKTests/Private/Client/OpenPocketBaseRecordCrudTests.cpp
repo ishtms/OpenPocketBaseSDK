@@ -201,12 +201,56 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
     Body.SetDynamicStringArrayField(TEXT("tags"), {TEXT("urgent")}, EOpenPocketBaseFieldModifier::Prepend);
     Body.SetDynamicStringArrayField(TEXT("tags"), {TEXT("old")}, EOpenPocketBaseFieldModifier::Remove);
 
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    Schema->SchemaId = FGuid(34, 55, 89, 144);
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("tasks");
+    FOpenPocketBaseSchemaField Id;
+    Id.Id = TEXT("id_id");
+    Id.Name = TEXT("id");
+    Id.Type = EOpenPocketBaseFieldType::Text;
+    FOpenPocketBaseSchemaField Title;
+    Title.Id = TEXT("title_id");
+    Title.Name = TEXT("title");
+    Title.Type = EOpenPocketBaseFieldType::Text;
+    FOpenPocketBaseSchemaField Owner;
+    Owner.Id = TEXT("owner_id");
+    Owner.Name = TEXT("owner");
+    Owner.Type = EOpenPocketBaseFieldType::Relation;
+    Owner.RelatedCollectionId = TEXT("users_id");
+    Tasks.Fields = {Id, Title, Owner};
+    FOpenPocketBaseSchemaCollection Users;
+    Users.Id = TEXT("users_id");
+    Users.Name = TEXT("users");
+    FOpenPocketBaseSchemaField Team;
+    Team.Id = TEXT("team_id");
+    Team.Name = TEXT("team");
+    Team.Type = EOpenPocketBaseFieldType::Relation;
+    Team.RelatedCollectionId = TEXT("teams_id");
+    Users.Fields = {Team};
+    Schema->Collections = {Tasks, Users};
+
+    FOpenPocketBaseCollectionRef TasksRef;
+    FOpenPocketBaseCollectionRef UsersRef;
+    Schema->MakeCollectionRef(Tasks.Id, TasksRef);
+    Schema->MakeCollectionRef(Users.Id, UsersRef);
+    FOpenPocketBaseAnyFieldRef IdRef;
+    FOpenPocketBaseStringFieldRef TitleRef;
+    FOpenPocketBaseRelationFieldRef OwnerRef;
+    FOpenPocketBaseRelationFieldRef TeamRef;
+    Schema->MakeTypedFieldRef(TasksRef, Id.Id, IdRef);
+    Schema->MakeTypedFieldRef(TasksRef, Title.Id, TitleRef);
+    Schema->MakeTypedFieldRef(TasksRef, Owner.Id, OwnerRef);
+    Schema->MakeTypedFieldRef(UsersRef, Team.Id, TeamRef);
+
+    const FOpenPocketBaseExpand OwnerExpand = OpenPocketBase::Query::Expand(OwnerRef);
     FOpenPocketBaseRecordOptions RecordOptions;
-    RecordOptions.Expand = {TEXT("owner.team")};
-    RecordOptions.Fields = {
-        TEXT("id"),
-        UOpenPocketBaseRecordLibrary::MakeExcerptField(TEXT("title"), 40, true),
-        TEXT("expand.owner.*")};
+    RecordOptions
+        .Including(OpenPocketBase::Query::ThenExpand(OwnerExpand, TeamRef))
+        .Selecting(OpenPocketBase::Query::Select(IdRef))
+        .Selecting(OpenPocketBase::Query::SelectExcerpt(TitleRef, 40, true))
+        .Selecting(OpenPocketBase::Query::SelectExpandedRecord(OwnerExpand));
 
     State->Client->DynamicCollection(TEXT("tasks")).Create(
         Body,

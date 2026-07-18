@@ -265,15 +265,31 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicStringArrayField
     return *this;
 }
 
-FOpenPocketBaseRecordOptions& FOpenPocketBaseRecordOptions::WithExpand(TArray<FString> InExpand)
+FOpenPocketBaseRecordOptions& FOpenPocketBaseRecordOptions::WithExpand(
+    TArray<FOpenPocketBaseExpand> InExpand)
 {
     Expand = MoveTemp(InExpand);
     return *this;
 }
 
-FOpenPocketBaseRecordOptions& FOpenPocketBaseRecordOptions::WithFields(TArray<FString> InFields)
+FOpenPocketBaseRecordOptions& FOpenPocketBaseRecordOptions::WithFields(
+    TArray<FOpenPocketBaseFieldSelection> InFields)
 {
     Fields = MoveTemp(InFields);
+    return *this;
+}
+
+FOpenPocketBaseRecordOptions& FOpenPocketBaseRecordOptions::Including(
+    FOpenPocketBaseExpand InExpand)
+{
+    Expand.Add(MoveTemp(InExpand));
+    return *this;
+}
+
+FOpenPocketBaseRecordOptions& FOpenPocketBaseRecordOptions::Selecting(
+    FOpenPocketBaseFieldSelection InField)
+{
+    Fields.Add(MoveTemp(InField));
     return *this;
 }
 
@@ -282,6 +298,49 @@ FOpenPocketBaseRecordOptions& FOpenPocketBaseRecordOptions::WithRequestOptions(
 {
     RequestOptions = MoveTemp(InOptions);
     return *this;
+}
+
+bool FOpenPocketBaseRecordOptions::BelongsTo(
+    const FOpenPocketBaseCollectionRef& Collection) const
+{
+    if (!IsValid())
+    {
+        return false;
+    }
+    for (const FOpenPocketBaseExpand& Value : Expand)
+    {
+        if (!Value.BelongsTo(Collection))
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseFieldSelection& Value : Fields)
+    {
+        if (!Value.BelongsTo(Collection))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool FOpenPocketBaseRecordOptions::IsValid() const
+{
+    for (const FOpenPocketBaseExpand& Value : Expand)
+    {
+        if (!Value.IsSet())
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseFieldSelection& Value : Fields)
+    {
+        if (!Value.IsSet())
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::AtPage(const int32 InPage)
@@ -302,21 +361,44 @@ FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::Where(FOpenPocketBaseFil
     return *this;
 }
 
-FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::WithSort(TArray<FString> InSort)
+FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::WithSort(
+    TArray<FOpenPocketBaseSort> InSort)
 {
     Sort = MoveTemp(InSort);
     return *this;
 }
 
-FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::WithExpand(TArray<FString> InExpand)
+FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::WithExpand(
+    TArray<FOpenPocketBaseExpand> InExpand)
 {
     Expand = MoveTemp(InExpand);
     return *this;
 }
 
-FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::WithFields(TArray<FString> InFields)
+FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::WithFields(
+    TArray<FOpenPocketBaseFieldSelection> InFields)
 {
     Fields = MoveTemp(InFields);
+    return *this;
+}
+
+FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::OrderedBy(FOpenPocketBaseSort InSort)
+{
+    Sort.Add(MoveTemp(InSort));
+    return *this;
+}
+
+FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::Including(
+    FOpenPocketBaseExpand InExpand)
+{
+    Expand.Add(MoveTemp(InExpand));
+    return *this;
+}
+
+FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::Selecting(
+    FOpenPocketBaseFieldSelection InField)
+{
+    Fields.Add(MoveTemp(InField));
     return *this;
 }
 
@@ -331,6 +413,67 @@ FOpenPocketBaseListOptions& FOpenPocketBaseListOptions::WithRequestOptions(
 {
     RequestOptions = MoveTemp(InOptions);
     return *this;
+}
+
+bool FOpenPocketBaseListOptions::BelongsTo(
+    const FOpenPocketBaseCollectionRef& Collection) const
+{
+    if (!IsValid() || !Filter.BelongsTo(Collection))
+    {
+        return false;
+    }
+    for (const FOpenPocketBaseSort& Value : Sort)
+    {
+        if (!Value.BelongsTo(Collection))
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseExpand& Value : Expand)
+    {
+        if (!Value.BelongsTo(Collection))
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseFieldSelection& Value : Fields)
+    {
+        if (!Value.BelongsTo(Collection))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool FOpenPocketBaseListOptions::IsValid() const
+{
+    if (!Filter.IsValid())
+    {
+        return false;
+    }
+    for (const FOpenPocketBaseSort& Value : Sort)
+    {
+        if (!Value.IsSet())
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseExpand& Value : Expand)
+    {
+        if (!Value.IsSet())
+        {
+            return false;
+        }
+    }
+    for (const FOpenPocketBaseFieldSelection& Value : Fields)
+    {
+        if (!Value.IsSet())
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 FOpenPocketBaseFullListOptions& FOpenPocketBaseFullListOptions::WithListOptions(

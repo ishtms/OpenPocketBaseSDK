@@ -22,6 +22,11 @@ bool FOpenPocketBaseTypedQueryTest::RunTest(const FString& Parameters)
     Score.Name = TEXT("score");
     Score.Type = EOpenPocketBaseFieldType::Number;
     Tasks.Fields.Add(Score);
+    FOpenPocketBaseSchemaField Title;
+    Title.Id = TEXT("title_id");
+    Title.Name = TEXT("title");
+    Title.Type = EOpenPocketBaseFieldType::Text;
+    Tasks.Fields.Add(Title);
     FOpenPocketBaseSchemaField Owner;
     Owner.Id = TEXT("owner_id");
     Owner.Name = TEXT("owner");
@@ -62,6 +67,21 @@ bool FOpenPocketBaseTypedQueryTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Sort values retain collection ownership"), Sort.BelongsTo(TasksRef));
     TestEqual(TEXT("Descending sort syntax is generated"), Sort.ToQueryValue(), FString(TEXT("-score")));
 
+    const FOpenPocketBaseFieldSelection ScoreSelection = OpenPocketBase::Query::Select(ScoreRef);
+    TestTrue(TEXT("Selected fields retain collection ownership"), ScoreSelection.BelongsTo(TasksRef));
+    TestEqual(TEXT("Selected fields generate PocketBase syntax"), ScoreSelection.ToQueryValue(), FString(TEXT("score")));
+
+    FOpenPocketBaseStringFieldRef TitleRef;
+    Schema->MakeTypedFieldRef(TasksRef, Title.Id, TitleRef);
+    const FOpenPocketBaseFieldSelection Excerpt = OpenPocketBase::Query::SelectExcerpt(
+        TitleRef,
+        40,
+        true);
+    TestEqual(
+        TEXT("Excerpt selections generate PocketBase syntax"),
+        Excerpt.ToQueryValue(),
+        FString(TEXT("title:excerpt(40,true)")));
+
     FOpenPocketBaseRelationFieldRef OwnerRef;
     Schema->MakeTypedFieldRef(TasksRef, TEXT("owner_id"), OwnerRef);
     FOpenPocketBaseCollectionRef UsersRef;
@@ -73,6 +93,14 @@ bool FOpenPocketBaseTypedQueryTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Related fields form a valid nested expand"), Expand.IsSet());
     TestTrue(TEXT("Expand values retain their root collection"), Expand.BelongsTo(TasksRef));
     TestEqual(TEXT("Nested expand syntax is generated"), Expand.ToQueryValue(), FString(TEXT("owner.profile")));
+
+    const FOpenPocketBaseFieldSelection ExpandedRecord =
+        OpenPocketBase::Query::SelectExpandedRecord(OpenPocketBase::Query::Expand(OwnerRef));
+    TestTrue(TEXT("Expanded record selections retain root ownership"), ExpandedRecord.BelongsTo(TasksRef));
+    TestEqual(
+        TEXT("Expanded record selections generate PocketBase syntax"),
+        ExpandedRecord.ToQueryValue(),
+        FString(TEXT("expand.owner.*")));
 
     FOpenPocketBaseCollectionRef OtherRef;
     Schema->MakeCollectionRef(TEXT("other_id"), OtherRef);

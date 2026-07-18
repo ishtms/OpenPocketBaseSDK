@@ -28,3 +28,43 @@ FOpenPocketBaseExpand UOpenPocketBaseQueryLibrary::ThenExpandRelation(
 {
     return OpenPocketBase::Query::ThenExpand(MoveTemp(Expand), Relation);
 }
+
+FOpenPocketBaseFieldSelection UOpenPocketBaseQueryLibrary::SelectField(
+    const FOpenPocketBaseAnyFieldRef Field)
+{
+    return OpenPocketBase::Query::Select(Field);
+}
+
+FOpenPocketBaseFieldSelection UOpenPocketBaseQueryLibrary::SelectTextExcerpt(
+    const FOpenPocketBaseStringFieldRef Field,
+    const int32 MaxLength,
+    const bool bWithEllipsis)
+{
+    return OpenPocketBase::Query::SelectExcerpt(Field, MaxLength, bWithEllipsis);
+}
+
+FOpenPocketBaseFieldSelection UOpenPocketBaseQueryLibrary::SelectExpandedField(
+    FOpenPocketBaseExpand Expand,
+    const FOpenPocketBaseAnyFieldRef Field)
+{
+    return OpenPocketBase::Query::SelectExpanded(MoveTemp(Expand), Field);
+}
+
+FOpenPocketBaseFieldSelection UOpenPocketBaseQueryLibrary::SelectExpandedTextExcerpt(
+    FOpenPocketBaseExpand Expand,
+    const FOpenPocketBaseStringFieldRef Field,
+    const int32 MaxLength,
+    const bool bWithEllipsis)
+{
+    return OpenPocketBase::Query::SelectExpandedExcerpt(
+        MoveTemp(Expand),
+        Field,
+        MaxLength,
+        bWithEllipsis);
+}
+
+FOpenPocketBaseFieldSelection UOpenPocketBaseQueryLibrary::SelectExpandedRecord(
+    FOpenPocketBaseExpand Expand)
+{
+    return OpenPocketBase::Query::SelectExpandedRecord(MoveTemp(Expand));
+}

@@ -36,4 +36,43 @@ public:
     static FOpenPocketBaseExpand ThenExpandRelation(
         FOpenPocketBaseExpand Expand,
         FOpenPocketBaseRelationFieldRef Relation);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Query",
+        meta = (DisplayName = "Select Field", NativeMakeFunc))
+    static FOpenPocketBaseFieldSelection SelectField(FOpenPocketBaseAnyFieldRef Field);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Query",
+        meta = (DisplayName = "Select Text Excerpt", NativeMakeFunc))
+    static FOpenPocketBaseFieldSelection SelectTextExcerpt(
+        FOpenPocketBaseStringFieldRef Field,
+        int32 MaxLength,
+        bool bWithEllipsis = false);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Query",
+        meta = (DisplayName = "Select Expanded Field", NativeMakeFunc))
+    static FOpenPocketBaseFieldSelection SelectExpandedField(
+        FOpenPocketBaseExpand Expand,
+        FOpenPocketBaseAnyFieldRef Field);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Query",
+        meta = (DisplayName = "Select Expanded Text Excerpt", NativeMakeFunc))
+    static FOpenPocketBaseFieldSelection SelectExpandedTextExcerpt(
+        FOpenPocketBaseExpand Expand,
+        FOpenPocketBaseStringFieldRef Field,
+        int32 MaxLength,
+        bool bWithEllipsis = false);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Query",
+        meta = (DisplayName = "Select Expanded Record", NativeMakeFunc))
+    static FOpenPocketBaseFieldSelection SelectExpandedRecord(FOpenPocketBaseExpand Expand);
 };
