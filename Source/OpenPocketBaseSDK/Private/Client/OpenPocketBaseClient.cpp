@@ -1109,7 +1109,7 @@ FString MakeBatchEntryPath(const FOpenPocketBaseBatchEntry& Entry)
 {
     FString Path = FString::Printf(
         TEXT("/api/collections/%s/records"),
-        *EncodeSegment(Entry.Collection));
+        *EncodeSegment(Entry.GetCollectionName()));
     if (Entry.Operation == EOpenPocketBaseBatchOperation::Update ||
         Entry.Operation == EOpenPocketBaseBatchOperation::Delete)
     {
@@ -1117,8 +1117,8 @@ FString MakeBatchEntryPath(const FOpenPocketBaseBatchEntry& Entry)
     }
 
     TArray<FString> QueryParts;
-    AddQueryValue(QueryParts, TEXT("expand"), FString::Join(Entry.Expand, TEXT(",")));
-    AddQueryValue(QueryParts, TEXT("fields"), FString::Join(Entry.Fields, TEXT(",")));
+    AddQueryValue(QueryParts, TEXT("expand"), Entry.GetExpandQuery());
+    AddQueryValue(QueryParts, TEXT("fields"), Entry.GetFieldsQuery());
     return AddQuery(MoveTemp(Path), FString::Join(QueryParts, TEXT("&")));
 }
 
@@ -1143,7 +1143,11 @@ bool ValidateBatch(
 
     for (const FOpenPocketBaseBatchEntry& Entry : Batch.Entries)
     {
-        if (!IsSafePathSegment(Entry.Collection))
+        const bool bTypedCollection = Entry.Collection.IsSet();
+        if ((bTypedCollection &&
+             (!FOpenPocketBaseWritableCollectionRef::Accepts(Entry.Collection) ||
+              !IsSafePathSegment(Entry.Collection.Name))) ||
+            (!bTypedCollection && !IsSafePathSegment(Entry.DynamicCollection)))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
@@ -1162,11 +1166,24 @@ bool ValidateBatch(
         }
 
         const bool bUsesBody = Entry.Operation != EOpenPocketBaseBatchOperation::Delete;
-        if (bUsesBody && !Entry.Body.Data.JsonObject.IsValid())
+        if (bUsesBody &&
+            (!Entry.Body.Data.JsonObject.IsValid() ||
+             !Entry.Body.IsValid() ||
+             (bTypedCollection && !Entry.Body.BelongsTo(Entry.Collection))))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Batch create, update, and upsert entries require a JSON body."));
+                TEXT("Batch create, update, and upsert entries require a valid body for their collection."));
+            return false;
+        }
+
+        if (bTypedCollection &&
+            (!Entry.ResponseOptions.IsValid() ||
+             !Entry.ResponseOptions.BelongsTo(Entry.Collection)))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Batch response options contain a field from another collection."));
             return false;
         }
         if (Entry.Operation == EOpenPocketBaseBatchOperation::Upsert)
@@ -2509,7 +2526,7 @@ struct FOpenPocketBaseClient::FImpl
         for (int32 Index = Batch.Entries.Num() - 1; Index >= 0; --Index)
         {
             if (!Result.Results.IsValidIndex(Index) ||
-                Batch.Entries[Index].Collection != CurrentCollection)
+                Batch.Entries[Index].GetCollectionName() != CurrentCollection)
             {
                 continue;
             }

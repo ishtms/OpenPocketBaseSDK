@@ -262,8 +262,8 @@ void RunFailingIntegrationBatch(
     InvalidBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000006"));
 
     FOpenPocketBaseBatchRequest Batch;
-    Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(FirstBody));
-    Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(InvalidBody));
+    Batch.AddDynamicCreate(TEXT("sdk_tasks"), MoveTemp(FirstBody));
+    Batch.AddDynamicCreate(TEXT("sdk_tasks"), MoveTemp(InvalidBody));
     State->Client->SendBatch(
         MoveTemp(Batch),
         [State](TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&& Result)
@@ -297,11 +297,11 @@ void RunSuccessfulIntegrationBatch(
     UpsertBody.SetDynamicStringField(TEXT("title"), TEXT("Batch upsert"));
 
     FOpenPocketBaseBatchRequest Batch;
-    Batch.AddCreate(TEXT("sdk_tasks"), MoveTemp(CreateBody));
-    Batch.AddUpdate(TEXT("sdk_tasks"), TEXT("task00000000003"), MoveTemp(UpdateBody));
-    Batch.AddUpsert(TEXT("sdk_tasks"), MoveTemp(UpsertBody));
-    Batch.AddDelete(TEXT("sdk_tasks"), TEXT("task00000000004"));
-    Batch.AddDelete(TEXT("sdk_tasks"), TEXT("task00000000003"));
+    Batch.AddDynamicCreate(TEXT("sdk_tasks"), MoveTemp(CreateBody));
+    Batch.AddDynamicUpdate(TEXT("sdk_tasks"), TEXT("task00000000003"), MoveTemp(UpdateBody));
+    Batch.AddDynamicUpsert(TEXT("sdk_tasks"), MoveTemp(UpsertBody));
+    Batch.AddDynamicDelete(TEXT("sdk_tasks"), TEXT("task00000000004"));
+    Batch.AddDynamicDelete(TEXT("sdk_tasks"), TEXT("task00000000003"));
     State->Client->SendBatch(
         MoveTemp(Batch),
         [State](TOpenPocketBaseResult<FOpenPocketBaseBatchResult>&& Result)

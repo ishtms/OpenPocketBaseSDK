@@ -25,10 +25,9 @@ public:
         meta = (DisplayName = "With Create", Keywords = "batch add record"))
     static FOpenPocketBaseBatchRequest WithCreate(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollectionRef Collection,
         FOpenPocketBaseRecordBody Body,
-        const TArray<FString>& Expand,
-        const TArray<FString>& Fields);
+        FOpenPocketBaseRecordOptions ResponseOptions);
 
     UFUNCTION(
         BlueprintPure,
@@ -36,11 +35,10 @@ public:
         meta = (DisplayName = "With Update", Keywords = "batch add record"))
     static FOpenPocketBaseBatchRequest WithUpdate(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollectionRef Collection,
         const FString& RecordId,
         FOpenPocketBaseRecordBody Body,
-        const TArray<FString>& Expand,
-        const TArray<FString>& Fields);
+        FOpenPocketBaseRecordOptions ResponseOptions);
 
     UFUNCTION(
         BlueprintPure,
@@ -48,10 +46,9 @@ public:
         meta = (DisplayName = "With Upsert", Keywords = "batch add record"))
     static FOpenPocketBaseBatchRequest WithUpsert(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollectionRef Collection,
         FOpenPocketBaseRecordBody Body,
-        const TArray<FString>& Expand,
-        const TArray<FString>& Fields);
+        FOpenPocketBaseRecordOptions ResponseOptions);
 
     UFUNCTION(
         BlueprintPure,
@@ -59,6 +56,6 @@ public:
         meta = (DisplayName = "With Delete", Keywords = "batch add remove record"))
     static FOpenPocketBaseBatchRequest WithDelete(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollectionRef Collection,
         const FString& RecordId);
 };

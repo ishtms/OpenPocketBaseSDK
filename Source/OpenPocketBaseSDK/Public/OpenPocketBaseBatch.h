@@ -23,7 +23,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchEntry
     EOpenPocketBaseBatchOperation Operation = EOpenPocketBaseBatchOperation::Create;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
-    FString Collection;
+    FOpenPocketBaseWritableCollectionRef Collection;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
     FString RecordId;
@@ -32,10 +32,20 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchEntry
     FOpenPocketBaseRecordBody Body;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
-    TArray<FString> Expand;
+    FOpenPocketBaseRecordOptions ResponseOptions;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
-    TArray<FString> Fields;
+    UPROPERTY(Transient)
+    FString DynamicCollection;
+
+    UPROPERTY(Transient)
+    TArray<FString> DynamicExpand;
+
+    UPROPERTY(Transient)
+    TArray<FString> DynamicFields;
+
+    FString GetCollectionName() const;
+    FString GetExpandQuery() const;
+    FString GetFieldsQuery() const;
 };
 
 USTRUCT(BlueprintType)
@@ -47,25 +57,42 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchRequest
     TArray<FOpenPocketBaseBatchEntry> Entries;
 
     FOpenPocketBaseBatchRequest& AddCreate(
+        FOpenPocketBaseWritableCollectionRef Collection,
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordOptions ResponseOptions = {});
+
+    FOpenPocketBaseBatchRequest& AddUpdate(
+        FOpenPocketBaseWritableCollectionRef Collection,
+        FString RecordId,
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordOptions ResponseOptions = {});
+
+    FOpenPocketBaseBatchRequest& AddUpsert(
+        FOpenPocketBaseWritableCollectionRef Collection,
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordOptions ResponseOptions = {});
+
+    FOpenPocketBaseBatchRequest& AddDelete(
+        FOpenPocketBaseWritableCollectionRef Collection,
+        FString RecordId);
+
+    FOpenPocketBaseBatchRequest& AddDynamicCreate(
         FString Collection,
         FOpenPocketBaseRecordBody Body,
         TArray<FString> Expand = {},
         TArray<FString> Fields = {});
-
-    FOpenPocketBaseBatchRequest& AddUpdate(
+    FOpenPocketBaseBatchRequest& AddDynamicUpdate(
         FString Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         TArray<FString> Expand = {},
         TArray<FString> Fields = {});
-
-    FOpenPocketBaseBatchRequest& AddUpsert(
+    FOpenPocketBaseBatchRequest& AddDynamicUpsert(
         FString Collection,
         FOpenPocketBaseRecordBody Body,
         TArray<FString> Expand = {},
         TArray<FString> Fields = {});
-
-    FOpenPocketBaseBatchRequest& AddDelete(FString Collection, FString RecordId);
+    FOpenPocketBaseBatchRequest& AddDynamicDelete(FString Collection, FString RecordId);
 };
 
 USTRUCT(BlueprintType)

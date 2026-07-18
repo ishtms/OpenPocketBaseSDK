@@ -7,48 +7,44 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::NewBatch()
 
 FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithCreate(
     FOpenPocketBaseBatchRequest Batch,
-    FOpenPocketBaseCollection Collection,
+    FOpenPocketBaseWritableCollectionRef Collection,
     FOpenPocketBaseRecordBody Body,
-    const TArray<FString>& Expand,
-    const TArray<FString>& Fields)
+    FOpenPocketBaseRecordOptions ResponseOptions)
 {
-    Batch.AddCreate(MoveTemp(Collection.Reference.Name), MoveTemp(Body), Expand, Fields);
+    Batch.AddCreate(MoveTemp(Collection), MoveTemp(Body), MoveTemp(ResponseOptions));
     return Batch;
 }
 
 FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpdate(
     FOpenPocketBaseBatchRequest Batch,
-    FOpenPocketBaseCollection Collection,
+    FOpenPocketBaseWritableCollectionRef Collection,
     const FString& RecordId,
     FOpenPocketBaseRecordBody Body,
-    const TArray<FString>& Expand,
-    const TArray<FString>& Fields)
+    FOpenPocketBaseRecordOptions ResponseOptions)
 {
     Batch.AddUpdate(
-        MoveTemp(Collection.Reference.Name),
+        MoveTemp(Collection),
         RecordId,
         MoveTemp(Body),
-        Expand,
-        Fields);
+        MoveTemp(ResponseOptions));
     return Batch;
 }
 
 FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpsert(
     FOpenPocketBaseBatchRequest Batch,
-    FOpenPocketBaseCollection Collection,
+    FOpenPocketBaseWritableCollectionRef Collection,
     FOpenPocketBaseRecordBody Body,
-    const TArray<FString>& Expand,
-    const TArray<FString>& Fields)
+    FOpenPocketBaseRecordOptions ResponseOptions)
 {
-    Batch.AddUpsert(MoveTemp(Collection.Reference.Name), MoveTemp(Body), Expand, Fields);
+    Batch.AddUpsert(MoveTemp(Collection), MoveTemp(Body), MoveTemp(ResponseOptions));
     return Batch;
 }
 
 FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithDelete(
     FOpenPocketBaseBatchRequest Batch,
-    FOpenPocketBaseCollection Collection,
+    FOpenPocketBaseWritableCollectionRef Collection,
     const FString& RecordId)
 {
-    Batch.AddDelete(MoveTemp(Collection.Reference.Name), RecordId);
+    Batch.AddDelete(MoveTemp(Collection), RecordId);
     return Batch;
 }

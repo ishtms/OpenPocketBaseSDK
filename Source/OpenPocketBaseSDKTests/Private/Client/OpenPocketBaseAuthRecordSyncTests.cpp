@@ -572,7 +572,7 @@ bool FOpenPocketBaseBatchAuthRecordSyncTest::RunTest(const FString& Parameters)
             FOpenPocketBaseRecordBody Body;
             Body.SetDynamicStringField(TEXT("displayName"), TEXT("Updated Player"));
             FOpenPocketBaseBatchRequest Request;
-            Request.AddUpdate(
+            Request.AddDynamicUpdate(
                 TEXT("users"),
                 TEXT("user00000000001"),
                 MoveTemp(Body));

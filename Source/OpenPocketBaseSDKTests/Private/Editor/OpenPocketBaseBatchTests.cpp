@@ -195,10 +195,10 @@ FOpenPocketBaseBatchRequest MakeCompleteBatch()
 
     FOpenPocketBaseBatchRequest Batch;
     Batch
-        .AddCreate(TEXT("tasks"), MoveTemp(CreateBody))
-        .AddUpdate(TEXT("tasks"), TEXT("task00000000001"), MoveTemp(UpdateBody))
-        .AddUpsert(TEXT("tasks"), MoveTemp(UpsertBody))
-        .AddDelete(TEXT("tasks"), TEXT("task00000000002"));
+        .AddDynamicCreate(TEXT("tasks"), MoveTemp(CreateBody))
+        .AddDynamicUpdate(TEXT("tasks"), TEXT("task00000000001"), MoveTemp(UpdateBody))
+        .AddDynamicUpsert(TEXT("tasks"), MoveTemp(UpsertBody))
+        .AddDynamicDelete(TEXT("tasks"), TEXT("task00000000002"));
     return Batch;
 }
 }
@@ -210,8 +210,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
 {
-    FOpenPocketBaseCollection Collection;
-    Collection.Reference.Name = TEXT("tasks");
+    FOpenPocketBaseWritableCollectionRef Collection;
+    Collection.SchemaId = FGuid(1, 2, 3, 5);
+    Collection.CollectionId = TEXT("tasks_id");
+    Collection.Name = TEXT("tasks");
+    Collection.Type = EOpenPocketBaseCollectionType::Base;
     FOpenPocketBaseRecordBody Body;
     Body.SetDynamicStringField(TEXT("title"), TEXT("Create"));
 
@@ -220,7 +223,6 @@ bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
         Empty,
         Collection,
         Body,
-        {},
         {});
     const FOpenPocketBaseBatchRequest WithDelete = UOpenPocketBaseBatchLibrary::WithDelete(
         WithCreate,
@@ -352,7 +354,7 @@ bool FOpenPocketBaseBatchBoundsTest::RunTest(const FString& Parameters)
     FOpenPocketBaseRecordBody LargeBody;
     LargeBody.SetDynamicStringField(TEXT("title"), FString::ChrN(2048, TEXT('x')));
     FOpenPocketBaseBatchRequest LargeBatch;
-    LargeBatch.AddCreate(TEXT("tasks"), MoveTemp(LargeBody));
+    LargeBatch.AddDynamicCreate(TEXT("tasks"), MoveTemp(LargeBody));
     FOpenPocketBaseBatchOptions BodyOptions;
     BodyOptions.MaxBodyBytes = 1024;
     State->Client->SendBatch(MoveTemp(LargeBatch), OnFailure, BodyOptions);
