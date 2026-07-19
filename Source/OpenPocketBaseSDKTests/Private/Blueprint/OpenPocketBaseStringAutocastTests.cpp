@@ -207,6 +207,7 @@ bool FOpenPocketBaseStringAutocastTest::RunTest(const FString& Parameters)
     TArray<FString> CoreStructs;
     TArray<FString> CoreEnums;
     TArray<FString> AdminStructs;
+    TArray<FString> AdminEnums;
     TArray<FString> Missing;
     FindMissingAutocasts<UScriptStruct>(
         *Schema,
@@ -229,10 +230,18 @@ bool FOpenPocketBaseStringAutocastTest::RunTest(const FString& Parameters)
         MakeStructPinType,
         AdminStructs,
         Missing);
+    FindMissingAutocasts<UEnum>(
+        *Schema,
+        TEXT("/Script/OpenPocketBaseSDKAdmin"),
+        TEXT("OpenPocketBaseAdminStringLibrary"),
+        MakeEnumPinType,
+        AdminEnums,
+        Missing);
 
     TestEqual(TEXT("Every core struct is covered"), CoreStructs.Num(), 71);
     TestEqual(TEXT("Every core enum is covered"), CoreEnums.Num(), 28);
-    TestEqual(TEXT("Every admin struct is covered"), AdminStructs.Num(), 11);
+    TestEqual(TEXT("Every admin struct is covered"), AdminStructs.Num(), 17);
+    TestEqual(TEXT("Every admin enum is covered"), AdminEnums.Num(), 8);
     TestTrue(
         *FString::Printf(
             TEXT("Every SDK data type autocasts to String. Missing: %s"),
@@ -325,6 +334,10 @@ bool FOpenPocketBaseStringAutocastTest::RunTest(const FString& Parameters)
         TEXT("/Script/OpenPocketBaseSDKAdmin"),
         TEXT("OpenPocketBaseAdminStringLibrary"),
         false);
+    ConnectTypes(
+        TEXT("/Script/OpenPocketBaseSDKAdmin"),
+        TEXT("OpenPocketBaseAdminStringLibrary"),
+        true);
 
     TestTrue(
         *FString::Printf(
@@ -334,7 +347,7 @@ bool FOpenPocketBaseStringAutocastTest::RunTest(const FString& Parameters)
     TestEqual(
         TEXT("Every discovered SDK data type was connected"),
         ConnectionIndex,
-        CoreStructs.Num() + CoreEnums.Num() + AdminStructs.Num());
+        CoreStructs.Num() + CoreEnums.Num() + AdminStructs.Num() + AdminEnums.Num());
 
     FEdGraphPinType ClientType;
     ClientType.PinCategory = UEdGraphSchema_K2::PC_Object;

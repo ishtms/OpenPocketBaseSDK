@@ -115,26 +115,53 @@ void UOpenPocketBaseAuthenticateSuperuserAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListCollections(
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-    FOpenPocketBaseAdminListOptions InOptions)
+    FOpenPocketBaseAdminCollectionListOptions InOptions)
 {
     UOpenPocketBaseAdminPageAsyncAction* Action =
         NewObject<UOpenPocketBaseAdminPageAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::Collections;
-    Action->Options = MoveTemp(InOptions);
+    Action->CollectionOptions = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->AdminClient);
+    return Action;
+}
+
+UOpenPocketBaseAdminPageAsyncAction*
+UOpenPocketBaseAdminPageAsyncAction::ListDynamicCollections(
+    UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+    FOpenPocketBaseDynamicAdminListOptions InOptions)
+{
+    UOpenPocketBaseAdminPageAsyncAction* Action =
+        NewObject<UOpenPocketBaseAdminPageAsyncAction>();
+    Action->AdminClient = PocketBaseAdminClient;
+    Action->Operation = EOperation::DynamicCollections;
+    Action->DynamicOptions = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
 
 UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListLogs(
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-    FOpenPocketBaseAdminListOptions InOptions)
+    FOpenPocketBaseAdminLogListOptions InOptions)
 {
     UOpenPocketBaseAdminPageAsyncAction* Action =
         NewObject<UOpenPocketBaseAdminPageAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::Logs;
-    Action->Options = MoveTemp(InOptions);
+    Action->LogOptions = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->AdminClient);
+    return Action;
+}
+
+UOpenPocketBaseAdminPageAsyncAction* UOpenPocketBaseAdminPageAsyncAction::ListDynamicLogs(
+    UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+    FOpenPocketBaseDynamicAdminListOptions InOptions)
+{
+    UOpenPocketBaseAdminPageAsyncAction* Action =
+        NewObject<UOpenPocketBaseAdminPageAsyncAction>();
+    Action->AdminClient = PocketBaseAdminClient;
+    Action->Operation = EOperation::DynamicLogs;
+    Action->DynamicOptions = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
@@ -165,9 +192,24 @@ void UOpenPocketBaseAdminPageAsyncAction::Activate()
             }
             Action->Finish();
         };
-    RequestHandle = Operation == EOperation::Collections
-        ? Native->ListCollections(MoveTemp(Options), MoveTemp(Callback))
-        : Native->ListLogs(MoveTemp(Options), MoveTemp(Callback));
+    switch (Operation)
+    {
+    case EOperation::Collections:
+        RequestHandle = Native->ListCollections(
+            MoveTemp(CollectionOptions), MoveTemp(Callback));
+        break;
+    case EOperation::DynamicCollections:
+        RequestHandle = Native->DynamicListCollections(
+            MoveTemp(DynamicOptions), MoveTemp(Callback));
+        break;
+    case EOperation::Logs:
+        RequestHandle = Native->ListLogs(MoveTemp(LogOptions), MoveTemp(Callback));
+        break;
+    case EOperation::DynamicLogs:
+        RequestHandle = Native->DynamicListLogs(
+            MoveTemp(DynamicOptions), MoveTemp(Callback));
+        break;
+    }
 }
 
 void UOpenPocketBaseAdminPageAsyncAction::BroadcastCancelled()

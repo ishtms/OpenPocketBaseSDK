@@ -134,7 +134,7 @@ private:
 
     void ListCollections()
     {
-        FOpenPocketBaseAdminListOptions Options;
+        FOpenPocketBaseAdminCollectionListOptions Options;
         Options.PerPage = 100;
         const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->ListCollections(
@@ -257,9 +257,11 @@ private:
 
     void ListLogs()
     {
-        FOpenPocketBaseAdminListOptions Options;
+        FOpenPocketBaseAdminLogListOptions Options;
         Options.PerPage = 20;
-        Options.Sort = {TEXT("-created")};
+        Options.ThenSortBy(
+            EOpenPocketBaseAdminLogSortField::Created,
+            EOpenPocketBaseSortDirection::Descending);
         const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->ListLogs(
             MoveTemp(Options),

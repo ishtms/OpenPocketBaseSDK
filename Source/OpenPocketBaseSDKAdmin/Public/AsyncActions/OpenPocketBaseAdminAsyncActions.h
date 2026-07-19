@@ -152,7 +152,18 @@ public:
             DevelopmentOnly))
     static UOpenPocketBaseAdminPageAsyncAction* ListCollections(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-        FOpenPocketBaseAdminListOptions Options);
+        FOpenPocketBaseAdminCollectionListOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Admin|Advanced",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DisplayName = "List Dynamic PocketBase Collections (Advanced)",
+            DevelopmentOnly))
+    static UOpenPocketBaseAdminPageAsyncAction* ListDynamicCollections(
+        UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+        FOpenPocketBaseDynamicAdminListOptions Options);
 
     UFUNCTION(
         BlueprintCallable,
@@ -163,7 +174,18 @@ public:
             DevelopmentOnly))
     static UOpenPocketBaseAdminPageAsyncAction* ListLogs(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-        FOpenPocketBaseAdminListOptions Options);
+        FOpenPocketBaseAdminLogListOptions Options);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Admin|Advanced",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DisplayName = "List Dynamic PocketBase Logs (Advanced)",
+            DevelopmentOnly))
+    static UOpenPocketBaseAdminPageAsyncAction* ListDynamicLogs(
+        UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+        FOpenPocketBaseDynamicAdminListOptions Options);
 
     virtual void Activate() override;
 
@@ -174,11 +196,15 @@ private:
     enum class EOperation : uint8
     {
         Collections,
-        Logs
+        DynamicCollections,
+        Logs,
+        DynamicLogs
     };
 
     EOperation Operation = EOperation::Collections;
-    FOpenPocketBaseAdminListOptions Options;
+    FOpenPocketBaseAdminCollectionListOptions CollectionOptions;
+    FOpenPocketBaseAdminLogListOptions LogOptions;
+    FOpenPocketBaseDynamicAdminListOptions DynamicOptions;
 };
 
 UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))

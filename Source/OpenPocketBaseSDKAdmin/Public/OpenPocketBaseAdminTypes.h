@@ -65,8 +65,173 @@ private:
     bool bUseFilePath = false;
 };
 
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminCollectionTextField : uint8
+{
+    Id,
+    Name
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminCollectionDateField : uint8
+{
+    Created,
+    Updated
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminCollectionSortField : uint8
+{
+    Random,
+    Id,
+    Created,
+    Updated,
+    Name,
+    Type,
+    System
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminCollectionProjectionField : uint8
+{
+    Id,
+    Created,
+    Updated,
+    Name,
+    Type,
+    System,
+    Fields,
+    Indexes,
+    ListRule,
+    ViewRule,
+    CreateRule,
+    UpdateRule,
+    DeleteRule,
+    ViewQuery,
+    AuthRule,
+    ManageRule,
+    AuthAlert,
+    OAuth2,
+    PasswordAuth,
+    Mfa UMETA(DisplayName = "MFA"),
+    Otp UMETA(DisplayName = "OTP"),
+    AuthToken,
+    PasswordResetToken,
+    EmailChangeToken,
+    VerificationToken,
+    FileToken,
+    VerificationTemplate,
+    ResetPasswordTemplate,
+    ConfirmEmailChangeTemplate
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminLogTextField : uint8
+{
+    Id,
+    Message
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminLogDateField : uint8
+{
+    Created,
+    Updated
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminLogSortField : uint8
+{
+    Random,
+    RowId UMETA(DisplayName = "Row ID"),
+    Id,
+    Created,
+    Updated,
+    Level,
+    Message
+};
+
+UENUM(BlueprintType)
+enum class EOpenPocketBaseAdminLogProjectionField : uint8
+{
+    Id,
+    Created,
+    Updated,
+    Level,
+    Message,
+    Data
+};
+
 USTRUCT(BlueprintType)
-struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminListOptions
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminCollectionFilter
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Collections")
+    FString Expression;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Collections")
+    bool bValid = true;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Collections")
+    FString ErrorMessage;
+
+    bool IsEmpty() const;
+    bool IsValid() const;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminLogFilter
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Logs")
+    FString Expression;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Logs")
+    bool bValid = true;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Logs")
+    FString ErrorMessage;
+
+    bool IsEmpty() const;
+    bool IsValid() const;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminCollectionSort
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Collections")
+    EOpenPocketBaseAdminCollectionSortField Field =
+        EOpenPocketBaseAdminCollectionSortField::Created;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Collections")
+    EOpenPocketBaseSortDirection Direction = EOpenPocketBaseSortDirection::Ascending;
+
+    FString ToQueryValue() const;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminLogSort
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Logs")
+    EOpenPocketBaseAdminLogSortField Field = EOpenPocketBaseAdminLogSortField::Created;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Logs")
+    EOpenPocketBaseSortDirection Direction = EOpenPocketBaseSortDirection::Ascending;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin|Logs")
+    FString DynamicDataField;
+
+    FString ToQueryValue() const;
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminCollectionListOptions
 {
     GENERATED_BODY()
 
@@ -76,16 +241,81 @@ struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminListOptions
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin", meta = (ClampMin = "1", ClampMax = "500"))
     int32 PerPage = 30;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin")
-    FString Filter;
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin")
+    FOpenPocketBaseAdminCollectionFilter Filter;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin")
+    TArray<FOpenPocketBaseAdminCollectionSort> Sort;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin")
+    TArray<EOpenPocketBaseAdminCollectionProjectionField> Fields;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin")
-    TArray<FString> Sort;
+    FOpenPocketBaseRequestOptions RequestOptions;
+
+    FOpenPocketBaseAdminCollectionListOptions& Where(
+        FOpenPocketBaseAdminCollectionFilter InFilter);
+    FOpenPocketBaseAdminCollectionListOptions& ThenSortBy(
+        EOpenPocketBaseAdminCollectionSortField Field,
+        EOpenPocketBaseSortDirection Direction = EOpenPocketBaseSortDirection::Ascending);
+    FOpenPocketBaseAdminCollectionListOptions& Select(
+        EOpenPocketBaseAdminCollectionProjectionField Field);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminLogListOptions
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin", meta = (ClampMin = "1"))
+    int32 Page = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin", meta = (ClampMin = "1", ClampMax = "500"))
+    int32 PerPage = 30;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin")
+    FOpenPocketBaseAdminLogFilter Filter;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin")
+    TArray<FOpenPocketBaseAdminLogSort> Sort;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Admin")
+    TArray<EOpenPocketBaseAdminLogProjectionField> Fields;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin")
-    TArray<FString> Fields;
+    FOpenPocketBaseRequestOptions RequestOptions;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin")
+    FOpenPocketBaseAdminLogListOptions& Where(FOpenPocketBaseAdminLogFilter InFilter);
+    FOpenPocketBaseAdminLogListOptions& ThenSortBy(
+        EOpenPocketBaseAdminLogSortField Field,
+        EOpenPocketBaseSortDirection Direction = EOpenPocketBaseSortDirection::Ascending);
+    FOpenPocketBaseAdminLogListOptions& ThenSortByDynamicDataField(
+        FString DataField,
+        EOpenPocketBaseSortDirection Direction = EOpenPocketBaseSortDirection::Ascending);
+    FOpenPocketBaseAdminLogListOptions& Select(EOpenPocketBaseAdminLogProjectionField Field);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseDynamicAdminListOptions
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin|Advanced", meta = (ClampMin = "1"))
+    int32 Page = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin|Advanced", meta = (ClampMin = "1", ClampMax = "500"))
+    int32 PerPage = 30;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin|Advanced")
+    FString DynamicFilter;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin|Advanced")
+    TArray<FString> DynamicSort;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin|Advanced")
+    TArray<FString> DynamicFields;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Admin|Advanced")
     FOpenPocketBaseRequestOptions RequestOptions;
 };
 

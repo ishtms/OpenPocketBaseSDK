@@ -9,7 +9,9 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "OpenPocketBaseAdminBlueprintClient.h"
+#include "OpenPocketBaseAdminQueryLibrary.h"
 #include "UObject/Package.h"
+#include "UObject/UnrealType.h"
 
 #include <type_traits>
 
@@ -32,6 +34,12 @@ using FExpectedAdminImpersonate = UOpenPocketBaseAdminImpersonateAsyncAction* (*
     FString,
     int64,
     FOpenPocketBaseRequestOptions);
+using FExpectedAdminListCollections = UOpenPocketBaseAdminPageAsyncAction* (*)(
+    UOpenPocketBaseAdminClient*,
+    FOpenPocketBaseAdminCollectionListOptions);
+using FExpectedAdminListLogs = UOpenPocketBaseAdminPageAsyncAction* (*)(
+    UOpenPocketBaseAdminClient*,
+    FOpenPocketBaseAdminLogListOptions);
 
 static_assert(std::is_same_v<
     decltype(&UOpenPocketBaseAdminDocumentAsyncAction::GetCollection),
@@ -45,6 +53,12 @@ static_assert(std::is_same_v<
 static_assert(std::is_same_v<
     decltype(&UOpenPocketBaseAdminImpersonateAsyncAction::Impersonate),
     FExpectedAdminImpersonate>);
+static_assert(std::is_same_v<
+    decltype(&UOpenPocketBaseAdminPageAsyncAction::ListCollections),
+    FExpectedAdminListCollections>);
+static_assert(std::is_same_v<
+    decltype(&UOpenPocketBaseAdminPageAsyncAction::ListLogs),
+    FExpectedAdminListLogs>);
 
 namespace
 {
@@ -123,6 +137,35 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
         UOpenPocketBaseAdminClient::StaticClass()->FindFunctionByName(
             TEXT("CreateAdminClient")));
 
+    const UFunction* ListCollections =
+        UOpenPocketBaseAdminPageAsyncAction::StaticClass()->FindFunctionByName(
+            TEXT("ListCollections"));
+    const UFunction* ListLogs =
+        UOpenPocketBaseAdminPageAsyncAction::StaticClass()->FindFunctionByName(
+            TEXT("ListLogs"));
+    const FStructProperty* CollectionOptions = ListCollections != nullptr
+        ? FindFProperty<FStructProperty>(ListCollections, TEXT("Options"))
+        : nullptr;
+    const FStructProperty* LogOptions = ListLogs != nullptr
+        ? FindFProperty<FStructProperty>(ListLogs, TEXT("Options"))
+        : nullptr;
+    TestTrue(
+        TEXT("Collection lists accept typed collection options"),
+        CollectionOptions != nullptr &&
+            CollectionOptions->Struct == FOpenPocketBaseAdminCollectionListOptions::StaticStruct());
+    TestTrue(
+        TEXT("Log lists accept typed log options"),
+        LogOptions != nullptr &&
+            LogOptions->Struct == FOpenPocketBaseAdminLogListOptions::StaticStruct());
+    TestNotNull(
+        TEXT("Collection filters have a typed Blueprint builder"),
+        UOpenPocketBaseAdminQueryLibrary::StaticClass()->FindFunctionByName(
+            TEXT("CollectionTextFilter")));
+    TestNotNull(
+        TEXT("Log sorts have a typed Blueprint builder"),
+        UOpenPocketBaseAdminQueryLibrary::StaticClass()->FindFunctionByName(
+            TEXT("ThenSortLogsBy")));
+
     struct FExpectedFunction
     {
         UClass* Owner;
@@ -131,7 +174,9 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
     const TArray<FExpectedFunction> Functions = {
         {UOpenPocketBaseAuthenticateSuperuserAsyncAction::StaticClass(), TEXT("AuthenticateSuperuser")},
         {UOpenPocketBaseAdminPageAsyncAction::StaticClass(), TEXT("ListCollections")},
+        {UOpenPocketBaseAdminPageAsyncAction::StaticClass(), TEXT("ListDynamicCollections")},
         {UOpenPocketBaseAdminPageAsyncAction::StaticClass(), TEXT("ListLogs")},
+        {UOpenPocketBaseAdminPageAsyncAction::StaticClass(), TEXT("ListDynamicLogs")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("GetCollection")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("GetDynamicCollection")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("CreateCollection")},

@@ -275,7 +275,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters)
 {
-    FOpenPocketBaseAdminListOptions::StaticStruct();
+    FOpenPocketBaseAdminCollectionListOptions::StaticStruct();
+    FOpenPocketBaseAdminLogListOptions::StaticStruct();
+    FOpenPocketBaseDynamicAdminListOptions::StaticStruct();
 
     const auto IsSdkPackage = [](const UObject* Object)
     {

@@ -70,7 +70,10 @@ public:
     void Shutdown();
 
     FOpenPocketBaseAdminRequestHandle ListCollections(
-        FOpenPocketBaseAdminListOptions Options,
+        FOpenPocketBaseAdminCollectionListOptions Options,
+        FOpenPocketBaseAdminPageCallback OnComplete);
+    FOpenPocketBaseAdminRequestHandle DynamicListCollections(
+        FOpenPocketBaseDynamicAdminListOptions Options,
         FOpenPocketBaseAdminPageCallback OnComplete);
     FOpenPocketBaseAdminRequestHandle GetCollection(
         FOpenPocketBaseCollectionRef Collection,
@@ -124,7 +127,10 @@ public:
         FOpenPocketBaseRequestOptions Options = {});
 
     FOpenPocketBaseAdminRequestHandle ListLogs(
-        FOpenPocketBaseAdminListOptions Options,
+        FOpenPocketBaseAdminLogListOptions Options,
+        FOpenPocketBaseAdminPageCallback OnComplete);
+    FOpenPocketBaseAdminRequestHandle DynamicListLogs(
+        FOpenPocketBaseDynamicAdminListOptions Options,
         FOpenPocketBaseAdminPageCallback OnComplete);
     FOpenPocketBaseAdminRequestHandle GetLog(
         FString LogId,

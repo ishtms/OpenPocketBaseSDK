@@ -3,6 +3,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "OpenPocketBaseAdminClient.h"
+#include "OpenPocketBaseAdminQueryLibrary.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
 namespace
@@ -152,10 +153,15 @@ private:
 
     void ListCollections()
     {
-        FOpenPocketBaseAdminListOptions Options;
+        FOpenPocketBaseAdminCollectionListOptions Options;
         Options.Page = 2;
         Options.PerPage = 20;
-        Options.Sort = {TEXT("name")};
+        Options.Where(OpenPocketBase::AdminQuery::CollectionText(
+            EOpenPocketBaseAdminCollectionTextField::Name,
+            EOpenPocketBaseStringComparison::Contains,
+            TEXT("sdk")));
+        Options.ThenSortBy(EOpenPocketBaseAdminCollectionSortField::Name);
+        Options.Select(EOpenPocketBaseAdminCollectionProjectionField::Name);
         const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->ListCollections(
             MoveTemp(Options),
@@ -293,9 +299,15 @@ private:
 
     void ListLogs()
     {
-        FOpenPocketBaseAdminListOptions Options;
+        FOpenPocketBaseAdminLogListOptions Options;
         Options.PerPage = 10;
-        Options.Sort = {TEXT("-created")};
+        Options.Where(OpenPocketBase::AdminQuery::LogLevel(
+            EOpenPocketBaseNumberComparison::GreaterThanOrEqual,
+            0));
+        Options.ThenSortBy(
+            EOpenPocketBaseAdminLogSortField::Created,
+            EOpenPocketBaseSortDirection::Descending);
+        Options.Select(EOpenPocketBaseAdminLogProjectionField::Message);
         const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->ListLogs(
             MoveTemp(Options),
@@ -583,7 +595,12 @@ public:
             }
             Test->TestTrue(TEXT("Collection list uses bounded pagination"),
                 State->Transport->Requests[1].Url.Contains(TEXT("page=2")) &&
-                State->Transport->Requests[1].Url.Contains(TEXT("perPage=20")));
+                State->Transport->Requests[1].Url.Contains(TEXT("perPage=20")) &&
+                State->Transport->Requests[1].Url.Contains(TEXT("sort=name")) &&
+                State->Transport->Requests[1].Url.Contains(TEXT("fields=name")));
+            Test->TestTrue(TEXT("Log list serializes typed query options"),
+                State->Transport->Requests[11].Url.Contains(TEXT("sort=-created")) &&
+                State->Transport->Requests[11].Url.Contains(TEXT("fields=message")));
             Test->TestTrue(TEXT("Backup upload is generic multipart"),
                 State->Transport->Requests[15].Headers.FindRef(TEXT("Content-Type"))
                     .StartsWith(TEXT("multipart/form-data; boundary=")));

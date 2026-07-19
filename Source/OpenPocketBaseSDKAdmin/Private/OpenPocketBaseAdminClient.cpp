@@ -5,6 +5,7 @@
 #include "HAL/CriticalSection.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
+#include "OpenPocketBaseAdminQueryLibrary.h"
 #include "OpenPocketBaseDate.h"
 #include "Serialization/JsonSerializer.h"
 
@@ -258,22 +259,25 @@ FOpenPocketBaseRequestOptions BoundOptions(
     return Options;
 }
 
-bool TryMakeListQuery(
-    const FOpenPocketBaseAdminListOptions& Options,
+bool TryMakeListQueryValues(
+    const int32 Page,
+    const int32 PerPage,
+    const FString& Filter,
+    const TArray<FString>& Sort,
+    const TArray<FString>& Fields,
     const FOpenPocketBaseAdminPolicy& Policy,
     TMap<FString, FString>& OutQuery,
     FOpenPocketBaseError& OutError)
 {
-    if (Options.Page < 1 || Options.PerPage < 1 || Options.PerPage > Policy.MaxPageSize ||
-        !IsBoundedAdminText(Options.Filter, 8192) || Options.Sort.Num() > 32 ||
-        Options.Fields.Num() > 64)
+    if (Page < 1 || PerPage < 1 || PerPage > Policy.MaxPageSize ||
+        !IsBoundedAdminText(Filter, 8192) || Sort.Num() > 32 || Fields.Num() > 64)
     {
         OutError = MakeAdminError(
             EOpenPocketBaseErrorKind::InvalidArgument,
             TEXT("Privileged list options exceed their configured bounds."));
         return false;
     }
-    for (const FString& Value : Options.Sort)
+    for (const FString& Value : Sort)
     {
         if (!IsBoundedAdminText(Value, 255) || Value.IsEmpty())
         {
@@ -283,7 +287,7 @@ bool TryMakeListQuery(
             return false;
         }
     }
-    for (const FString& Value : Options.Fields)
+    for (const FString& Value : Fields)
     {
         if (!IsBoundedAdminText(Value, 255) || Value.IsEmpty())
         {
@@ -293,16 +297,105 @@ bool TryMakeListQuery(
             return false;
         }
     }
-    OutQuery.Add(TEXT("page"), LexToString(Options.Page));
-    OutQuery.Add(TEXT("perPage"), LexToString(Options.PerPage));
-    if (!Options.Filter.IsEmpty()) OutQuery.Add(TEXT("filter"), Options.Filter);
-    if (!Options.Sort.IsEmpty()) OutQuery.Add(TEXT("sort"), FString::Join(Options.Sort, TEXT(",")));
-    if (!Options.Fields.IsEmpty())
+    OutQuery.Add(TEXT("page"), LexToString(Page));
+    OutQuery.Add(TEXT("perPage"), LexToString(PerPage));
+    if (!Filter.IsEmpty()) OutQuery.Add(TEXT("filter"), Filter);
+    if (!Sort.IsEmpty()) OutQuery.Add(TEXT("sort"), FString::Join(Sort, TEXT(",")));
+    if (!Fields.IsEmpty())
     {
-        OutQuery.Add(TEXT("fields"), FString::Join(Options.Fields, TEXT(",")));
+        OutQuery.Add(TEXT("fields"), FString::Join(Fields, TEXT(",")));
     }
     OutError = FOpenPocketBaseError();
     return true;
+}
+
+bool TryMakeListQuery(
+    const FOpenPocketBaseAdminCollectionListOptions& Options,
+    const FOpenPocketBaseAdminPolicy& Policy,
+    TMap<FString, FString>& OutQuery,
+    FOpenPocketBaseError& OutError)
+{
+    if (!Options.Filter.IsValid())
+    {
+        OutError = MakeAdminError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The collection filter is invalid."));
+        return false;
+    }
+    TArray<FString> Sort;
+    Sort.Reserve(Options.Sort.Num());
+    for (const FOpenPocketBaseAdminCollectionSort& Value : Options.Sort)
+    {
+        Sort.Add(Value.ToQueryValue());
+    }
+    TArray<FString> Fields;
+    Fields.Reserve(Options.Fields.Num());
+    for (const EOpenPocketBaseAdminCollectionProjectionField Value : Options.Fields)
+    {
+        Fields.Add(OpenPocketBase::AdminQuery::CollectionProjection(Value));
+    }
+    return TryMakeListQueryValues(
+        Options.Page,
+        Options.PerPage,
+        Options.Filter.Expression,
+        Sort,
+        Fields,
+        Policy,
+        OutQuery,
+        OutError);
+}
+
+bool TryMakeListQuery(
+    const FOpenPocketBaseAdminLogListOptions& Options,
+    const FOpenPocketBaseAdminPolicy& Policy,
+    TMap<FString, FString>& OutQuery,
+    FOpenPocketBaseError& OutError)
+{
+    if (!Options.Filter.IsValid())
+    {
+        OutError = MakeAdminError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The log filter is invalid."));
+        return false;
+    }
+    TArray<FString> Sort;
+    Sort.Reserve(Options.Sort.Num());
+    for (const FOpenPocketBaseAdminLogSort& Value : Options.Sort)
+    {
+        Sort.Add(Value.ToQueryValue());
+    }
+    TArray<FString> Fields;
+    Fields.Reserve(Options.Fields.Num());
+    for (const EOpenPocketBaseAdminLogProjectionField Value : Options.Fields)
+    {
+        Fields.Add(OpenPocketBase::AdminQuery::LogProjection(Value));
+    }
+    return TryMakeListQueryValues(
+        Options.Page,
+        Options.PerPage,
+        Options.Filter.Expression,
+        Sort,
+        Fields,
+        Policy,
+        OutQuery,
+        OutError);
+}
+
+bool TryMakeListQuery(
+    const FOpenPocketBaseDynamicAdminListOptions& Options,
+    const FOpenPocketBaseAdminPolicy& Policy,
+    TMap<FString, FString>& OutQuery,
+    FOpenPocketBaseError& OutError)
+{
+    return TryMakeListQueryValues(
+        Options.Page,
+        Options.PerPage,
+        Options.DynamicFilter,
+        Options.DynamicSort,
+        Options.DynamicFields,
+        Policy,
+        OutQuery,
+        OutError);
 }
 
 bool TryParseAdminDocument(
@@ -866,7 +959,44 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::AuthenticateSuperu
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListCollections(
-    FOpenPocketBaseAdminListOptions Options,
+    FOpenPocketBaseAdminCollectionListOptions Options,
+    FOpenPocketBaseAdminPageCallback OnComplete)
+{
+    if (!IsAuthenticated())
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminPage>(
+            MoveTemp(OnComplete), TEXT("A superuser session is required."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
+        EOpenPocketBaseCustomRouteMethod::Get,
+        TEXT("/api/collections"),
+        Options.RequestOptions,
+        Policy);
+    FOpenPocketBaseError Error;
+    if (!TryMakeListQuery(Options, Policy, Request.Query, Error))
+    {
+        DispatchAdminFailure<FOpenPocketBaseAdminPage>(MoveTemp(OnComplete), MoveTemp(Error));
+        return {};
+    }
+    const int32 MaxItems = Policy.MaxPageSize;
+    return SendAdminRequest<FOpenPocketBaseAdminPage>(
+        CoreClient,
+        MoveTemp(Request),
+        MoveTemp(OnComplete),
+        [MaxItems](const FOpenPocketBaseCustomRouteResponse& Response)
+        {
+            FOpenPocketBaseAdminPage Page;
+            return TryParseAdminPage(Response, MaxItems, Page)
+                ? TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Success(MoveTemp(Page))
+                : TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Failure(
+                    MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
+                        TEXT("PocketBase returned an invalid collection page.")));
+        });
+}
+
+FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicListCollections(
+    FOpenPocketBaseDynamicAdminListOptions Options,
     FOpenPocketBaseAdminPageCallback OnComplete)
 {
     if (!IsAuthenticated())
@@ -1162,7 +1292,39 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::TestEmail(
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListLogs(
-    FOpenPocketBaseAdminListOptions Options,
+    FOpenPocketBaseAdminLogListOptions Options,
+    FOpenPocketBaseAdminPageCallback OnComplete)
+{
+    if (!IsAuthenticated())
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminPage>(MoveTemp(OnComplete),
+            TEXT("A superuser session is required."), EOpenPocketBaseErrorKind::Authentication);
+    }
+    FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
+        EOpenPocketBaseCustomRouteMethod::Get, TEXT("/api/logs"),
+        Options.RequestOptions, Policy);
+    FOpenPocketBaseError Error;
+    if (!TryMakeListQuery(Options, Policy, Request.Query, Error))
+    {
+        DispatchAdminFailure<FOpenPocketBaseAdminPage>(MoveTemp(OnComplete), MoveTemp(Error));
+        return {};
+    }
+    const int32 MaxItems = Policy.MaxPageSize;
+    return SendAdminRequest<FOpenPocketBaseAdminPage>(CoreClient, MoveTemp(Request),
+        MoveTemp(OnComplete),
+        [MaxItems](const FOpenPocketBaseCustomRouteResponse& Response)
+        {
+            FOpenPocketBaseAdminPage Page;
+            return TryParseAdminPage(Response, MaxItems, Page)
+                ? TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Success(MoveTemp(Page))
+                : TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Failure(
+                    MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
+                        TEXT("PocketBase returned an invalid log page.")));
+        });
+}
+
+FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicListLogs(
+    FOpenPocketBaseDynamicAdminListOptions Options,
     FOpenPocketBaseAdminPageCallback OnComplete)
 {
     if (!IsAuthenticated())
