@@ -1172,7 +1172,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UploadBackup(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || File.FieldName != TEXT("file") ||
+    if (!IsAuthenticated() || File.GetFieldName() != TEXT("file") ||
         !IsSafeBackupKey(File.FileName) || File.ContentType != TEXT("application/zip") ||
         File.Modifier != EOpenPocketBaseFieldModifier::Replace)
     {

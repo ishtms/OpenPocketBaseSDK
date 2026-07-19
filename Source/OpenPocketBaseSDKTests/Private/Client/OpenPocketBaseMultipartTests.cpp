@@ -61,7 +61,7 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
     Body.SetDynamicStringArrayField(TEXT("tags"), {TEXT("one"), TEXT("two")});
 
     FOpenPocketBaseFileInput InlineFile;
-    InlineFile.FieldName = TEXT("avatar");
+    InlineFile.DynamicFieldName = TEXT("avatar");
     InlineFile.FileName = TEXT("../unsafe\"name.png");
     InlineFile.ContentType = TEXT("image/png");
     InlineFile.Modifier = EOpenPocketBaseFieldModifier::Append;
@@ -69,7 +69,7 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
     InlineFile.Bytes = {0x00, 0x01, 0xfe, 0xff};
 
     FOpenPocketBaseFileInput DiskFile;
-    DiskFile.FieldName = TEXT("document");
+    DiskFile.DynamicFieldName = TEXT("document");
     DiskFile.ContentType = TEXT("application/octet-stream");
     DiskFile.bUseFilePath = true;
     DiskFile.FilePath = TempFile;
@@ -159,7 +159,7 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A sparse large-file fixture is written"), bSparseWritten);
 
         FOpenPocketBaseFileInput SparseInput;
-        SparseInput.FieldName = TEXT("large_file");
+        SparseInput.DynamicFieldName = TEXT("large_file");
         SparseInput.ContentType = TEXT("application/octet-stream");
         SparseInput.FilePath = SparseFile;
         OpenPocketBase::Multipart::FBuildResult SparseResult;

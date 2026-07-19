@@ -3647,6 +3647,12 @@ FOpenPocketBaseCollectionService FOpenPocketBaseClient::Collection(
     return FOpenPocketBaseCollectionService(AsShared(), MoveTemp(CollectionReference));
 }
 
+FOpenPocketBaseWritableCollectionService FOpenPocketBaseClient::WritableCollection(
+    FOpenPocketBaseWritableCollectionRef CollectionReference)
+{
+    return FOpenPocketBaseWritableCollectionService(AsShared(), MoveTemp(CollectionReference));
+}
+
 FOpenPocketBaseAuthCollectionService FOpenPocketBaseClient::AuthCollection(
     FOpenPocketBaseAuthCollectionRef CollectionReference)
 {
@@ -4485,6 +4491,25 @@ bool FOpenPocketBaseFileService::IsValid() const
 }
 
 FOpenPocketBaseFileUrlResult FOpenPocketBaseFileService::BuildUrl(
+    FOpenPocketBaseCollectionRef InCollection,
+    FString RecordId,
+    FString FileName,
+    FOpenPocketBaseFileUrlOptions Options) const
+{
+    if (!InCollection.IsSet())
+    {
+        return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A schema-backed collection is required.")));
+    }
+    return DynamicBuildUrl(
+        MoveTemp(InCollection.Name),
+        MoveTemp(RecordId),
+        MoveTemp(FileName),
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseFileUrlResult FOpenPocketBaseFileService::DynamicBuildUrl(
     FString InCollection,
     FString RecordId,
     FString FileName,
@@ -4651,6 +4676,34 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::GetToken(
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
+    FOpenPocketBaseCollectionRef InCollection,
+    FString RecordId,
+    FString FileName,
+    FOpenPocketBaseFileDownloadOptions Options,
+    FOpenPocketBaseFileDownloadCallback OnComplete,
+    FOpenPocketBaseFileToken Token,
+    FOpenPocketBaseTransferProgressCallback OnProgress) const
+{
+    if (!InCollection.IsSet())
+    {
+        DispatchFailure<FOpenPocketBaseFileDownloadResult>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("A schema-backed collection is required.")));
+        return {};
+    }
+    return DynamicDownload(
+        MoveTemp(InCollection.Name),
+        MoveTemp(RecordId),
+        MoveTemp(FileName),
+        MoveTemp(Options),
+        MoveTemp(OnComplete),
+        MoveTemp(Token),
+        MoveTemp(OnProgress));
+}
+
+FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
     FString InCollection,
     FString RecordId,
     FString FileName,
@@ -4677,7 +4730,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
         return {};
     }
 
-    FOpenPocketBaseFileUrlResult UrlResult = BuildUrl(
+    FOpenPocketBaseFileUrlResult UrlResult = DynamicBuildUrl(
         InCollection,
         RecordId,
         FileName,
@@ -4829,17 +4882,38 @@ FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
 {
 }
 
-FOpenPocketBaseAuthCollectionService::FOpenPocketBaseAuthCollectionService(
+FOpenPocketBaseWritableCollectionService::FOpenPocketBaseWritableCollectionService(
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
-    FOpenPocketBaseAuthCollectionRef InCollection)
+    FOpenPocketBaseCollectionRef InCollection)
+    : FOpenPocketBaseCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+{
+}
+
+FOpenPocketBaseWritableCollectionService::FOpenPocketBaseWritableCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FOpenPocketBaseWritableCollectionRef InCollection)
+    : FOpenPocketBaseCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+{
+}
+
+FOpenPocketBaseWritableCollectionService::FOpenPocketBaseWritableCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FString InCollection)
     : FOpenPocketBaseCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
 {
 }
 
 FOpenPocketBaseAuthCollectionService::FOpenPocketBaseAuthCollectionService(
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FOpenPocketBaseAuthCollectionRef InCollection)
+    : FOpenPocketBaseWritableCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+{
+}
+
+FOpenPocketBaseAuthCollectionService::FOpenPocketBaseAuthCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
     FString InCollection)
-    : FOpenPocketBaseCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+    : FOpenPocketBaseWritableCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
 {
 }
 
@@ -4860,13 +4934,20 @@ FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
 
 bool FOpenPocketBaseCollectionService::IsValid() const
 {
-    return IsSafePathSegment(Collection) && Client.IsValid();
+    return IsSafePathSegment(Collection) && Client.IsValid() &&
+        (Reference.Name.IsEmpty() || Reference.IsSet());
+}
+
+bool FOpenPocketBaseWritableCollectionService::IsValid() const
+{
+    return FOpenPocketBaseCollectionService::IsValid() &&
+        (Reference.Name.IsEmpty() || FOpenPocketBaseWritableCollectionRef::Accepts(Reference));
 }
 
 bool FOpenPocketBaseAuthCollectionService::IsValid() const
 {
     return FOpenPocketBaseCollectionService::IsValid() &&
-        (!Reference.IsSet() || FOpenPocketBaseAuthCollectionRef::Accepts(Reference));
+        (Reference.Name.IsEmpty() || FOpenPocketBaseAuthCollectionRef::Accepts(Reference));
 }
 
 bool FOpenPocketBaseCollectionService::ValidateRecordOptions(
@@ -4913,7 +4994,7 @@ bool FOpenPocketBaseCollectionService::ValidateListOptions(
     return true;
 }
 
-bool FOpenPocketBaseCollectionService::ValidateBody(
+bool FOpenPocketBaseWritableCollectionService::ValidateBody(
     const FOpenPocketBaseRecordBody& Body,
     FOpenPocketBaseError& OutError) const
 {
@@ -4934,13 +5015,30 @@ bool FOpenPocketBaseCollectionService::ValidateBody(
     return true;
 }
 
+bool FOpenPocketBaseWritableCollectionService::ValidateFiles(
+    const TArray<FOpenPocketBaseFileInput>& Files,
+    FOpenPocketBaseError& OutError) const
+{
+    for (const FOpenPocketBaseFileInput& File : Files)
+    {
+        if (!File.IsValid() || (Reference.IsSet() && !File.BelongsTo(Reference)))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Every uploaded file requires a file field from the selected collection."));
+            return false;
+        }
+    }
+    return true;
+}
+
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
     FString RecordId,
     FOpenPocketBaseRecordCallback OnComplete,
     FOpenPocketBaseRecordOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId))
+    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId))
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
@@ -4996,7 +5094,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
     FOpenPocketBaseRecordPageCallback OnComplete) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || Options.Page < 1 ||
+    if (!PinnedClient.IsValid() || !IsValid() || Options.Page < 1 ||
         Options.PerPage < 1)
     {
         DispatchFailure<FOpenPocketBaseRecordPage>(
@@ -5056,7 +5154,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFullList(
     const bool bBoundsValid = (Options.MaxItems > 0 || Options.MaxPages > 0) &&
         Options.MaxItems >= 0 && Options.MaxItems <= 1000000 &&
         Options.MaxPages >= 0 && Options.MaxPages <= 10000;
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+    if (!PinnedClient.IsValid() || !IsValid() ||
         Options.ListOptions.Page != 1 || Options.ListOptions.PerPage < 1 || !bBoundsValid)
     {
         DispatchFailure<FOpenPocketBaseFullListResult>(
@@ -5138,13 +5236,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFirstListItem(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Create(
+FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::Create(
     FOpenPocketBaseRecordBody Body,
     FOpenPocketBaseRecordCallback OnComplete,
     FOpenPocketBaseRecordOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !Body.Data.JsonObject.IsValid())
+    if (!PinnedClient.IsValid() || !IsValid() || !Body.Data.JsonObject.IsValid())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
@@ -5201,7 +5299,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Create(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
+FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::CreateWithFiles(
     FOpenPocketBaseRecordBody Body,
     TArray<FOpenPocketBaseFileInput> Files,
     FOpenPocketBaseRecordCallback OnComplete,
@@ -5210,7 +5308,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
     FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !Body.Data.JsonObject.IsValid() ||
+    if (!PinnedClient.IsValid() || !IsValid() || !Body.Data.JsonObject.IsValid() ||
         Files.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
@@ -5223,6 +5321,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
 
     FOpenPocketBaseError OptionsError;
     if (!ValidateBody(Body, OptionsError) ||
+        !ValidateFiles(Files, OptionsError) ||
         !ValidateRecordOptions(Options, OptionsError) ||
         !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
@@ -5318,14 +5417,14 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::CreateWithFiles(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Update(
+FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::Update(
     FString RecordId,
     FOpenPocketBaseRecordBody Body,
     FOpenPocketBaseRecordCallback OnComplete,
     FOpenPocketBaseRecordOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId) ||
+    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId) ||
         !Body.Data.JsonObject.IsValid())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
@@ -5402,7 +5501,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Update(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
+FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::UpdateWithFiles(
     FString RecordId,
     FOpenPocketBaseRecordBody Body,
     TArray<FOpenPocketBaseFileInput> Files,
@@ -5412,7 +5511,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
     FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId) ||
+    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId) ||
         !Body.Data.JsonObject.IsValid() || Files.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
@@ -5425,6 +5524,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
 
     FOpenPocketBaseError OptionsError;
     if (!ValidateBody(Body, OptionsError) ||
+        !ValidateFiles(Files, OptionsError) ||
         !ValidateRecordOptions(Options, OptionsError) ||
         !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
@@ -5539,13 +5639,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::UpdateWithFiles(
         });
 }
 
-FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::Delete(
+FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::Delete(
     FString RecordId,
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !IsSafePathSegment(RecordId))
+    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId))
     {
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
@@ -6634,7 +6734,7 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
     FOpenPocketBaseRealtimeOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) || !Options.IsValid() ||
+    if (!PinnedClient.IsValid() || !IsValid() || !Options.IsValid() ||
         (Reference.IsSet() && !Options.BelongsTo(Reference)))
     {
         return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
@@ -6653,7 +6753,7 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
     FOpenPocketBaseRealtimeOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+    if (!PinnedClient.IsValid() || !IsValid() ||
         !IsSafePathSegment(RecordId) || !Options.IsValid() ||
         (Reference.IsSet() && !Options.BelongsTo(Reference)))
     {

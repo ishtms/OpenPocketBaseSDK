@@ -217,7 +217,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FString RecordId;
     FOpenPocketBaseRecordOptions Options;
 };
@@ -255,7 +255,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FOpenPocketBaseFilter Filter;
     FOpenPocketBaseRecordOptions Options;
 };
@@ -283,7 +283,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Create Record"))
     static UOpenPocketBaseCreateRecordAsyncAction* CreateRecord(
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollection Collection,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions Options);
 
@@ -293,7 +293,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseWritableCollectionRef Collection;
     FOpenPocketBaseRecordBody Body;
     FOpenPocketBaseRecordOptions Options;
 };
@@ -326,7 +326,7 @@ public:
             AutoCreateRefTerm = "Files",
             AdvancedDisplay = "Limits"))
     static UOpenPocketBaseCreateRecordWithFilesAsyncAction* CreateRecordWithFiles(
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollection Collection,
         FOpenPocketBaseRecordBody Body,
         TArray<FOpenPocketBaseFileInput> Files,
         FOpenPocketBaseRecordOptions Options,
@@ -338,7 +338,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseWritableCollectionRef Collection;
     FOpenPocketBaseRecordBody Body;
     TArray<FOpenPocketBaseFileInput> Files;
     FOpenPocketBaseRecordOptions Options;
@@ -368,7 +368,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Update Record"))
     static UOpenPocketBaseUpdateRecordAsyncAction* UpdateRecord(
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollection Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions Options);
@@ -379,7 +379,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseWritableCollectionRef Collection;
     FString RecordId;
     FOpenPocketBaseRecordBody Body;
     FOpenPocketBaseRecordOptions Options;
@@ -413,7 +413,7 @@ public:
             AutoCreateRefTerm = "Files",
             AdvancedDisplay = "Limits"))
     static UOpenPocketBaseUpdateRecordWithFilesAsyncAction* UpdateRecordWithFiles(
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollection Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         TArray<FOpenPocketBaseFileInput> Files,
@@ -426,7 +426,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseWritableCollectionRef Collection;
     FString RecordId;
     FOpenPocketBaseRecordBody Body;
     TArray<FOpenPocketBaseFileInput> Files;
@@ -457,7 +457,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Delete Record"))
     static UOpenPocketBaseDeleteRecordAsyncAction* DeleteRecord(
-        FOpenPocketBaseCollection Collection,
+        FOpenPocketBaseWritableCollection Collection,
         FString RecordId,
         FOpenPocketBaseRequestOptions Options);
 
@@ -467,7 +467,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseWritableCollectionRef Collection;
     FString RecordId;
     FOpenPocketBaseRequestOptions Options;
 };
@@ -504,7 +504,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FOpenPocketBaseListOptions Options;
 };
 
@@ -540,7 +540,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FOpenPocketBaseFullListOptions Options;
 };
 

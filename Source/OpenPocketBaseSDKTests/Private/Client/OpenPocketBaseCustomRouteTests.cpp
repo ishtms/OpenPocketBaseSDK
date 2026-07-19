@@ -175,7 +175,7 @@ private:
         Request.BodyFormat = EOpenPocketBaseCustomBodyFormat::Multipart;
         Request.FormFields.Add(TEXT("description"), TEXT("small upload"));
         FOpenPocketBaseFileInput File;
-        File.FieldName = TEXT("asset");
+        File.DynamicFieldName = TEXT("asset");
         File.FileName = TEXT("asset.txt");
         File.ContentType = TEXT("text/plain");
         File.bUseFilePath = false;

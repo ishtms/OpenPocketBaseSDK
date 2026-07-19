@@ -918,7 +918,7 @@ void DownloadPinnedProtectedFile(
 {
     FOpenPocketBaseFileDownloadOptions Options;
     Options.MaxBytes = 1024;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("sdk_tasks"),
         TEXT("task00000000007"),
         State->UploadedFileName,
@@ -962,7 +962,7 @@ void VerifyPinnedFileRequiresToken(
 {
     FOpenPocketBaseFileDownloadOptions Options;
     Options.MaxBytes = 1024;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("sdk_tasks"),
         TEXT("task00000000007"),
         State->UploadedFileName,
@@ -1077,7 +1077,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
             Body.SetDynamicStringField(TEXT("id"), TEXT("task00000000007"));
             Body.SetDynamicStringField(TEXT("title"), TEXT("Multipart integration task"));
             FOpenPocketBaseFileInput File;
-            File.FieldName = TEXT("attachments");
+            File.DynamicFieldName = TEXT("attachments");
             File.FileName = TEXT("disk-proof.txt");
             File.ContentType = TEXT("text/plain");
             File.FilePath = State->TempFile;
@@ -1101,7 +1101,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
                     FOpenPocketBaseRecordBody UpdateBody;
                     UpdateBody.SetDynamicStringField(TEXT("title"), TEXT("Multipart integration updated"));
                     FOpenPocketBaseFileInput InlineFile;
-                    InlineFile.FieldName = TEXT("attachments");
+                    InlineFile.DynamicFieldName = TEXT("attachments");
                     InlineFile.FileName = TEXT("memory-proof.txt");
                     InlineFile.ContentType = TEXT("text/plain");
                     InlineFile.Modifier = EOpenPocketBaseFieldModifier::Append;

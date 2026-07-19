@@ -265,7 +265,7 @@ bool Build(
     for (const FOpenPocketBaseFileInput& File : Files)
     {
         const FString ModifiedField = FOpenPocketBaseRecordBody::MakeModifiedFieldName(
-            File.FieldName,
+            File.GetFieldName(),
             File.Modifier);
         if (!IsSafeFieldName(ModifiedField) || !IsSafeContentType(File.ContentType))
         {
@@ -411,7 +411,8 @@ bool BuildForm(
 
     for (const FOpenPocketBaseFileInput& File : Files)
     {
-        if (!IsSafeFieldName(File.FieldName) || !IsSafeContentType(File.ContentType) ||
+        const FString FieldName = File.GetFieldName();
+        if (!IsSafeFieldName(FieldName) || !IsSafeContentType(File.ContentType) ||
             File.Modifier != EOpenPocketBaseFieldModifier::Replace)
         {
             OutError = MakeMultipartError(
@@ -426,7 +427,7 @@ bool BuildForm(
             TEXT("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n")
             TEXT("Content-Type: %s\r\n\r\n"),
             *Boundary,
-            *File.FieldName,
+            *FieldName,
             *FileName,
             *File.ContentType);
         if (!AddMemory(ToUtf8(Header)))

@@ -23,6 +23,20 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseCollection
 };
 
 USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseWritableCollection
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    TObjectPtr<UOpenPocketBaseClient> Client;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records")
+    FOpenPocketBaseWritableCollectionRef Reference;
+
+    bool IsValid() const;
+};
+
+USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseAuthCollection
 {
     GENERATED_BODY()
@@ -85,6 +99,13 @@ public:
         Category = "Open PocketBase|Records",
         meta = (DisplayName = "Collection", Keywords = "records auth table"))
     FOpenPocketBaseCollection Collection(FOpenPocketBaseCollectionRef Reference);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
+        meta = (DisplayName = "Writable Collection", Keywords = "create update delete upload"))
+    FOpenPocketBaseWritableCollection WritableCollection(
+        FOpenPocketBaseWritableCollectionRef Reference);
 
     UFUNCTION(
         BlueprintPure,

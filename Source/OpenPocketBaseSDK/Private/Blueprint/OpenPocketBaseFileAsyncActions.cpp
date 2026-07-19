@@ -75,7 +75,7 @@ UOpenPocketBaseDownloadFileAsyncAction* UOpenPocketBaseDownloadFileAsyncAction::
     UOpenPocketBaseDownloadFileAsyncAction* Action =
         NewObject<UOpenPocketBaseDownloadFileAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->RecordId = MoveTemp(InRecordId);
     Action->FileName = MoveTemp(InFileName);
     Action->Options = MoveTemp(InOptions);

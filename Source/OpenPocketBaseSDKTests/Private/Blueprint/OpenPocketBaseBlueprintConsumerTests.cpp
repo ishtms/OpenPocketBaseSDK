@@ -157,6 +157,37 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
         TEXT("Collection handles do not expose an untyped name"),
         FOpenPocketBaseCollection::StaticStruct()->FindPropertyByName(TEXT("Name")));
 
+    const UFunction* WritableCollectionFunction = UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, WritableCollection));
+    const FStructProperty* WritableCollectionReferenceParameter = WritableCollectionFunction != nullptr
+        ? CastField<FStructProperty>(WritableCollectionFunction->FindPropertyByName(TEXT("Reference")))
+        : nullptr;
+    TestNotNull(TEXT("Writable Collection uses a schema picker parameter"), WritableCollectionReferenceParameter);
+    if (WritableCollectionReferenceParameter != nullptr)
+    {
+        TestEqual(
+            TEXT("Writable Collection rejects view collections"),
+            WritableCollectionReferenceParameter->Struct->GetFName(),
+            FOpenPocketBaseWritableCollectionRef::StaticStruct()->GetFName());
+    }
+    TestNotNull(
+        TEXT("Writable collection handles retain their schema reference"),
+        FOpenPocketBaseWritableCollection::StaticStruct()->FindPropertyByName(TEXT("Reference")));
+
+    const UFunction* CreateRecord = UOpenPocketBaseCreateRecordAsyncAction::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord));
+    const FStructProperty* CreateCollection = CreateRecord != nullptr
+        ? CastField<FStructProperty>(CreateRecord->FindPropertyByName(TEXT("Collection")))
+        : nullptr;
+    TestNotNull(TEXT("Create Record accepts a writable collection value"), CreateCollection);
+    if (CreateCollection != nullptr)
+    {
+        TestEqual(
+            TEXT("Create Record rejects read-only collection handles"),
+            CreateCollection->Struct->GetFName(),
+            FOpenPocketBaseWritableCollection::StaticStruct()->GetFName());
+    }
+
     const UFunction* AuthCollectionFunction = UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
         GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, AuthCollection));
     const FStructProperty* AuthCollectionReferenceParameter = AuthCollectionFunction != nullptr
@@ -214,6 +245,26 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestTypedArray(FOpenPocketBaseListOptions::StaticStruct(), TEXT("Fields"), FOpenPocketBaseFieldSelection::StaticStruct());
     TestTypedArray(FOpenPocketBaseRealtimeOptions::StaticStruct(), TEXT("Expand"), FOpenPocketBaseExpand::StaticStruct());
     TestTypedArray(FOpenPocketBaseRealtimeOptions::StaticStruct(), TEXT("Fields"), FOpenPocketBaseFieldSelection::StaticStruct());
+
+    TestNotNull(
+        TEXT("File inputs retain their schema field"),
+        FOpenPocketBaseFileInput::StaticStruct()->FindPropertyByName(TEXT("Field")));
+    TestNull(
+        TEXT("File inputs do not expose an untyped field name"),
+        FOpenPocketBaseFileInput::StaticStruct()->FindPropertyByName(TEXT("FieldName")));
+    const UFunction* FileFromPath = UOpenPocketBaseFileLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFileLibrary, FileFromPath));
+    const FStructProperty* FileFieldParameter = FileFromPath != nullptr
+        ? CastField<FStructProperty>(FileFromPath->FindPropertyByName(TEXT("Field")))
+        : nullptr;
+    TestNotNull(TEXT("File From Path has a file-field picker"), FileFieldParameter);
+    if (FileFieldParameter != nullptr)
+    {
+        TestEqual(
+            TEXT("File From Path accepts only file fields"),
+            FileFieldParameter->Struct->GetFName(),
+            FOpenPocketBaseFileFieldRef::StaticStruct()->GetFName());
+    }
     return true;
 }
 

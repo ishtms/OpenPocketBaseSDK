@@ -80,6 +80,11 @@ class OPENPOCKETBASESDK_API FOpenPocketBaseFileService
 {
 public:
     FOpenPocketBaseFileUrlResult BuildUrl(
+        FOpenPocketBaseCollectionRef Collection,
+        FString RecordId,
+        FString FileName,
+        FOpenPocketBaseFileUrlOptions Options = {}) const;
+    FOpenPocketBaseFileUrlResult DynamicBuildUrl(
         FString Collection,
         FString RecordId,
         FString FileName,
@@ -90,6 +95,14 @@ public:
         FOpenPocketBaseRequestOptions Options = {}) const;
 
     FOpenPocketBaseRequestHandle Download(
+        FOpenPocketBaseCollectionRef Collection,
+        FString RecordId,
+        FString FileName,
+        FOpenPocketBaseFileDownloadOptions Options,
+        FOpenPocketBaseFileDownloadCallback OnComplete,
+        FOpenPocketBaseFileToken Token = {},
+        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
+    FOpenPocketBaseRequestHandle DynamicDownload(
         FString Collection,
         FString RecordId,
         FString FileName,
@@ -130,39 +143,6 @@ public:
         FOpenPocketBaseRecordCallback OnComplete,
         FOpenPocketBaseRecordOptions Options = {}) const;
 
-    FOpenPocketBaseRequestHandle Create(
-        FOpenPocketBaseRecordBody Body,
-        FOpenPocketBaseRecordCallback OnComplete,
-        FOpenPocketBaseRecordOptions Options = {}) const;
-
-    FOpenPocketBaseRequestHandle CreateWithFiles(
-        FOpenPocketBaseRecordBody Body,
-        TArray<FOpenPocketBaseFileInput> Files,
-        FOpenPocketBaseRecordCallback OnComplete,
-        FOpenPocketBaseRecordOptions Options = {},
-        FOpenPocketBaseUploadLimits Limits = {},
-        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
-
-    FOpenPocketBaseRequestHandle Update(
-        FString RecordId,
-        FOpenPocketBaseRecordBody Body,
-        FOpenPocketBaseRecordCallback OnComplete,
-        FOpenPocketBaseRecordOptions Options = {}) const;
-
-    FOpenPocketBaseRequestHandle UpdateWithFiles(
-        FString RecordId,
-        FOpenPocketBaseRecordBody Body,
-        TArray<FOpenPocketBaseFileInput> Files,
-        FOpenPocketBaseRecordCallback OnComplete,
-        FOpenPocketBaseRecordOptions Options = {},
-        FOpenPocketBaseUploadLimits Limits = {},
-        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
-
-    FOpenPocketBaseRequestHandle Delete(
-        FString RecordId,
-        FOpenPocketBaseBoolCallback OnComplete,
-        FOpenPocketBaseRequestOptions Options = {}) const;
-
     FOpenPocketBaseSubscriptionResult SubscribeToRecords(
         FOpenPocketBaseRealtimeCallbacks Callbacks,
         FOpenPocketBaseRealtimeOptions Options = {}) const;
@@ -181,10 +161,6 @@ protected:
     bool ValidateListOptions(
         const FOpenPocketBaseListOptions& Options,
         FOpenPocketBaseError& OutError) const;
-    bool ValidateBody(
-        const FOpenPocketBaseRecordBody& Body,
-        FOpenPocketBaseError& OutError) const;
-
     FOpenPocketBaseCollectionService(
         TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
         FOpenPocketBaseCollectionRef InCollection);
@@ -199,8 +175,64 @@ protected:
     friend class FOpenPocketBaseClient;
 };
 
-class OPENPOCKETBASESDK_API FOpenPocketBaseAuthCollectionService
+class OPENPOCKETBASESDK_API FOpenPocketBaseWritableCollectionService
     : public FOpenPocketBaseCollectionService
+{
+public:
+    FOpenPocketBaseRequestHandle Create(
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {}) const;
+    FOpenPocketBaseRequestHandle CreateWithFiles(
+        FOpenPocketBaseRecordBody Body,
+        TArray<FOpenPocketBaseFileInput> Files,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {},
+        FOpenPocketBaseUploadLimits Limits = {},
+        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
+    FOpenPocketBaseRequestHandle Update(
+        FString RecordId,
+        FOpenPocketBaseRecordBody Body,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {}) const;
+    FOpenPocketBaseRequestHandle UpdateWithFiles(
+        FString RecordId,
+        FOpenPocketBaseRecordBody Body,
+        TArray<FOpenPocketBaseFileInput> Files,
+        FOpenPocketBaseRecordCallback OnComplete,
+        FOpenPocketBaseRecordOptions Options = {},
+        FOpenPocketBaseUploadLimits Limits = {},
+        FOpenPocketBaseTransferProgressCallback OnProgress = {}) const;
+    FOpenPocketBaseRequestHandle Delete(
+        FString RecordId,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {}) const;
+
+    bool IsValid() const;
+
+protected:
+    FOpenPocketBaseWritableCollectionService(
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+        FOpenPocketBaseCollectionRef InCollection);
+    FOpenPocketBaseWritableCollectionService(
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+        FOpenPocketBaseWritableCollectionRef InCollection);
+    FOpenPocketBaseWritableCollectionService(
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+        FString InCollection);
+
+    bool ValidateBody(
+        const FOpenPocketBaseRecordBody& Body,
+        FOpenPocketBaseError& OutError) const;
+    bool ValidateFiles(
+        const TArray<FOpenPocketBaseFileInput>& Files,
+        FOpenPocketBaseError& OutError) const;
+
+    friend class FOpenPocketBaseClient;
+};
+
+class OPENPOCKETBASESDK_API FOpenPocketBaseAuthCollectionService
+    : public FOpenPocketBaseWritableCollectionService
 {
 public:
     FOpenPocketBaseRequestHandle ListAuthMethods(
@@ -318,6 +350,8 @@ public:
     ~FOpenPocketBaseClient();
 
     FOpenPocketBaseCollectionService Collection(FOpenPocketBaseCollectionRef CollectionReference);
+    FOpenPocketBaseWritableCollectionService WritableCollection(
+        FOpenPocketBaseWritableCollectionRef CollectionReference);
     FOpenPocketBaseAuthCollectionService AuthCollection(
         FOpenPocketBaseAuthCollectionRef CollectionReference);
     FOpenPocketBaseDynamicCollectionService DynamicCollection(FString CollectionName);
@@ -380,6 +414,7 @@ private:
     TUniquePtr<FImpl> Impl;
 
     friend class FOpenPocketBaseCollectionService;
+    friend class FOpenPocketBaseWritableCollectionService;
     friend class FOpenPocketBaseAuthCollectionService;
     friend class FOpenPocketBaseFileService;
     friend class OpenPocketBase::Internal::FAssistedOAuthOperation;

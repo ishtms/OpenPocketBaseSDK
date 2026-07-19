@@ -69,6 +69,9 @@ public:
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Collection)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseCollectionToString(const FOpenPocketBaseCollection& Value);
 
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Writable Collection)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseWritableCollectionToString(const FOpenPocketBaseWritableCollection& Value);
+
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Auth Collection)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseAuthCollectionToString(const FOpenPocketBaseAuthCollection& Value);
 

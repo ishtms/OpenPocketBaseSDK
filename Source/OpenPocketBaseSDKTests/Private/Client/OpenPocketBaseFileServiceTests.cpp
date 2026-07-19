@@ -190,7 +190,7 @@ bool FOpenPocketBaseFileUrlTest::RunTest(const FString& Parameters)
     Options.Thumbnail.Height = 50;
     Options.Thumbnail.Mode = EOpenPocketBaseThumbnailMode::CropTop;
     Options.bForceDownload = true;
-    FOpenPocketBaseFileUrlResult UrlResult = Client->Files().BuildUrl(
+    FOpenPocketBaseFileUrlResult UrlResult = Client->Files().DynamicBuildUrl(
         TEXT("tasks id"),
         TEXT("record-1"),
         TEXT("report final.png"),
@@ -209,14 +209,14 @@ bool FOpenPocketBaseFileUrlTest::RunTest(const FString& Parameters)
     Options.Thumbnail.Width = 0;
     Options.Thumbnail.Height = 0;
     const FOpenPocketBaseFileUrlResult InvalidThumbnail =
-        Client->Files().BuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("image.png"), Options);
+        Client->Files().DynamicBuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("image.png"), Options);
     TestFalse(TEXT("A thumbnail cannot have two zero dimensions"), InvalidThumbnail.IsSuccess());
     TestEqual(
         TEXT("Invalid thumbnails use InvalidArgument"),
         InvalidThumbnail.GetError().Kind,
         EOpenPocketBaseErrorKind::InvalidArgument);
     const FOpenPocketBaseFileUrlResult InvalidFile =
-        Client->Files().BuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("../image.png"));
+        Client->Files().DynamicBuildUrl(TEXT("tasks"), TEXT("record-1"), TEXT("../image.png"));
     TestFalse(TEXT("Traversal-like filenames are rejected"), InvalidFile.IsSuccess());
 
     Client->Shutdown();
@@ -306,7 +306,7 @@ bool FOpenPocketBaseProtectedFileErrorTest::RunTest(const FString& Parameters)
                     }
                     FOpenPocketBaseFileDownloadOptions Options;
                     Options.MaxBytes = 1024;
-                    State->Client->Files().Download(
+                    State->Client->Files().DynamicDownload(
                         TEXT("tasks"),
                         TEXT("record-1"),
                         TEXT("protected.txt"),

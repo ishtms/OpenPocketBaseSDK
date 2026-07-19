@@ -282,7 +282,7 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseFileDownloadOptions MemoryOptions;
     MemoryOptions.MaxBytes = 6;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks id"),
         TEXT("record-1"),
         TEXT("report final.txt"),
@@ -307,7 +307,7 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
     DiskOptions.Target = EOpenPocketBaseFileDownloadTarget::File;
     DiskOptions.DestinationPath = State->DestinationPath;
     DiskOptions.MaxBytes = 1024;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("disk.bin"),
@@ -326,7 +326,7 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
     RedirectOptions.Target = EOpenPocketBaseFileDownloadTarget::File;
     RedirectOptions.DestinationPath = State->RedirectDestinationPath;
     RedirectOptions.MaxBytes = 32;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("redirect.bin"),
@@ -342,7 +342,7 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
     TimeoutOptions.MaxBytes = 32;
     TimeoutOptions.RequestOptions.bRetryEligibleReads = true;
     TimeoutOptions.RequestOptions.MaxReadRetries = 5;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("timeout.bin"),
@@ -356,7 +356,7 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseFileDownloadOptions BoundOptions;
     BoundOptions.MaxBytes = 4;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("large.bin"),
@@ -370,7 +370,7 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseFileDownloadOptions ShortOptions;
     ShortOptions.MaxBytes = 32;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("short.bin"),
@@ -424,7 +424,7 @@ bool FOpenPocketBaseFileDownloadCancelTest::RunTest(const FString& Parameters)
     Options.Target = EOpenPocketBaseFileDownloadTarget::File;
     Options.DestinationPath = State->DestinationPath;
     Options.MaxBytes = 1024;
-    FOpenPocketBaseRequestHandle Handle = State->Client->Files().Download(
+    FOpenPocketBaseRequestHandle Handle = State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("cancel.bin"),
@@ -510,7 +510,7 @@ bool FOpenPocketBaseInvalidDownloadPathTest::RunTest(const FString& Parameters)
         TEXT("OpenPocketBaseMissingParent"),
         FGuid::NewGuid().ToString(EGuidFormats::Digits),
         TEXT("download.bin"));
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("missing.bin"),
@@ -533,7 +533,7 @@ bool FOpenPocketBaseInvalidDownloadPathTest::RunTest(const FString& Parameters)
     FOpenPocketBaseFileDownloadOptions OwnedTempOptions;
     OwnedTempOptions.Target = EOpenPocketBaseFileDownloadTarget::File;
     OwnedTempOptions.DestinationPath = FinalPath;
-    State->Client->Files().Download(
+    State->Client->Files().DynamicDownload(
         TEXT("tasks"),
         TEXT("record-1"),
         TEXT("owned.bin"),

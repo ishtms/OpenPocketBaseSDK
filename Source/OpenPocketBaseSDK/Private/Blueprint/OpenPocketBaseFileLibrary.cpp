@@ -1,5 +1,35 @@
 #include "OpenPocketBaseFileLibrary.h"
 
+FOpenPocketBaseFileInput UOpenPocketBaseFileLibrary::FileFromPath(
+    FOpenPocketBaseFileFieldRef Field,
+    FString FilePath,
+    FString FileName,
+    FString ContentType,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    return FOpenPocketBaseFileInput::FromPath(
+        MoveTemp(Field),
+        MoveTemp(FilePath),
+        MoveTemp(FileName),
+        MoveTemp(ContentType),
+        Modifier);
+}
+
+FOpenPocketBaseFileInput UOpenPocketBaseFileLibrary::FileFromBytes(
+    FOpenPocketBaseFileFieldRef Field,
+    TArray<uint8> Bytes,
+    FString FileName,
+    FString ContentType,
+    const EOpenPocketBaseFieldModifier Modifier)
+{
+    return FOpenPocketBaseFileInput::FromBytes(
+        MoveTemp(Field),
+        MoveTemp(Bytes),
+        MoveTemp(FileName),
+        MoveTemp(ContentType),
+        Modifier);
+}
+
 bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
     FOpenPocketBaseCollection Collection,
     FString RecordId,
@@ -20,7 +50,7 @@ bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
     }
 
     FOpenPocketBaseFileUrlResult Result = NativeClient->Files().BuildUrl(
-        MoveTemp(Collection.Reference.Name),
+        MoveTemp(Collection.Reference),
         MoveTemp(RecordId),
         MoveTemp(FileName),
         MoveTemp(Options));

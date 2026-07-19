@@ -7,6 +7,12 @@ bool FOpenPocketBaseCollection::IsValid() const
     return Client != nullptr && Client->IsReady() && !Reference.Name.IsEmpty();
 }
 
+bool FOpenPocketBaseWritableCollection::IsValid() const
+{
+    return Client != nullptr && Client->IsReady() &&
+        FOpenPocketBaseWritableCollectionRef::Accepts(Reference);
+}
+
 bool FOpenPocketBaseAuthCollection::IsValid() const
 {
     return Client != nullptr && Client->IsReady() &&
@@ -87,6 +93,15 @@ FOpenPocketBaseCollection UOpenPocketBaseClient::Collection(
     FOpenPocketBaseCollectionRef Reference)
 {
     FOpenPocketBaseCollection Collection;
+    Collection.Client = this;
+    Collection.Reference = MoveTemp(Reference);
+    return Collection;
+}
+
+FOpenPocketBaseWritableCollection UOpenPocketBaseClient::WritableCollection(
+    FOpenPocketBaseWritableCollectionRef Reference)
+{
+    FOpenPocketBaseWritableCollection Collection;
     Collection.Client = this;
     Collection.Reference = MoveTemp(Reference);
     return Collection;

@@ -388,7 +388,7 @@ private:
     void UploadBackup()
     {
         FOpenPocketBaseFileInput File;
-        File.FieldName = TEXT("file");
+        File.DynamicFieldName = TEXT("file");
         File.FileName = TEXT("sdk_admin_fixture.zip");
         File.ContentType = TEXT("application/zip");
         File.bUseFilePath = false;

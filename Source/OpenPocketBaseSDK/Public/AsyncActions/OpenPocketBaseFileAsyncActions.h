@@ -94,7 +94,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FString RecordId;
     FString FileName;
     FOpenPocketBaseFileDownloadOptions Options;

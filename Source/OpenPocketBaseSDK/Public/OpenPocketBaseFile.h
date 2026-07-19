@@ -10,26 +10,58 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFileInput
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files")
-    FString FieldName;
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
+    FOpenPocketBaseFileFieldRef Field;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files")
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
     FString FileName;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files")
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
     FString ContentType = TEXT("application/octet-stream");
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files")
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
     EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files")
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
     bool bUseFilePath = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files", meta = (EditCondition = "bUseFilePath"))
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
     FString FilePath;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Files", meta = (EditCondition = "!bUseFilePath"))
+    UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Files")
     TArray<uint8> Bytes;
+
+    UPROPERTY(Transient)
+    FString DynamicFieldName;
+
+    static FOpenPocketBaseFileInput FromPath(
+        FOpenPocketBaseFileFieldRef Field,
+        FString FilePath,
+        FString FileName = {},
+        FString ContentType = TEXT("application/octet-stream"),
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    static FOpenPocketBaseFileInput FromBytes(
+        FOpenPocketBaseFileFieldRef Field,
+        TArray<uint8> Bytes,
+        FString FileName,
+        FString ContentType = TEXT("application/octet-stream"),
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    static FOpenPocketBaseFileInput DynamicFromPath(
+        FString FieldName,
+        FString FilePath,
+        FString FileName = {},
+        FString ContentType = TEXT("application/octet-stream"),
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    static FOpenPocketBaseFileInput DynamicFromBytes(
+        FString FieldName,
+        TArray<uint8> Bytes,
+        FString FileName,
+        FString ContentType = TEXT("application/octet-stream"),
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
+    FString GetFieldName() const;
+    bool IsValid() const;
+    bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
 };
 
 USTRUCT(BlueprintType)

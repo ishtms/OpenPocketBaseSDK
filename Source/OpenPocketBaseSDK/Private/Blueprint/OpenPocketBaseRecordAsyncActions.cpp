@@ -172,7 +172,7 @@ UOpenPocketBaseGetRecordAsyncAction* UOpenPocketBaseGetRecordAsyncAction::GetRec
 {
     UOpenPocketBaseGetRecordAsyncAction* Action = NewObject<UOpenPocketBaseGetRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -197,7 +197,7 @@ void UOpenPocketBaseGetRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseGetRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).GetOne(
+    RequestHandle = NativeClient->Collection(Collection).GetOne(
         MoveTemp(RecordId),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -239,7 +239,7 @@ UOpenPocketBaseGetFirstRecordAsyncAction* UOpenPocketBaseGetFirstRecordAsyncActi
 {
     UOpenPocketBaseGetFirstRecordAsyncAction* Action = NewObject<UOpenPocketBaseGetFirstRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->Filter = MoveTemp(InFilter);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -264,7 +264,7 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseGetFirstRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).GetFirstListItem(
+    RequestHandle = NativeClient->Collection(Collection).GetFirstListItem(
         MoveTemp(Filter),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -300,13 +300,13 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseCreateRecordAsyncAction* UOpenPocketBaseCreateRecordAsyncAction::CreateRecord(
-    FOpenPocketBaseCollection InCollection,
+    FOpenPocketBaseWritableCollection InCollection,
     FOpenPocketBaseRecordBody InBody,
     FOpenPocketBaseRecordOptions InOptions)
 {
     UOpenPocketBaseCreateRecordAsyncAction* Action = NewObject<UOpenPocketBaseCreateRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -331,7 +331,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseCreateRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).Create(
+    RequestHandle = NativeClient->WritableCollection(Collection).Create(
         MoveTemp(Body),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
         {
@@ -368,7 +368,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseCreateRecordWithFilesAsyncAction*
 UOpenPocketBaseCreateRecordWithFilesAsyncAction::CreateRecordWithFiles(
-    FOpenPocketBaseCollection InCollection,
+    FOpenPocketBaseWritableCollection InCollection,
     FOpenPocketBaseRecordBody InBody,
     TArray<FOpenPocketBaseFileInput> InFiles,
     FOpenPocketBaseRecordOptions InOptions,
@@ -377,7 +377,7 @@ UOpenPocketBaseCreateRecordWithFilesAsyncAction::CreateRecordWithFiles(
     UOpenPocketBaseCreateRecordWithFilesAsyncAction* Action =
         NewObject<UOpenPocketBaseCreateRecordWithFilesAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->Body = MoveTemp(InBody);
     Action->Files = MoveTemp(InFiles);
     Action->Options = MoveTemp(InOptions);
@@ -407,7 +407,7 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseCreateRecordWithFilesAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).CreateWithFiles(
+    RequestHandle = NativeClient->WritableCollection(Collection).CreateWithFiles(
         MoveTemp(Body),
         MoveTemp(Files),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -468,14 +468,14 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseUpdateRecordAsyncAction* UOpenPocketBaseUpdateRecordAsyncAction::UpdateRecord(
-    FOpenPocketBaseCollection InCollection,
+    FOpenPocketBaseWritableCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRecordBody InBody,
     FOpenPocketBaseRecordOptions InOptions)
 {
     UOpenPocketBaseUpdateRecordAsyncAction* Action = NewObject<UOpenPocketBaseUpdateRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
@@ -501,7 +501,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseUpdateRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).Update(
+    RequestHandle = NativeClient->WritableCollection(Collection).Update(
         MoveTemp(RecordId),
         MoveTemp(Body),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
@@ -539,7 +539,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseUpdateRecordWithFilesAsyncAction*
 UOpenPocketBaseUpdateRecordWithFilesAsyncAction::UpdateRecordWithFiles(
-    FOpenPocketBaseCollection InCollection,
+    FOpenPocketBaseWritableCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRecordBody InBody,
     TArray<FOpenPocketBaseFileInput> InFiles,
@@ -549,7 +549,7 @@ UOpenPocketBaseUpdateRecordWithFilesAsyncAction::UpdateRecordWithFiles(
     UOpenPocketBaseUpdateRecordWithFilesAsyncAction* Action =
         NewObject<UOpenPocketBaseUpdateRecordWithFilesAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Body = MoveTemp(InBody);
     Action->Files = MoveTemp(InFiles);
@@ -580,7 +580,7 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseUpdateRecordWithFilesAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).UpdateWithFiles(
+    RequestHandle = NativeClient->WritableCollection(Collection).UpdateWithFiles(
         MoveTemp(RecordId),
         MoveTemp(Body),
         MoveTemp(Files),
@@ -642,13 +642,13 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseDeleteRecordAsyncAction* UOpenPocketBaseDeleteRecordAsyncAction::DeleteRecord(
-    FOpenPocketBaseCollection InCollection,
+    FOpenPocketBaseWritableCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseDeleteRecordAsyncAction* Action = NewObject<UOpenPocketBaseDeleteRecordAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->RecordId = MoveTemp(InRecordId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -673,7 +673,7 @@ void UOpenPocketBaseDeleteRecordAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseDeleteRecordAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).Delete(
+    RequestHandle = NativeClient->WritableCollection(Collection).Delete(
         MoveTemp(RecordId),
         [WeakThis](TOpenPocketBaseResult<bool>&& Result)
         {
@@ -714,7 +714,7 @@ UOpenPocketBaseListRecordsAsyncAction* UOpenPocketBaseListRecordsAsyncAction::Li
 {
     UOpenPocketBaseListRecordsAsyncAction* Action = NewObject<UOpenPocketBaseListRecordsAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -738,7 +738,7 @@ void UOpenPocketBaseListRecordsAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseListRecordsAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).GetList(
+    RequestHandle = NativeClient->Collection(Collection).GetList(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
         {
@@ -778,7 +778,7 @@ UOpenPocketBaseGetFullListAsyncAction* UOpenPocketBaseGetFullListAsyncAction::Ge
 {
     UOpenPocketBaseGetFullListAsyncAction* Action = NewObject<UOpenPocketBaseGetFullListAsyncAction>();
     Action->Client = InCollection.Client;
-    Action->Collection = MoveTemp(InCollection.Reference.Name);
+    Action->Collection = MoveTemp(InCollection.Reference);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
     return Action;
@@ -802,7 +802,7 @@ void UOpenPocketBaseGetFullListAsyncAction::Activate()
     }
 
     const TWeakObjectPtr<UOpenPocketBaseGetFullListAsyncAction> WeakThis(this);
-    RequestHandle = NativeClient->DynamicCollection(Collection).GetFullList(
+    RequestHandle = NativeClient->Collection(Collection).GetFullList(
         MoveTemp(Options),
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {

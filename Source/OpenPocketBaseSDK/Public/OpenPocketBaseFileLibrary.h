@@ -14,6 +14,28 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseFileLibrary final : public UBlueprint
 
 public:
     UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Files",
+        meta = (DisplayName = "File From Path"))
+    static FOpenPocketBaseFileInput FileFromPath(
+        FOpenPocketBaseFileFieldRef Field,
+        FString FilePath,
+        FString FileName,
+        FString ContentType,
+        EOpenPocketBaseFieldModifier Modifier);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Files",
+        meta = (DisplayName = "File From Bytes"))
+    static FOpenPocketBaseFileInput FileFromBytes(
+        FOpenPocketBaseFileFieldRef Field,
+        TArray<uint8> Bytes,
+        FString FileName,
+        FString ContentType,
+        EOpenPocketBaseFieldModifier Modifier);
+
+    UFUNCTION(
         BlueprintCallable,
         Category = "Open PocketBase|Files",
         meta = (
