@@ -5,7 +5,10 @@
 #include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
 #include "OpenPocketBaseEditorValidation.h"
+#include "OpenPocketBaseSchema.h"
+#include "PropertyEditorModule.h"
 #include "Schema/OpenPocketBaseSchemaCompilerExtension.h"
+#include "Schema/OpenPocketBaseSchemaDetails.h"
 #include "Schema/OpenPocketBaseSchemaGraphPinFactory.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogOpenPocketBaseEditor, Log, All);
@@ -21,6 +24,13 @@ public:
         FBlueprintCompilationManager::RegisterCompilerExtension(
             UBlueprint::StaticClass(),
             SchemaCompilerExtension);
+
+        FPropertyEditorModule& PropertyEditor =
+            FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+        PropertyEditor.RegisterCustomClassLayout(
+            UOpenPocketBaseSchema::StaticClass()->GetFName(),
+            FOnGetDetailCustomizationInstance::CreateStatic(&FOpenPocketBaseSchemaDetails::MakeInstance));
+        PropertyEditor.NotifyCustomizationModuleChanged();
 
         ValidationCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("OpenPocketBase.ValidateProject"),
@@ -42,6 +52,14 @@ public:
 
     virtual void ShutdownModule() override
     {
+        if (FModuleManager::Get().IsModuleLoaded(TEXT("PropertyEditor")))
+        {
+            FPropertyEditorModule& PropertyEditor =
+                FModuleManager::GetModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+            PropertyEditor.UnregisterCustomClassLayout(UOpenPocketBaseSchema::StaticClass()->GetFName());
+            PropertyEditor.NotifyCustomizationModuleChanged();
+        }
+
         if (SchemaPinFactory.IsValid())
         {
             FEdGraphUtilities::UnregisterVisualPinFactory(SchemaPinFactory);

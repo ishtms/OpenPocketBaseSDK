@@ -276,6 +276,20 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
     TArray<FOpenPocketBaseSchemaCollection> Collections;
 
+#if WITH_EDITORONLY_DATA
+    UPROPERTY(
+        EditAnywhere,
+        Category = "Open PocketBase|C++",
+        meta = (ToolTip = "C++ namespace used by generated schema accessors, for example MyGame::PocketBase."))
+    FString GeneratedCppNamespace = TEXT("PocketBase");
+
+    UPROPERTY(
+        EditAnywhere,
+        Category = "Open PocketBase|C++",
+        meta = (ToolTip = "Project-relative output header. Leave empty to use the primary game module's Generated folder."))
+    FString GeneratedHeaderPath;
+#endif
+
     const FOpenPocketBaseSchemaCollection* FindCollection(const FString& IdOrName) const;
     bool MakeCollectionRef(const FString& IdOrName, FOpenPocketBaseCollectionRef& OutRef) const;
 

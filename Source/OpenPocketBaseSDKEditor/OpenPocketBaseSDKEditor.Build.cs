@@ -18,6 +18,7 @@ public class OpenPocketBaseSDKEditor : ModuleRules
                 "InputCore",
                 "Json",
                 "Kismet",
+                "PropertyEditor",
                 "Projects",
                 "Slate",
                 "SlateCore",
