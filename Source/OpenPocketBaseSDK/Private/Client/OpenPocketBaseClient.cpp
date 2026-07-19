@@ -3519,6 +3519,28 @@ FOpenPocketBaseClientResult
 FOpenPocketBaseClient::CreateEphemeralAuthenticated(
     const FOpenPocketBaseClientConfig& Config,
     FString Token,
+    FOpenPocketBaseAuthCollectionRef AuthCollection,
+    const FOpenPocketBaseRecord& AuthRecord,
+    FOpenPocketBaseClientDependencies Dependencies)
+{
+    if (!FOpenPocketBaseAuthCollectionRef::Accepts(AuthCollection))
+    {
+        return FOpenPocketBaseClientResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A valid auth collection reference is required.")));
+    }
+    return CreateDynamicEphemeralAuthenticated(
+        Config,
+        MoveTemp(Token),
+        MoveTemp(AuthCollection.Name),
+        AuthRecord,
+        MoveTemp(Dependencies));
+}
+
+FOpenPocketBaseClientResult
+FOpenPocketBaseClient::CreateDynamicEphemeralAuthenticated(
+    const FOpenPocketBaseClientConfig& Config,
+    FString Token,
     FString AuthCollection,
     const FOpenPocketBaseRecord& AuthRecord,
     FOpenPocketBaseClientDependencies Dependencies)

@@ -1732,7 +1732,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicImpersonate
             FOpenPocketBaseClientDependencies Dependencies;
             Dependencies.Transport = CapturedTransport;
             FOpenPocketBaseClientResult ClientResult =
-                FOpenPocketBaseClient::CreateEphemeralAuthenticated(
+                FOpenPocketBaseClient::CreateDynamicEphemeralAuthenticated(
                     CapturedConfig,
                     MoveTemp(Token),
                     AuthCollection,

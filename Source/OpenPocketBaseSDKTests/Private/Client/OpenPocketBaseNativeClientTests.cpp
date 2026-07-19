@@ -5,6 +5,18 @@
 #include "OpenPocketBaseTestClientFactory.h"
 #include "Transport/OpenPocketBaseTransport.h"
 
+#include <type_traits>
+
+using FExpectedEphemeralClientFactory = FOpenPocketBaseClientResult (*)(
+    const FOpenPocketBaseClientConfig&,
+    FString,
+    FOpenPocketBaseAuthCollectionRef,
+    const FOpenPocketBaseRecord&,
+    FOpenPocketBaseClientDependencies);
+static_assert(std::is_same_v<
+    decltype(&FOpenPocketBaseClient::CreateEphemeralAuthenticated),
+    FExpectedEphemeralClientFactory>);
+
 namespace
 {
 TArray<uint8> ToUtf8(const FString& Value)

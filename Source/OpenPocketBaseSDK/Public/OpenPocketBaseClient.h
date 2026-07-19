@@ -343,6 +343,13 @@ public:
     static FOpenPocketBaseClientResult CreateEphemeralAuthenticated(
         const FOpenPocketBaseClientConfig& Config,
         FString Token,
+        FOpenPocketBaseAuthCollectionRef AuthCollection,
+        const FOpenPocketBaseRecord& AuthRecord,
+        FOpenPocketBaseClientDependencies Dependencies = {});
+
+    static FOpenPocketBaseClientResult CreateDynamicEphemeralAuthenticated(
+        const FOpenPocketBaseClientConfig& Config,
+        FString Token,
         FString AuthCollection,
         const FOpenPocketBaseRecord& AuthRecord,
         FOpenPocketBaseClientDependencies Dependencies = {});

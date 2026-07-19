@@ -143,3 +143,58 @@ private:
 
     friend class FOpenPocketBaseClient;
 };
+
+namespace OpenPocketBase::DynamicRoute
+{
+OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteRequest NoBody(
+    EOpenPocketBaseCustomRouteMethod Method,
+    FString Path,
+    bool bUseAuth = false,
+    TMap<FString, FString> Query = {},
+    FOpenPocketBaseRequestOptions Options = {});
+
+OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteRequest Json(
+    EOpenPocketBaseCustomRouteMethod Method,
+    FString Path,
+    FJsonObjectWrapper Body,
+    bool bUseAuth = false,
+    TMap<FString, FString> Query = {},
+    FOpenPocketBaseRequestOptions Options = {});
+
+OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteRequest Form(
+    EOpenPocketBaseCustomRouteMethod Method,
+    FString Path,
+    TMap<FString, FString> Fields,
+    bool bUseAuth = false,
+    TMap<FString, FString> Query = {},
+    FOpenPocketBaseRequestOptions Options = {});
+
+OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteRequest Multipart(
+    EOpenPocketBaseCustomRouteMethod Method,
+    FString Path,
+    TMap<FString, FString> Fields,
+    TArray<FOpenPocketBaseFileInput> Files,
+    bool bUseAuth = false,
+    TMap<FString, FString> Query = {},
+    FOpenPocketBaseUploadLimits UploadLimits = {},
+    int64 MaxRequestBytes = 8 * 1024 * 1024,
+    FOpenPocketBaseRequestOptions Options = {});
+
+OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteRequest Text(
+    EOpenPocketBaseCustomRouteMethod Method,
+    FString Path,
+    const FString& Body,
+    FString ContentType = TEXT("text/plain; charset=utf-8"),
+    bool bUseAuth = false,
+    TMap<FString, FString> Query = {},
+    FOpenPocketBaseRequestOptions Options = {});
+
+OPENPOCKETBASESDK_API FOpenPocketBaseCustomRouteRequest Binary(
+    EOpenPocketBaseCustomRouteMethod Method,
+    FString Path,
+    TArray<uint8> Body,
+    FString ContentType = TEXT("application/octet-stream"),
+    bool bUseAuth = false,
+    TMap<FString, FString> Query = {},
+    FOpenPocketBaseRequestOptions Options = {});
+}
