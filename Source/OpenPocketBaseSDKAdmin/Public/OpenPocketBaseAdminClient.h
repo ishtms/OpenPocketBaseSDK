@@ -73,7 +73,7 @@ public:
         FOpenPocketBaseAdminListOptions Options,
         FOpenPocketBaseAdminPageCallback OnComplete);
     FOpenPocketBaseAdminRequestHandle GetCollection(
-        FString Collection,
+        FOpenPocketBaseCollectionRef Collection,
         FOpenPocketBaseAdminDocumentCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
     FOpenPocketBaseAdminRequestHandle CreateCollection(
@@ -81,11 +81,24 @@ public:
         FOpenPocketBaseAdminDocumentCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
     FOpenPocketBaseAdminRequestHandle UpdateCollection(
-        FString Collection,
+        FOpenPocketBaseCollectionRef Collection,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseAdminDocumentCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
     FOpenPocketBaseAdminRequestHandle DeleteCollection(
+        FOpenPocketBaseCollectionRef Collection,
+        FOpenPocketBaseBoolCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {});
+    FOpenPocketBaseAdminRequestHandle DynamicGetCollection(
+        FString Collection,
+        FOpenPocketBaseAdminDocumentCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {});
+    FOpenPocketBaseAdminRequestHandle DynamicUpdateCollection(
+        FString Collection,
+        FOpenPocketBaseAdminDocument Body,
+        FOpenPocketBaseAdminDocumentCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {});
+    FOpenPocketBaseAdminRequestHandle DynamicDeleteCollection(
         FString Collection,
         FOpenPocketBaseBoolCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
@@ -126,7 +139,7 @@ public:
         FOpenPocketBaseBoolCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
     FOpenPocketBaseAdminRequestHandle UploadBackup(
-        FOpenPocketBaseFileInput File,
+        FOpenPocketBaseAdminBackupInput Backup,
         FOpenPocketBaseBoolCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
     FOpenPocketBaseAdminRequestHandle DownloadBackup(
@@ -154,6 +167,12 @@ public:
         FOpenPocketBaseAdminSqlCallback OnComplete,
         FOpenPocketBaseRequestOptions Options = {});
     FOpenPocketBaseAdminRequestHandle Impersonate(
+        FOpenPocketBaseAuthCollectionRef AuthCollection,
+        FString RecordId,
+        int64 DurationSeconds,
+        FOpenPocketBaseAdminImpersonationCallback OnComplete,
+        FOpenPocketBaseRequestOptions Options = {});
+    FOpenPocketBaseAdminRequestHandle DynamicImpersonate(
         FString AuthCollection,
         FString RecordId,
         int64 DurationSeconds,

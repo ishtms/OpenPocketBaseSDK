@@ -46,6 +46,25 @@ struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminPolicy
     int32 MaxSqlRows = 1000;
 };
 
+struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminBackupInput
+{
+    static FOpenPocketBaseAdminBackupInput FromPath(
+        FString FilePath,
+        FString FileName = {});
+    static FOpenPocketBaseAdminBackupInput FromBytes(
+        TArray<uint8> Bytes,
+        FString FileName);
+
+    bool IsValid() const;
+    FOpenPocketBaseFileInput ToFileInput() &&;
+
+private:
+    FString FilePath;
+    FString FileName;
+    TArray<uint8> Bytes;
+    bool bUseFilePath = false;
+};
+
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDKADMIN_API FOpenPocketBaseAdminListOptions
 {

@@ -45,11 +45,11 @@ public:
         BlueprintCallable,
         Category = "Open PocketBase|Realtime|Advanced",
         meta = (
-            DisplayName = "Subscribe to Realtime Topic",
+            DisplayName = "Subscribe to Dynamic Realtime Topic (Advanced)",
             AutoCreateRefTerm = "Options",
             ExpandBoolAsExecs = "ReturnValue",
             ReturnDisplayName = "Subscribed"))
-    static bool SubscribeToTopic(
+    static bool DynamicSubscribeToTopic(
         UOpenPocketBaseClient* PocketBaseClient,
         const FString& Topic,
         const FOpenPocketBaseRealtimeOptions& Options,

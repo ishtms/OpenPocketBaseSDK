@@ -75,7 +75,7 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("NullFilter"));
     TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("AndFilters"));
     TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("OrFilters"));
-    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("RawFilter"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("DynamicFilter"));
 
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("NewRecordBody"));
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithStringField"));

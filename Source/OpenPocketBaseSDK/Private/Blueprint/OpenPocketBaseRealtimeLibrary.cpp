@@ -72,7 +72,7 @@ bool UOpenPocketBaseRealtimeLibrary::SubscribeToRecord(
         Error);
 }
 
-bool UOpenPocketBaseRealtimeLibrary::SubscribeToTopic(
+bool UOpenPocketBaseRealtimeLibrary::DynamicSubscribeToTopic(
     UOpenPocketBaseClient* PocketBaseClient,
     const FString& Topic,
     const FOpenPocketBaseRealtimeOptions& Options,
@@ -87,7 +87,7 @@ bool UOpenPocketBaseRealtimeLibrary::SubscribeToTopic(
         return false;
     }
     return SetSubscriptionResult(
-        PocketBaseClient->SubscribeToTopic(Topic, Options, Error),
+        PocketBaseClient->DynamicSubscribeToTopic(Topic, Options, Error),
         Subscription,
         Error);
 }

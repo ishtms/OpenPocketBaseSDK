@@ -203,7 +203,16 @@ public:
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* GetCollection(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-        FString Collection,
+        FOpenPocketBaseCollectionRef Collection,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin|Advanced", meta = (
+        BlueprintInternalUseOnly = "true",
+        DisplayName = "Get Dynamic PocketBase Collection (Advanced)",
+        DevelopmentOnly))
+    static UOpenPocketBaseAdminDocumentAsyncAction* GetDynamicCollection(
+        UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+        FString CollectionNameOrId,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
@@ -221,7 +230,17 @@ public:
         DevelopmentOnly))
     static UOpenPocketBaseAdminDocumentAsyncAction* UpdateCollection(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-        FString Collection,
+        FOpenPocketBaseCollectionRef Collection,
+        FOpenPocketBaseAdminDocument Body,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin|Advanced", meta = (
+        BlueprintInternalUseOnly = "true",
+        DisplayName = "Update Dynamic PocketBase Collection (Advanced)",
+        DevelopmentOnly))
+    static UOpenPocketBaseAdminDocumentAsyncAction* UpdateDynamicCollection(
+        UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+        FString CollectionNameOrId,
         FOpenPocketBaseAdminDocument Body,
         FOpenPocketBaseRequestOptions Options);
 
@@ -260,14 +279,17 @@ private:
     enum class EOperation : uint8
     {
         GetCollection,
+        GetDynamicCollection,
         CreateCollection,
         UpdateCollection,
+        UpdateDynamicCollection,
         GetSettings,
         UpdateSettings,
         GetLog
     };
 
     EOperation Operation = EOperation::GetCollection;
+    FOpenPocketBaseCollectionRef Collection;
     FString Target;
     FOpenPocketBaseAdminDocument Body;
     FOpenPocketBaseRequestOptions Options;
@@ -295,7 +317,16 @@ public:
         DevelopmentOnly))
     static UOpenPocketBaseAdminCommandAsyncAction* DeleteCollection(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-        FString Collection,
+        FOpenPocketBaseCollectionRef Collection,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin|Advanced", meta = (
+        BlueprintInternalUseOnly = "true",
+        DisplayName = "Delete Dynamic PocketBase Collection (Advanced)",
+        DevelopmentOnly))
+    static UOpenPocketBaseAdminCommandAsyncAction* DeleteDynamicCollection(
+        UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+        FString CollectionNameOrId,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
@@ -336,11 +367,22 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
         BlueprintInternalUseOnly = "true",
-        DisplayName = "Upload PocketBase Backup",
+        DisplayName = "Upload PocketBase Backup From Path",
         DevelopmentOnly))
-    static UOpenPocketBaseAdminCommandAsyncAction* UploadBackup(
+    static UOpenPocketBaseAdminCommandAsyncAction* UploadBackupFromPath(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-        FOpenPocketBaseFileInput File,
+        FString FilePath,
+        FString FileName,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
+        BlueprintInternalUseOnly = "true",
+        DisplayName = "Upload PocketBase Backup From Bytes",
+        DevelopmentOnly))
+    static UOpenPocketBaseAdminCommandAsyncAction* UploadBackupFromBytes(
+        UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+        TArray<uint8> Bytes,
+        FString FileName,
         FOpenPocketBaseRequestOptions Options);
 
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin", meta = (
@@ -379,6 +421,7 @@ private:
     enum class EOperation : uint8
     {
         DeleteCollection,
+        DeleteDynamicCollection,
         ImportCollections,
         TestS3,
         TestEmail,
@@ -390,9 +433,10 @@ private:
     };
 
     EOperation Operation = EOperation::DeleteCollection;
+    FOpenPocketBaseCollectionRef Collection;
     FString Target;
     FOpenPocketBaseAdminDocument Body;
-    FOpenPocketBaseFileInput File;
+    FOpenPocketBaseAdminBackupInput Backup;
     FOpenPocketBaseRequestOptions Options;
 };
 
@@ -554,7 +598,18 @@ public:
         DevelopmentOnly))
     static UOpenPocketBaseAdminImpersonateAsyncAction* Impersonate(
         UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-        FString AuthCollection,
+        FOpenPocketBaseAuthCollectionRef AuthCollection,
+        FString RecordId,
+        int64 DurationSeconds,
+        FOpenPocketBaseRequestOptions Options);
+
+    UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Admin|Advanced", meta = (
+        BlueprintInternalUseOnly = "true",
+        DisplayName = "Impersonate Dynamic PocketBase User (Advanced)",
+        DevelopmentOnly))
+    static UOpenPocketBaseAdminImpersonateAsyncAction* ImpersonateDynamicUser(
+        UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+        FString AuthCollectionNameOrId,
         FString RecordId,
         int64 DurationSeconds,
         FOpenPocketBaseRequestOptions Options);
@@ -565,7 +620,9 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FString AuthCollection;
+    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FString DynamicAuthCollection;
+    bool bDynamicCollection = false;
     FString RecordId;
     int64 DurationSeconds = 0;
     FOpenPocketBaseRequestOptions Options;

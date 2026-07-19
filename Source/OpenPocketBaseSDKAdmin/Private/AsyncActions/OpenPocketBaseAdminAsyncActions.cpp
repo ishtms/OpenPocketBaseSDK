@@ -177,14 +177,30 @@ void UOpenPocketBaseAdminPageAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::GetCollection(
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-    FString Collection,
+    FOpenPocketBaseCollectionRef InCollection,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseAdminDocumentAsyncAction* Action =
         NewObject<UOpenPocketBaseAdminDocumentAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::GetCollection;
-    Action->Target = MoveTemp(Collection);
+    Action->Collection = MoveTemp(InCollection);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->AdminClient);
+    return Action;
+}
+
+UOpenPocketBaseAdminDocumentAsyncAction*
+UOpenPocketBaseAdminDocumentAsyncAction::GetDynamicCollection(
+    UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+    FString CollectionNameOrId,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseAdminDocumentAsyncAction* Action =
+        NewObject<UOpenPocketBaseAdminDocumentAsyncAction>();
+    Action->AdminClient = PocketBaseAdminClient;
+    Action->Operation = EOperation::GetDynamicCollection;
+    Action->Target = MoveTemp(CollectionNameOrId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
@@ -207,7 +223,7 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
 
 UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction::UpdateCollection(
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-    FString Collection,
+    FOpenPocketBaseCollectionRef InCollection,
     FOpenPocketBaseAdminDocument InBody,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -215,7 +231,25 @@ UOpenPocketBaseAdminDocumentAsyncAction* UOpenPocketBaseAdminDocumentAsyncAction
         NewObject<UOpenPocketBaseAdminDocumentAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::UpdateCollection;
-    Action->Target = MoveTemp(Collection);
+    Action->Collection = MoveTemp(InCollection);
+    Action->Body = MoveTemp(InBody);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->AdminClient);
+    return Action;
+}
+
+UOpenPocketBaseAdminDocumentAsyncAction*
+UOpenPocketBaseAdminDocumentAsyncAction::UpdateDynamicCollection(
+    UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+    FString CollectionNameOrId,
+    FOpenPocketBaseAdminDocument InBody,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseAdminDocumentAsyncAction* Action =
+        NewObject<UOpenPocketBaseAdminDocumentAsyncAction>();
+    Action->AdminClient = PocketBaseAdminClient;
+    Action->Operation = EOperation::UpdateDynamicCollection;
+    Action->Target = MoveTemp(CollectionNameOrId);
     Action->Body = MoveTemp(InBody);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->AdminClient);
@@ -295,6 +329,10 @@ void UOpenPocketBaseAdminDocumentAsyncAction::Activate()
     {
     case EOperation::GetCollection:
         RequestHandle = Native->GetCollection(
+            MoveTemp(Collection), MoveTemp(Callback), MoveTemp(Options));
+        break;
+    case EOperation::GetDynamicCollection:
+        RequestHandle = Native->DynamicGetCollection(
             MoveTemp(Target), MoveTemp(Callback), MoveTemp(Options));
         break;
     case EOperation::CreateCollection:
@@ -303,6 +341,10 @@ void UOpenPocketBaseAdminDocumentAsyncAction::Activate()
         break;
     case EOperation::UpdateCollection:
         RequestHandle = Native->UpdateCollection(
+            MoveTemp(Collection), MoveTemp(Body), MoveTemp(Callback), MoveTemp(Options));
+        break;
+    case EOperation::UpdateDynamicCollection:
+        RequestHandle = Native->DynamicUpdateCollection(
             MoveTemp(Target), MoveTemp(Body), MoveTemp(Callback), MoveTemp(Options));
         break;
     case EOperation::GetSettings:
@@ -326,14 +368,30 @@ void UOpenPocketBaseAdminDocumentAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::DeleteCollection(
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-    FString Collection,
+    FOpenPocketBaseCollectionRef InCollection,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseAdminCommandAsyncAction* Action =
         NewObject<UOpenPocketBaseAdminCommandAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::DeleteCollection;
-    Action->Target = MoveTemp(Collection);
+    Action->Collection = MoveTemp(InCollection);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->AdminClient);
+    return Action;
+}
+
+UOpenPocketBaseAdminCommandAsyncAction*
+UOpenPocketBaseAdminCommandAsyncAction::DeleteDynamicCollection(
+    UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+    FString CollectionNameOrId,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseAdminCommandAsyncAction* Action =
+        NewObject<UOpenPocketBaseAdminCommandAsyncAction>();
+    Action->AdminClient = PocketBaseAdminClient;
+    Action->Operation = EOperation::DeleteDynamicCollection;
+    Action->Target = MoveTemp(CollectionNameOrId);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
@@ -399,16 +457,37 @@ UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::
     return Action;
 }
 
-UOpenPocketBaseAdminCommandAsyncAction* UOpenPocketBaseAdminCommandAsyncAction::UploadBackup(
+UOpenPocketBaseAdminCommandAsyncAction*
+UOpenPocketBaseAdminCommandAsyncAction::UploadBackupFromPath(
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-    FOpenPocketBaseFileInput InFile,
+    FString FilePath,
+    FString FileName,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseAdminCommandAsyncAction* Action =
         NewObject<UOpenPocketBaseAdminCommandAsyncAction>();
     Action->AdminClient = PocketBaseAdminClient;
     Action->Operation = EOperation::UploadBackup;
-    Action->File = MoveTemp(InFile);
+    Action->Backup = FOpenPocketBaseAdminBackupInput::FromPath(
+        MoveTemp(FilePath), MoveTemp(FileName));
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->AdminClient);
+    return Action;
+}
+
+UOpenPocketBaseAdminCommandAsyncAction*
+UOpenPocketBaseAdminCommandAsyncAction::UploadBackupFromBytes(
+    UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+    TArray<uint8> Bytes,
+    FString FileName,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseAdminCommandAsyncAction* Action =
+        NewObject<UOpenPocketBaseAdminCommandAsyncAction>();
+    Action->AdminClient = PocketBaseAdminClient;
+    Action->Operation = EOperation::UploadBackup;
+    Action->Backup = FOpenPocketBaseAdminBackupInput::FromBytes(
+        MoveTemp(Bytes), MoveTemp(FileName));
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
@@ -488,6 +567,10 @@ void UOpenPocketBaseAdminCommandAsyncAction::Activate()
     {
     case EOperation::DeleteCollection:
         RequestHandle = Native->DeleteCollection(
+            MoveTemp(Collection), MoveTemp(Callback), MoveTemp(Options));
+        break;
+    case EOperation::DeleteDynamicCollection:
+        RequestHandle = Native->DynamicDeleteCollection(
             MoveTemp(Target), MoveTemp(Callback), MoveTemp(Options));
         break;
     case EOperation::ImportCollections:
@@ -508,7 +591,7 @@ void UOpenPocketBaseAdminCommandAsyncAction::Activate()
         break;
     case EOperation::UploadBackup:
         RequestHandle = Native->UploadBackup(
-            MoveTemp(File), MoveTemp(Callback), MoveTemp(Options));
+            MoveTemp(Backup), MoveTemp(Callback), MoveTemp(Options));
         break;
     case EOperation::RestoreBackup:
         RequestHandle = Native->RestoreBackup(
@@ -726,7 +809,7 @@ void UOpenPocketBaseAdminSqlAsyncAction::BroadcastCancelled()
 UOpenPocketBaseAdminImpersonateAsyncAction*
 UOpenPocketBaseAdminImpersonateAsyncAction::Impersonate(
     UOpenPocketBaseAdminClient* PocketBaseAdminClient,
-    FString InAuthCollection,
+    FOpenPocketBaseAuthCollectionRef InAuthCollection,
     FString InRecordId,
     const int64 InDurationSeconds,
     FOpenPocketBaseRequestOptions InOptions)
@@ -738,6 +821,26 @@ UOpenPocketBaseAdminImpersonateAsyncAction::Impersonate(
     Action->RecordId = MoveTemp(InRecordId);
     Action->DurationSeconds = InDurationSeconds;
     Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->AdminClient);
+    return Action;
+}
+
+UOpenPocketBaseAdminImpersonateAsyncAction*
+UOpenPocketBaseAdminImpersonateAsyncAction::ImpersonateDynamicUser(
+    UOpenPocketBaseAdminClient* PocketBaseAdminClient,
+    FString AuthCollectionNameOrId,
+    FString InRecordId,
+    const int64 InDurationSeconds,
+    FOpenPocketBaseRequestOptions InOptions)
+{
+    UOpenPocketBaseAdminImpersonateAsyncAction* Action =
+        NewObject<UOpenPocketBaseAdminImpersonateAsyncAction>();
+    Action->AdminClient = PocketBaseAdminClient;
+    Action->DynamicAuthCollection = MoveTemp(AuthCollectionNameOrId);
+    Action->RecordId = MoveTemp(InRecordId);
+    Action->DurationSeconds = InDurationSeconds;
+    Action->Options = MoveTemp(InOptions);
+    Action->bDynamicCollection = true;
     Action->RegisterWithGameInstance(Action->AdminClient);
     return Action;
 }
@@ -756,10 +859,7 @@ void UOpenPocketBaseAdminImpersonateAsyncAction::Activate()
         return;
     }
     const TWeakObjectPtr<UOpenPocketBaseAdminImpersonateAsyncAction> WeakThis(this);
-    RequestHandle = Native->Impersonate(
-        MoveTemp(AuthCollection),
-        MoveTemp(RecordId),
-        DurationSeconds,
+    FOpenPocketBaseAdminImpersonationCallback Callback =
         [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>&& Result)
         {
             UOpenPocketBaseAdminImpersonateAsyncAction* Action = WeakThis.Get();
@@ -802,8 +902,20 @@ void UOpenPocketBaseAdminImpersonateAsyncAction::Activate()
                 }
             }
             Action->Finish();
-        },
-        MoveTemp(Options));
+        };
+    RequestHandle = bDynamicCollection
+        ? Native->DynamicImpersonate(
+            MoveTemp(DynamicAuthCollection),
+            MoveTemp(RecordId),
+            DurationSeconds,
+            MoveTemp(Callback),
+            MoveTemp(Options))
+        : Native->Impersonate(
+            MoveTemp(AuthCollection),
+            MoveTemp(RecordId),
+            DurationSeconds,
+            MoveTemp(Callback),
+            MoveTemp(Options));
 }
 
 void UOpenPocketBaseAdminImpersonateAsyncAction::BroadcastCancelled()

@@ -89,6 +89,9 @@ bool FOpenPocketBaseRealtimeBlueprintTest::RunTest(const FString& Parameters)
         RealtimeLibrary->FindFunctionByName(TEXT("SubscribeToRecord")));
     TestNotNull(
         TEXT("Advanced topic subscriptions remain available"),
+        RealtimeLibrary->FindFunctionByName(TEXT("DynamicSubscribeToTopic")));
+    TestNull(
+        TEXT("Raw topic subscriptions are explicitly dynamic"),
         RealtimeLibrary->FindFunctionByName(TEXT("SubscribeToTopic")));
     TestNotNull(
         TEXT("Unsubscribe All Realtime exists"),

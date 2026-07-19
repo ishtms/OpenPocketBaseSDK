@@ -71,7 +71,7 @@ enum class EOpenPocketBaseNullComparison : uint8
     AnyIsNotNull UMETA(DisplayName = "Any Is Not Null")
 };
 
-class OPENPOCKETBASESDK_API FOpenPocketBaseFilterParams
+class OPENPOCKETBASESDK_API FOpenPocketBaseDynamicFilterParams
 {
 public:
     bool AddString(const FString& Name, const FString& Value);
@@ -151,7 +151,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
     static FOpenPocketBaseFilter DynamicNull(
         FString Field,
         EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
-    static FOpenPocketBaseFilter Raw(FString Expression);
+    static FOpenPocketBaseFilter DynamicRaw(FString Expression);
 
     FOpenPocketBaseFilter And(const FOpenPocketBaseFilter& Other) const;
     FOpenPocketBaseFilter Or(const FOpenPocketBaseFilter& Other) const;
@@ -160,9 +160,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
     bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
     const FString& ToString() const;
 
-    static bool TryBind(
+    static bool TryBindDynamic(
         const FString& Expression,
-        const FOpenPocketBaseFilterParams& Params,
+        const FOpenPocketBaseDynamicFilterParams& Params,
         FOpenPocketBaseFilter& OutFilter,
         FOpenPocketBaseError& OutError);
 };

@@ -7,6 +7,26 @@
 
 namespace
 {
+FOpenPocketBaseCollectionRef AdminCollectionRef(
+    const FString& Name,
+    const EOpenPocketBaseCollectionType Type = EOpenPocketBaseCollectionType::Base)
+{
+    FOpenPocketBaseCollectionRef Ref;
+    Ref.SchemaId = FGuid::NewGuid();
+    Ref.CollectionId = Name + TEXT("_id");
+    Ref.Name = Name;
+    Ref.Type = Type;
+    return Ref;
+}
+
+FOpenPocketBaseAuthCollectionRef AdminAuthCollectionRef(const FString& Name)
+{
+    FOpenPocketBaseAuthCollectionRef Ref;
+    static_cast<FOpenPocketBaseCollectionRef&>(Ref) =
+        AdminCollectionRef(Name, EOpenPocketBaseCollectionType::Auth);
+    return Ref;
+}
+
 TArray<uint8> AdminUtf8(const FString& Value)
 {
     const FTCHARToUTF8 Converted(*Value);
@@ -151,7 +171,7 @@ private:
     {
         const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->GetCollection(
-            TEXT("sdk_tasks"),
+            AdminCollectionRef(TEXT("sdk_tasks")),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>&& Result)
             {
                 Self->Continue(Result.IsSuccess(), TEXT("Get Collection"));
@@ -174,7 +194,7 @@ private:
     void UpdateCollection()
     {
         const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->UpdateCollection(
+        State->Client->DynamicUpdateCollection(
             TEXT("sdk_admin_temp"),
             Document(TEXT("sdk_admin_temp_2")),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>&& Result)
@@ -187,7 +207,7 @@ private:
     void DeleteCollection()
     {
         const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->DeleteCollection(
+        State->Client->DynamicDeleteCollection(
             TEXT("sdk_admin_temp_2"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -324,15 +344,10 @@ private:
 
     void UploadBackup()
     {
-        FOpenPocketBaseFileInput File;
-        File.DynamicFieldName = TEXT("file");
-        File.FileName = TEXT("sdk_upload.zip");
-        File.ContentType = TEXT("application/zip");
-        File.bUseFilePath = false;
-        File.Bytes = {'P', 'K', 3, 4};
         const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->UploadBackup(
-            MoveTemp(File),
+            FOpenPocketBaseAdminBackupInput::FromBytes(
+                {'P', 'K', 3, 4}, TEXT("sdk_upload.zip")),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
                 Self->Continue(Result.IsSuccess(), TEXT("Upload Backup"));
@@ -470,7 +485,7 @@ private:
     {
         const TSharedRef<FAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->Impersonate(
-            TEXT("sdk_users"),
+            AdminAuthCollectionRef(TEXT("sdk_users")),
             TEXT("user00000000001"),
             3600,
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>&& Result)

@@ -9,6 +9,26 @@
 
 namespace
 {
+FOpenPocketBaseCollectionRef PinnedAdminCollectionRef(
+    const FString& Name,
+    const EOpenPocketBaseCollectionType Type = EOpenPocketBaseCollectionType::Base)
+{
+    FOpenPocketBaseCollectionRef Ref;
+    Ref.SchemaId = FGuid::NewGuid();
+    Ref.CollectionId = Name + TEXT("_id");
+    Ref.Name = Name;
+    Ref.Type = Type;
+    return Ref;
+}
+
+FOpenPocketBaseAuthCollectionRef PinnedAdminAuthCollectionRef(const FString& Name)
+{
+    FOpenPocketBaseAuthCollectionRef Ref;
+    static_cast<FOpenPocketBaseCollectionRef&>(Ref) =
+        PinnedAdminCollectionRef(Name, EOpenPocketBaseCollectionType::Auth);
+    return Ref;
+}
+
 struct FAdminCredentials
 {
     FString Email;
@@ -148,7 +168,7 @@ private:
     {
         const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->GetCollection(
-            TEXT("sdk_tasks"),
+            PinnedAdminCollectionRef(TEXT("sdk_tasks")),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>&& Result)
             {
                 if (!Self->Require(Result, TEXT("Get Collection"))) return;
@@ -309,7 +329,7 @@ private:
         Body.Data.JsonObject = MakeShared<FJsonObject>();
         Body.Data.JsonObject->SetStringField(TEXT("name"), TEXT("sdk_admin_temp_renamed"));
         const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->UpdateCollection(
+        State->Client->DynamicUpdateCollection(
             TEXT("sdk_admin_temp"),
             MoveTemp(Body),
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>&& Result)
@@ -322,7 +342,7 @@ private:
     void DeleteCollection()
     {
         const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
-        State->Client->DeleteCollection(
+        State->Client->DynamicDeleteCollection(
             TEXT("sdk_admin_temp_renamed"),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
@@ -387,15 +407,10 @@ private:
 
     void UploadBackup()
     {
-        FOpenPocketBaseFileInput File;
-        File.DynamicFieldName = TEXT("file");
-        File.FileName = TEXT("sdk_admin_fixture.zip");
-        File.ContentType = TEXT("application/zip");
-        File.bUseFilePath = false;
-        File.Bytes = MoveTemp(State->BackupBytes);
         const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->UploadBackup(
-            MoveTemp(File),
+            FOpenPocketBaseAdminBackupInput::FromBytes(
+                MoveTemp(State->BackupBytes), TEXT("sdk_admin_fixture.zip")),
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
                 if (!Self->Require(Result, TEXT("Upload Backup"))) return;
@@ -486,7 +501,7 @@ private:
     {
         const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->Impersonate(
-            TEXT("sdk_users"),
+            PinnedAdminAuthCollectionRef(TEXT("sdk_users")),
             TEXT("user00000000001"),
             60,
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>&& Result)

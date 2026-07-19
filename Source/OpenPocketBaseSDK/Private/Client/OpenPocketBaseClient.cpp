@@ -6567,11 +6567,11 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListExternalA
                 TEXT("A ready client, auth collection, and record ID are required.")));
         return {};
     }
-    FOpenPocketBaseFilterParams Params;
+    FOpenPocketBaseDynamicFilterParams Params;
     Params.AddString(TEXT("id"), RecordId);
     FOpenPocketBaseFilter Filter;
     FOpenPocketBaseError FilterError;
-    if (!FOpenPocketBaseFilter::TryBind(
+    if (!FOpenPocketBaseFilter::TryBindDynamic(
             TEXT("recordRef = {:id}"), Params, Filter, FilterError))
     {
         DispatchFailure<TArray<FOpenPocketBaseExternalAuth>>(
@@ -6642,12 +6642,12 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::UnlinkExterna
         DispatchFailure<bool>(MoveTemp(OnComplete), MoveTemp(OptionsError));
         return {};
     }
-    FOpenPocketBaseFilterParams Params;
+    FOpenPocketBaseDynamicFilterParams Params;
     Params.AddString(TEXT("recordId"), RecordId);
     Params.AddString(TEXT("provider"), Provider);
     FOpenPocketBaseFilter Filter;
     FOpenPocketBaseError FilterError;
-    if (!FOpenPocketBaseFilter::TryBind(
+    if (!FOpenPocketBaseFilter::TryBindDynamic(
             TEXT("recordRef = {:recordId} && provider = {:provider}"),
             Params,
             Filter,

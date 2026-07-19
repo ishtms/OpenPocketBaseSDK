@@ -167,10 +167,10 @@ public:
 
     UFUNCTION(
         BlueprintCallable,
-        Category = "Open PocketBase|Utilities",
+        Category = "Open PocketBase|Utilities|Advanced",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Send Custom Route"))
+            DisplayName = "Send Dynamic Custom Route (Advanced)"))
     static UOpenPocketBaseCustomRouteAsyncAction* SendCustomRoute(
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseCustomRouteRequest Request);

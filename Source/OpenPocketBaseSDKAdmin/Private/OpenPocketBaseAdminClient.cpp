@@ -3,6 +3,7 @@
 #include "Async/Async.h"
 #include "Dom/JsonObject.h"
 #include "HAL/CriticalSection.h"
+#include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 #include "OpenPocketBaseDate.h"
 #include "Serialization/JsonSerializer.h"
@@ -662,6 +663,50 @@ FOpenPocketBaseAdminRequestHandle FailAdminRequest(
 }
 }
 
+FOpenPocketBaseAdminBackupInput FOpenPocketBaseAdminBackupInput::FromPath(
+    FString InFilePath,
+    FString InFileName)
+{
+    FOpenPocketBaseAdminBackupInput Input;
+    Input.FileName = InFileName.IsEmpty()
+        ? FPaths::GetCleanFilename(InFilePath)
+        : MoveTemp(InFileName);
+    Input.FilePath = MoveTemp(InFilePath);
+    Input.bUseFilePath = true;
+    return Input;
+}
+
+FOpenPocketBaseAdminBackupInput FOpenPocketBaseAdminBackupInput::FromBytes(
+    TArray<uint8> InBytes,
+    FString InFileName)
+{
+    FOpenPocketBaseAdminBackupInput Input;
+    Input.FileName = MoveTemp(InFileName);
+    Input.Bytes = MoveTemp(InBytes);
+    return Input;
+}
+
+bool FOpenPocketBaseAdminBackupInput::IsValid() const
+{
+    return !FileName.IsEmpty() && FileName.EndsWith(TEXT(".zip"), ESearchCase::IgnoreCase) &&
+        (bUseFilePath ? !FilePath.IsEmpty() : !Bytes.IsEmpty());
+}
+
+FOpenPocketBaseFileInput FOpenPocketBaseAdminBackupInput::ToFileInput() &&
+{
+    return bUseFilePath
+        ? FOpenPocketBaseFileInput::DynamicFromPath(
+            TEXT("file"),
+            MoveTemp(FilePath),
+            MoveTemp(FileName),
+            TEXT("application/zip"))
+        : FOpenPocketBaseFileInput::DynamicFromBytes(
+            TEXT("file"),
+            MoveTemp(Bytes),
+            MoveTemp(FileName),
+            TEXT("application/zip"));
+}
+
 FOpenPocketBaseAdminRequestHandle::FOpenPocketBaseAdminRequestHandle(
     TSharedPtr<FOpenPocketBaseAdminRequestState, ESPMode::ThreadSafe> InState)
     : State(MoveTemp(InState))
@@ -858,6 +903,21 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListCollections(
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::GetCollection(
+    FOpenPocketBaseCollectionRef Collection,
+    FOpenPocketBaseAdminDocumentCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options)
+{
+    if (!Collection.IsSet())
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(
+            MoveTemp(OnComplete),
+            TEXT("A valid schema collection reference is required."));
+    }
+    return DynamicGetCollection(
+        MoveTemp(Collection.Name), MoveTemp(OnComplete), MoveTemp(Options));
+}
+
+FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicGetCollection(
     FString Collection,
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
@@ -910,6 +970,25 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::CreateCollection(
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UpdateCollection(
+    FOpenPocketBaseCollectionRef Collection,
+    FOpenPocketBaseAdminDocument Body,
+    FOpenPocketBaseAdminDocumentCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options)
+{
+    if (!Collection.IsSet())
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(
+            MoveTemp(OnComplete),
+            TEXT("A valid schema collection reference is required."));
+    }
+    return DynamicUpdateCollection(
+        MoveTemp(Collection.Name),
+        MoveTemp(Body),
+        MoveTemp(OnComplete),
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicUpdateCollection(
     FString Collection,
     FOpenPocketBaseAdminDocument Body,
     FOpenPocketBaseAdminDocumentCallback OnComplete,
@@ -947,6 +1026,21 @@ TOpenPocketBaseResult<bool> ParseAdminEmpty(const FOpenPocketBaseCustomRouteResp
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DeleteCollection(
+    FOpenPocketBaseCollectionRef Collection,
+    FOpenPocketBaseBoolCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options)
+{
+    if (!Collection.IsSet())
+    {
+        return FailAdminRequest<bool>(
+            MoveTemp(OnComplete),
+            TEXT("A valid schema collection reference is required."));
+    }
+    return DynamicDeleteCollection(
+        MoveTemp(Collection.Name), MoveTemp(OnComplete), MoveTemp(Options));
+}
+
+FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicDeleteCollection(
     FString Collection,
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
@@ -1168,16 +1262,20 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::CreateBackup(
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UploadBackup(
-    FOpenPocketBaseFileInput File,
+    FOpenPocketBaseAdminBackupInput Backup,
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || File.GetFieldName() != TEXT("file") ||
-        !IsSafeBackupKey(File.FileName) || File.ContentType != TEXT("application/zip") ||
-        File.Modifier != EOpenPocketBaseFieldModifier::Replace)
+    if (!IsAuthenticated() || !Backup.IsValid())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
             TEXT("A superuser session and bounded ZIP backup file are required."));
+    }
+    FOpenPocketBaseFileInput File = MoveTemp(Backup).ToFileInput();
+    if (!IsSafeBackupKey(File.FileName))
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("The backup ZIP file name is invalid."));
     }
     FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
         EOpenPocketBaseCustomRouteMethod::Post,
@@ -1408,6 +1506,27 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RunSql(
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::Impersonate(
+    FOpenPocketBaseAuthCollectionRef AuthCollection,
+    FString RecordId,
+    const int64 DurationSeconds,
+    FOpenPocketBaseAdminImpersonationCallback OnComplete,
+    FOpenPocketBaseRequestOptions Options)
+{
+    if (!FOpenPocketBaseAuthCollectionRef::Accepts(AuthCollection))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(
+            MoveTemp(OnComplete),
+            TEXT("A valid auth collection reference is required."));
+    }
+    return DynamicImpersonate(
+        MoveTemp(AuthCollection.Name),
+        MoveTemp(RecordId),
+        DurationSeconds,
+        MoveTemp(OnComplete),
+        MoveTemp(Options));
+}
+
+FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicImpersonate(
     FString AuthCollection,
     FString RecordId,
     const int64 DurationSeconds,

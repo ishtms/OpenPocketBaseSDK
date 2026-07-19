@@ -75,6 +75,6 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Filters|Advanced",
-        meta = (DisplayName = "Raw Filter (Advanced)", Keywords = "where query expression"))
-    static FOpenPocketBaseFilter RawFilter(const FString& Expression);
+        meta = (DisplayName = "Dynamic Filter (Advanced)", Keywords = "raw where query expression"))
+    static FOpenPocketBaseFilter DynamicFilter(const FString& Expression);
 };

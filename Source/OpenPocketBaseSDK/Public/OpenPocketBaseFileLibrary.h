@@ -36,6 +36,28 @@ public:
         EOpenPocketBaseFieldModifier Modifier);
 
     UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Files|Advanced",
+        meta = (DisplayName = "Dynamic File From Path (Advanced)"))
+    static FOpenPocketBaseFileInput DynamicFileFromPath(
+        FString FieldName,
+        FString FilePath,
+        FString FileName,
+        FString ContentType,
+        EOpenPocketBaseFieldModifier Modifier);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Files|Advanced",
+        meta = (DisplayName = "Dynamic File From Bytes (Advanced)"))
+    static FOpenPocketBaseFileInput DynamicFileFromBytes(
+        FString FieldName,
+        TArray<uint8> Bytes,
+        FString FileName,
+        FString ContentType,
+        EOpenPocketBaseFieldModifier Modifier);
+
+    UFUNCTION(
         BlueprintCallable,
         Category = "Open PocketBase|Files",
         meta = (

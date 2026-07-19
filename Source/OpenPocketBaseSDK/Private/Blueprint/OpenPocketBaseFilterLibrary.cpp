@@ -53,7 +53,7 @@ FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::OrFilters(
     return A.Or(B);
 }
 
-FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::RawFilter(const FString& Expression)
+FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::DynamicFilter(const FString& Expression)
 {
-    return FOpenPocketBaseFilter::Raw(Expression);
+    return FOpenPocketBaseFilter::DynamicRaw(Expression);
 }

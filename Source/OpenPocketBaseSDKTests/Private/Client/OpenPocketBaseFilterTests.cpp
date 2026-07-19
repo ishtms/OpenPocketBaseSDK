@@ -5,6 +5,11 @@
 #include "OpenPocketBaseSchema.h"
 
 #include <limits>
+#include <type_traits>
+
+static_assert(std::is_same_v<
+    decltype(&FOpenPocketBaseFilter::DynamicRaw),
+    FOpenPocketBaseFilter (*)(FString)>);
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseTypedFilterBindingTest,
@@ -13,7 +18,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseTypedFilterBindingTest::RunTest(const FString& Parameters)
 {
-    FOpenPocketBaseFilterParams Params;
+    FOpenPocketBaseDynamicFilterParams Params;
     TestTrue(TEXT("String parameters are accepted"), Params.AddString(TEXT("text"), TEXT("x\"") TEXT(" || true || title = \"y")));
     TestTrue(TEXT("Number parameters are accepted"), Params.AddNumber(TEXT("score"), 12.5));
     TestTrue(TEXT("Boolean parameters are accepted"), Params.AddBoolean(TEXT("done"), false));
@@ -32,7 +37,7 @@ bool FOpenPocketBaseTypedFilterBindingTest::RunTest(const FString& Parameters)
         TEXT("owner = {:owner} && labels ?= {:labels} && score ?= {:scores} && done ?= {:states}");
     FOpenPocketBaseFilter Bound;
     FOpenPocketBaseError Error;
-    TestTrue(TEXT("A complete typed filter binds"), FOpenPocketBaseFilter::TryBind(Expression, Params, Bound, Error));
+    TestTrue(TEXT("A complete typed filter binds"), FOpenPocketBaseFilter::TryBindDynamic(Expression, Params, Bound, Error));
     TestEqual(
         TEXT("Typed values use the PocketBase JavaScript SDK wire encoding"),
         Bound.ToString(),
@@ -42,11 +47,11 @@ bool FOpenPocketBaseTypedFilterBindingTest::RunTest(const FString& Parameters)
             TEXT("labels ?= \"[\\\"urgent\\\",\\\"quoted\\\\\\\"value\\\"]\" && ")
             TEXT("score ?= \"[1,2.5]\" && done ?= \"[true,false]\"")));
 
-    FOpenPocketBaseFilterParams RecursiveParams;
+    FOpenPocketBaseDynamicFilterParams RecursiveParams;
     RecursiveParams.AddString(TEXT("value"), TEXT("{:admin}"));
     TestTrue(
         TEXT("Encoded values are not rescanned as placeholders"),
-        FOpenPocketBaseFilter::TryBind(TEXT("name = {:value}"), RecursiveParams, Bound, Error));
+        FOpenPocketBaseFilter::TryBindDynamic(TEXT("name = {:value}"), RecursiveParams, Bound, Error));
     TestEqual(
         TEXT("Placeholder-like input stays quoted"),
         Bound.ToString(),
@@ -61,7 +66,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseFilterValidationTest::RunTest(const FString& Parameters)
 {
-    FOpenPocketBaseFilterParams Params;
+    FOpenPocketBaseDynamicFilterParams Params;
     TestFalse(
         TEXT("Non-finite numbers are rejected"),
         Params.AddNumber(TEXT("score"), std::numeric_limits<double>::infinity()));
@@ -72,15 +77,15 @@ bool FOpenPocketBaseFilterValidationTest::RunTest(const FString& Parameters)
     FOpenPocketBaseError Error;
     TestFalse(
         TEXT("Unknown placeholders are rejected"),
-        FOpenPocketBaseFilter::TryBind(TEXT("owner = {:owner}"), Params, Bound, Error));
+        FOpenPocketBaseFilter::TryBindDynamic(TEXT("owner = {:owner}"), Params, Bound, Error));
     TestEqual(TEXT("Unknown placeholders report invalid input"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
 
     TestFalse(
         TEXT("Unused parameters are rejected"),
-        FOpenPocketBaseFilter::TryBind(TEXT("status = 'open'"), Params, Bound, Error));
+        FOpenPocketBaseFilter::TryBindDynamic(TEXT("status = 'open'"), Params, Bound, Error));
     TestFalse(
         TEXT("Unclosed placeholders are rejected"),
-        FOpenPocketBaseFilter::TryBind(TEXT("status = {:status"), Params, Bound, Error));
+        FOpenPocketBaseFilter::TryBindDynamic(TEXT("status = {:status"), Params, Bound, Error));
     return true;
 }
 

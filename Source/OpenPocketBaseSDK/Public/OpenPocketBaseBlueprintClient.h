@@ -186,7 +186,7 @@ public:
         const FOpenPocketBaseRealtimeOptions& Options,
         FOpenPocketBaseError& OutError);
 
-    UOpenPocketBaseSubscription* SubscribeToTopic(
+    UOpenPocketBaseSubscription* DynamicSubscribeToTopic(
         FString Topic,
         const FOpenPocketBaseRealtimeOptions& Options,
         FOpenPocketBaseError& OutError);

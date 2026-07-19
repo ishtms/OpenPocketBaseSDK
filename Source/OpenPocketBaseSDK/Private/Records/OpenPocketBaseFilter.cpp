@@ -258,7 +258,7 @@ FOpenPocketBaseFilter CombineFilters(
 }
 }
 
-bool FOpenPocketBaseFilterParams::AddEncoded(const FString& Name, FString EncodedValue)
+bool FOpenPocketBaseDynamicFilterParams::AddEncoded(const FString& Name, FString EncodedValue)
 {
     if (!IsValidParameterName(Name))
     {
@@ -268,32 +268,32 @@ bool FOpenPocketBaseFilterParams::AddEncoded(const FString& Name, FString Encode
     return true;
 }
 
-bool FOpenPocketBaseFilterParams::AddString(const FString& Name, const FString& Value)
+bool FOpenPocketBaseDynamicFilterParams::AddString(const FString& Name, const FString& Value)
 {
     return AddEncoded(Name, EncodeString(Value));
 }
 
-bool FOpenPocketBaseFilterParams::AddNumber(const FString& Name, const double Value)
+bool FOpenPocketBaseDynamicFilterParams::AddNumber(const FString& Name, const double Value)
 {
     return FMath::IsFinite(Value) && AddEncoded(Name, EncodeNumber(Value));
 }
 
-bool FOpenPocketBaseFilterParams::AddBoolean(const FString& Name, const bool bValue)
+bool FOpenPocketBaseDynamicFilterParams::AddBoolean(const FString& Name, const bool bValue)
 {
     return AddEncoded(Name, bValue ? TEXT("true") : TEXT("false"));
 }
 
-bool FOpenPocketBaseFilterParams::AddDate(const FString& Name, const FDateTime& Value)
+bool FOpenPocketBaseDynamicFilterParams::AddDate(const FString& Name, const FDateTime& Value)
 {
     return AddEncoded(Name, EncodeString(OpenPocketBase::Date::Format(Value)));
 }
 
-bool FOpenPocketBaseFilterParams::AddNull(const FString& Name)
+bool FOpenPocketBaseDynamicFilterParams::AddNull(const FString& Name)
 {
     return AddEncoded(Name, TEXT("null"));
 }
 
-bool FOpenPocketBaseFilterParams::AddStringArray(
+bool FOpenPocketBaseDynamicFilterParams::AddStringArray(
     const FString& Name,
     const TArray<FString>& Value)
 {
@@ -309,7 +309,7 @@ bool FOpenPocketBaseFilterParams::AddStringArray(
             }));
 }
 
-bool FOpenPocketBaseFilterParams::AddNumberArray(
+bool FOpenPocketBaseDynamicFilterParams::AddNumberArray(
     const FString& Name,
     const TArray<double>& Value)
 {
@@ -332,7 +332,7 @@ bool FOpenPocketBaseFilterParams::AddNumberArray(
             }));
 }
 
-bool FOpenPocketBaseFilterParams::AddBooleanArray(
+bool FOpenPocketBaseDynamicFilterParams::AddBooleanArray(
     const FString& Name,
     const TArray<bool>& Value)
 {
@@ -348,12 +348,12 @@ bool FOpenPocketBaseFilterParams::AddBooleanArray(
             }));
 }
 
-int32 FOpenPocketBaseFilterParams::Num() const
+int32 FOpenPocketBaseDynamicFilterParams::Num() const
 {
     return EncodedValues.Num();
 }
 
-void FOpenPocketBaseFilterParams::Reset()
+void FOpenPocketBaseDynamicFilterParams::Reset()
 {
     EncodedValues.Reset();
 }
@@ -476,7 +476,7 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicNull(
     return MakeDynamicComparison(MoveTemp(Field), NullOperator(Comparison), TEXT("null"));
 }
 
-FOpenPocketBaseFilter FOpenPocketBaseFilter::Raw(FString InExpression)
+FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicRaw(FString InExpression)
 {
     InExpression.TrimStartAndEndInline();
     if (InExpression.Len() > 64 * 1024)
@@ -520,9 +520,9 @@ const FString& FOpenPocketBaseFilter::ToString() const
     return Expression;
 }
 
-bool FOpenPocketBaseFilter::TryBind(
+bool FOpenPocketBaseFilter::TryBindDynamic(
     const FString& InExpression,
-    const FOpenPocketBaseFilterParams& Params,
+    const FOpenPocketBaseDynamicFilterParams& Params,
     FOpenPocketBaseFilter& OutFilter,
     FOpenPocketBaseError& OutError)
 {
@@ -588,6 +588,6 @@ bool FOpenPocketBaseFilter::TryBind(
         return false;
     }
 
-    OutFilter = Raw(MoveTemp(Bound));
+    OutFilter = DynamicRaw(MoveTemp(Bound));
     return true;
 }

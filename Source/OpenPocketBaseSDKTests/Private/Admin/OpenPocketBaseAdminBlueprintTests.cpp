@@ -11,6 +11,41 @@
 #include "OpenPocketBaseAdminBlueprintClient.h"
 #include "UObject/Package.h"
 
+#include <type_traits>
+
+using FExpectedAdminGetCollection = UOpenPocketBaseAdminDocumentAsyncAction* (*)(
+    UOpenPocketBaseAdminClient*,
+    FOpenPocketBaseCollectionRef,
+    FOpenPocketBaseRequestOptions);
+using FExpectedAdminUpdateCollection = UOpenPocketBaseAdminDocumentAsyncAction* (*)(
+    UOpenPocketBaseAdminClient*,
+    FOpenPocketBaseCollectionRef,
+    FOpenPocketBaseAdminDocument,
+    FOpenPocketBaseRequestOptions);
+using FExpectedAdminDeleteCollection = UOpenPocketBaseAdminCommandAsyncAction* (*)(
+    UOpenPocketBaseAdminClient*,
+    FOpenPocketBaseCollectionRef,
+    FOpenPocketBaseRequestOptions);
+using FExpectedAdminImpersonate = UOpenPocketBaseAdminImpersonateAsyncAction* (*)(
+    UOpenPocketBaseAdminClient*,
+    FOpenPocketBaseAuthCollectionRef,
+    FString,
+    int64,
+    FOpenPocketBaseRequestOptions);
+
+static_assert(std::is_same_v<
+    decltype(&UOpenPocketBaseAdminDocumentAsyncAction::GetCollection),
+    FExpectedAdminGetCollection>);
+static_assert(std::is_same_v<
+    decltype(&UOpenPocketBaseAdminDocumentAsyncAction::UpdateCollection),
+    FExpectedAdminUpdateCollection>);
+static_assert(std::is_same_v<
+    decltype(&UOpenPocketBaseAdminCommandAsyncAction::DeleteCollection),
+    FExpectedAdminDeleteCollection>);
+static_assert(std::is_same_v<
+    decltype(&UOpenPocketBaseAdminImpersonateAsyncAction::Impersonate),
+    FExpectedAdminImpersonate>);
+
 namespace
 {
 bool VerifyDevelopmentOnlyFunction(
@@ -98,17 +133,21 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
         {UOpenPocketBaseAdminPageAsyncAction::StaticClass(), TEXT("ListCollections")},
         {UOpenPocketBaseAdminPageAsyncAction::StaticClass(), TEXT("ListLogs")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("GetCollection")},
+        {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("GetDynamicCollection")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("CreateCollection")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("UpdateCollection")},
+        {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("UpdateDynamicCollection")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("GetSettings")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("UpdateSettings")},
         {UOpenPocketBaseAdminDocumentAsyncAction::StaticClass(), TEXT("GetLog")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("DeleteCollection")},
+        {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("DeleteDynamicCollection")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("ImportCollections")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("TestS3")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("TestEmail")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("CreateBackup")},
-        {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("UploadBackup")},
+        {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("UploadBackupFromPath")},
+        {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("UploadBackupFromBytes")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("RestoreBackup")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("DeleteBackup")},
         {UOpenPocketBaseAdminCommandAsyncAction::StaticClass(), TEXT("RunCron")},
@@ -116,7 +155,8 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
         {UOpenPocketBaseAdminBackupDownloadAsyncAction::StaticClass(), TEXT("DownloadBackup")},
         {UOpenPocketBaseAdminDocumentListAsyncAction::StaticClass(), TEXT("ListCrons")},
         {UOpenPocketBaseAdminSqlAsyncAction::StaticClass(), TEXT("RunSql")},
-        {UOpenPocketBaseAdminImpersonateAsyncAction::StaticClass(), TEXT("Impersonate")}};
+        {UOpenPocketBaseAdminImpersonateAsyncAction::StaticClass(), TEXT("Impersonate")},
+        {UOpenPocketBaseAdminImpersonateAsyncAction::StaticClass(), TEXT("ImpersonateDynamicUser")}};
     for (const FExpectedFunction& Function : Functions)
     {
         VerifyDevelopmentOnlyFunction(*this, Function.Owner, Function.Name);

@@ -258,7 +258,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
     return Subscription;
 }
 
-UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToTopic(
+UOpenPocketBaseSubscription* UOpenPocketBaseClient::DynamicSubscribeToTopic(
     FString Topic,
     const FOpenPocketBaseRealtimeOptions& Options,
     FOpenPocketBaseError& OutError)
