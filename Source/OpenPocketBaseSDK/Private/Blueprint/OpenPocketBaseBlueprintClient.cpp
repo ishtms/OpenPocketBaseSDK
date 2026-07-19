@@ -199,7 +199,7 @@ void UOpenPocketBaseClient::Shutdown()
 }
 
 UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
-    FString Collection,
+    FOpenPocketBaseCollectionRef Collection,
     const FOpenPocketBaseRealtimeOptions& Options,
     FOpenPocketBaseError& OutError)
 {
@@ -213,7 +213,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionResult Result = NativeClient->DynamicCollection(MoveTemp(Collection))
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->Collection(MoveTemp(Collection))
         .SubscribeToRecords(MakeRealtimeCallbacks(Subscription), Options);
     if (!Result.IsSuccess())
     {
@@ -227,7 +227,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
 }
 
 UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
-    FString Collection,
+    FOpenPocketBaseCollectionRef Collection,
     FString RecordId,
     const FOpenPocketBaseRealtimeOptions& Options,
     FOpenPocketBaseError& OutError)
@@ -242,7 +242,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionResult Result = NativeClient->DynamicCollection(MoveTemp(Collection))
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->Collection(MoveTemp(Collection))
         .SubscribeToRecord(
             MoveTemp(RecordId),
             MakeRealtimeCallbacks(Subscription),
@@ -273,7 +273,7 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToTopic(
     }
 
     UOpenPocketBaseSubscription* Subscription = NewObject<UOpenPocketBaseSubscription>(this);
-    FOpenPocketBaseSubscriptionResult Result = NativeClient->Subscribe(
+    FOpenPocketBaseSubscriptionResult Result = NativeClient->DynamicSubscribe(
         MoveTemp(Topic),
         MakeRealtimeCallbacks(Subscription),
         Options);

@@ -160,7 +160,7 @@ bool FOpenPocketBaseRealtimeCapabilityGateTest::RunTest(const FString& Parameter
         Streaming.Status, EOpenPocketBaseCapabilityStatus::Unsupported);
 
     const FOpenPocketBaseSubscriptionResult SubscriptionResult =
-        Client->Subscribe(TEXT("messages/*"));
+        Client->DynamicSubscribe(TEXT("messages/*"));
     TestFalse(TEXT("Realtime is rejected before opening a stream"), SubscriptionResult.IsSuccess());
     TestEqual(TEXT("The rejection uses the stable unsupported error"),
         SubscriptionResult.GetError().Kind, EOpenPocketBaseErrorKind::Unsupported);

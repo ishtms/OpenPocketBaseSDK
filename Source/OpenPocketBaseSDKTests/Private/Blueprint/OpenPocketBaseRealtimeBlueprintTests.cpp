@@ -138,7 +138,32 @@ bool FOpenPocketBaseRealtimeBlueprintTest::RunTest(const FString& Parameters)
     }
     Client->AddToRoot();
 
-    const FOpenPocketBaseCollection Collection = Client->DynamicCollection(TEXT("messages"));
+    FOpenPocketBaseCollectionRef MessagesRef;
+    MessagesRef.SchemaId = FGuid(1, 2, 3, 4);
+    MessagesRef.CollectionId = TEXT("messages_id");
+    MessagesRef.Name = TEXT("messages");
+    MessagesRef.Type = EOpenPocketBaseCollectionType::Base;
+    const FOpenPocketBaseCollection Collection = Client->Collection(MessagesRef);
+
+    FOpenPocketBaseAnyFieldRef ForeignField;
+    ForeignField.SchemaId = MessagesRef.SchemaId;
+    ForeignField.CollectionId = TEXT("other_id");
+    ForeignField.FieldId = TEXT("title_id");
+    ForeignField.Name = TEXT("title");
+    ForeignField.Type = EOpenPocketBaseFieldType::Text;
+    FOpenPocketBaseRealtimeOptions MismatchedOptions;
+    MismatchedOptions.Fields = {OpenPocketBase::Query::Select(ForeignField)};
+    UOpenPocketBaseSubscription* MismatchedSubscription = nullptr;
+    TestFalse(
+        TEXT("Realtime rejects fields from another collection"),
+        UOpenPocketBaseRealtimeLibrary::SubscribeToRecords(
+            Collection,
+            MismatchedOptions,
+            MismatchedSubscription,
+            Error));
+    TestNull(TEXT("A mismatched field does not create a subscription"), MismatchedSubscription);
+    TestEqual(TEXT("A mismatched field does not start the transport"), Transport->RequestCount, 0);
+
     UOpenPocketBaseSubscription* Subscription = nullptr;
     TestTrue(
         TEXT("Subscribe to Records starts from a collection value"),

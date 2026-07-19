@@ -311,7 +311,7 @@ bool FOpenPocketBaseRealtimeHandshakeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
     FOpenPocketBaseRealtimeCallbacks Callbacks;
-    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->DynamicSubscribe(
         TEXT("messages/*"),
         MoveTemp(Callbacks),
         {});
@@ -356,7 +356,7 @@ bool FOpenPocketBaseRealtimeLatestSetTest::RunTest(const FString& Parameters)
         CreateOpenPocketBaseTestClient(Config, Transport, Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionResult FirstResult = Client->Subscribe(TEXT("messages/*"));
+    FOpenPocketBaseSubscriptionResult FirstResult = Client->DynamicSubscribe(TEXT("messages/*"));
     if (!TestTrue(TEXT("The first listener is accepted"), FirstResult.IsSuccess()))
     {
         return false;
@@ -369,8 +369,8 @@ bool FOpenPocketBaseRealtimeLatestSetTest::RunTest(const FString& Parameters)
         Transport->GetPostedSubscriptions(0).Num(),
         1);
 
-    FOpenPocketBaseSubscriptionResult SecondResult = Client->Subscribe(TEXT("messages/*"));
-    FOpenPocketBaseSubscriptionResult PresenceResult = Client->Subscribe(TEXT("presence"));
+    FOpenPocketBaseSubscriptionResult SecondResult = Client->DynamicSubscribe(TEXT("messages/*"));
+    FOpenPocketBaseSubscriptionResult PresenceResult = Client->DynamicSubscribe(TEXT("presence"));
     if (!TestTrue(TEXT("The second listener is accepted"), SecondResult.IsSuccess()) ||
         !TestTrue(TEXT("The presence listener is accepted"), PresenceResult.IsSuccess()))
     {
@@ -394,7 +394,7 @@ bool FOpenPocketBaseRealtimeLatestSetTest::RunTest(const FString& Parameters)
         2);
     Transport->CompletePost(1);
 
-    Client->UnsubscribeTopic(TEXT("messages/*"));
+    Client->UnsubscribeDynamicTopic(TEXT("messages/*"));
     TestEqual(TEXT("Removing a topic posts the reduced set"), Transport->Posts.Num(), 3);
     const TSet<FString> Reduced = Transport->GetPostedSubscriptions(2);
     TestEqual(TEXT("The reduced set contains one topic"), Reduced.Num(), 1);
@@ -499,7 +499,7 @@ bool FOpenPocketBaseRealtimeTopicOptionsTest::RunTest(const FString& Parameters)
     FOpenPocketBaseRealtimeOptions UnsafeOptions;
     UnsafeOptions.Headers.Add(TEXT("Authorization"), TEXT("caller-token"));
     const FOpenPocketBaseSubscriptionResult Unsafe =
-        Client->Subscribe(TEXT("unsafe"), {}, UnsafeOptions);
+        Client->DynamicSubscribe(TEXT("unsafe"), {}, UnsafeOptions);
     TestFalse(TEXT("A per-topic auth override is rejected"), Unsafe.IsSuccess());
     TestEqual(TEXT("The rejected option is a local argument error"),
         Unsafe.GetError().Kind, EOpenPocketBaseErrorKind::InvalidArgument);
@@ -534,7 +534,7 @@ bool FOpenPocketBaseRealtimeReconnectGenerationTest::RunTest(const FString& Para
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionResult MessagesResult = Client->Subscribe(TEXT("messages/*"));
+    FOpenPocketBaseSubscriptionResult MessagesResult = Client->DynamicSubscribe(TEXT("messages/*"));
     if (!TestTrue(TEXT("The messages listener is accepted"), MessagesResult.IsSuccess()))
     {
         return false;
@@ -552,7 +552,7 @@ bool FOpenPocketBaseRealtimeReconnectGenerationTest::RunTest(const FString& Para
             InitialReconnectDelay.GetValue() >= 0.4 && InitialReconnectDelay.GetValue() <= 0.6);
     }
 
-    FOpenPocketBaseSubscriptionResult PresenceResult = Client->Subscribe(TEXT("presence"));
+    FOpenPocketBaseSubscriptionResult PresenceResult = Client->DynamicSubscribe(TEXT("presence"));
     if (!TestTrue(TEXT("The presence listener is accepted"), PresenceResult.IsSuccess()))
     {
         return false;
@@ -602,7 +602,7 @@ bool FOpenPocketBaseRealtimeRetryHintTest::RunTest(const FString& Parameters)
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(TEXT("messages/*"));
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->DynamicSubscribe(TEXT("messages/*"));
     if (!TestTrue(TEXT("The listener is accepted"), SubscriptionResult.IsSuccess()))
     {
         return false;
@@ -650,7 +650,7 @@ bool FOpenPocketBaseRealtimeStableBackoffTest::RunTest(const FString& Parameters
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(TEXT("messages/*"));
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->DynamicSubscribe(TEXT("messages/*"));
     if (!TestTrue(TEXT("The listener is accepted"), SubscriptionResult.IsSuccess()))
     {
         return false;
@@ -724,7 +724,7 @@ bool FOpenPocketBaseRealtimeLifecycleTest::RunTest(const FString& Parameters)
             Error);
     TestTrue(TEXT("The client is created"), Client.IsValid());
 
-    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(TEXT("messages/*"));
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->DynamicSubscribe(TEXT("messages/*"));
     if (!TestTrue(TEXT("The listener is accepted"), SubscriptionResult.IsSuccess()))
     {
         return false;
@@ -802,7 +802,7 @@ bool FOpenPocketBaseRealtimeBoundedDeliveryTest::RunTest(const FString& Paramete
     {
         ++State->ResyncCount;
     };
-    FOpenPocketBaseSubscriptionResult SubscriptionResult = State->Client->Subscribe(
+    FOpenPocketBaseSubscriptionResult SubscriptionResult = State->Client->DynamicSubscribe(
         TEXT("messages/*"), MoveTemp(Callbacks));
     if (!TestTrue(TEXT("The delivery listener is accepted"), SubscriptionResult.IsSuccess()))
     {

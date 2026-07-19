@@ -2968,7 +2968,7 @@ private:
             Self->HandleRealtimeGap();
         };
 
-        FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->Subscribe(
+        FOpenPocketBaseSubscriptionResult SubscriptionResult = Client->DynamicSubscribe(
             TEXT("@oauth2"),
             MoveTemp(Callbacks),
             {});
@@ -4413,7 +4413,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
         });
 }
 
-FOpenPocketBaseSubscriptionResult FOpenPocketBaseClient::Subscribe(
+FOpenPocketBaseSubscriptionResult FOpenPocketBaseClient::DynamicSubscribe(
     FString Topic,
     FOpenPocketBaseRealtimeCallbacks Callbacks,
     FOpenPocketBaseRealtimeOptions Options)
@@ -4450,7 +4450,7 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseClient::Subscribe(
     return FOpenPocketBaseSubscriptionResult::Success(MoveTemp(Subscription));
 }
 
-void FOpenPocketBaseClient::UnsubscribeTopic(const FString& Topic)
+void FOpenPocketBaseClient::UnsubscribeDynamicTopic(const FString& Topic)
 {
     if (Impl->Realtime.IsValid())
     {
@@ -6741,7 +6741,7 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
             EOpenPocketBaseErrorKind::InvalidArgument,
             TEXT("A ready client, valid collection, and matching realtime options are required.")));
     }
-    return PinnedClient->Subscribe(
+    return PinnedClient->DynamicSubscribe(
         Collection + TEXT("/*"),
         MoveTemp(Callbacks),
         MoveTemp(Options));
@@ -6761,7 +6761,7 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
             EOpenPocketBaseErrorKind::InvalidArgument,
             TEXT("A ready client, valid collection, record ID, and matching realtime options are required.")));
     }
-    return PinnedClient->Subscribe(
+    return PinnedClient->DynamicSubscribe(
         Collection + TEXT("/") + MoveTemp(RecordId),
         MoveTemp(Callbacks),
         MoveTemp(Options));

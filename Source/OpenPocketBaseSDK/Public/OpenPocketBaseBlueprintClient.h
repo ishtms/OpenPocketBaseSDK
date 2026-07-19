@@ -176,12 +176,12 @@ public:
     void Shutdown();
 
     UOpenPocketBaseSubscription* SubscribeToRecords(
-        FString Collection,
+        FOpenPocketBaseCollectionRef Collection,
         const FOpenPocketBaseRealtimeOptions& Options,
         FOpenPocketBaseError& OutError);
 
     UOpenPocketBaseSubscription* SubscribeToRecord(
-        FString Collection,
+        FOpenPocketBaseCollectionRef Collection,
         FString RecordId,
         const FOpenPocketBaseRealtimeOptions& Options,
         FOpenPocketBaseError& OutError);

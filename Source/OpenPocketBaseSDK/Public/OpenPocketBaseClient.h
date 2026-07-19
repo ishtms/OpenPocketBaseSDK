@@ -383,11 +383,11 @@ public:
         FOpenPocketBaseBatchRequest Batch,
         FOpenPocketBaseBatchCallback OnComplete,
         FOpenPocketBaseBatchOptions Options = {});
-    FOpenPocketBaseSubscriptionResult Subscribe(
+    FOpenPocketBaseSubscriptionResult DynamicSubscribe(
         FString Topic,
         FOpenPocketBaseRealtimeCallbacks Callbacks = {},
         FOpenPocketBaseRealtimeOptions Options = {});
-    void UnsubscribeTopic(const FString& Topic);
+    void UnsubscribeDynamicTopic(const FString& Topic);
     void UnsubscribeAllRealtime();
     bool IsShutdown() const;
     void Shutdown();
