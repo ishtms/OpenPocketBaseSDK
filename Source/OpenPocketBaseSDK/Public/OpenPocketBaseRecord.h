@@ -71,7 +71,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     FOpenPocketBaseRecordBody& SetNullField(
-        const FOpenPocketBaseAnyFieldRef& Field,
+        const FOpenPocketBaseFieldRef& Field,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     FOpenPocketBaseRecordBody& SetStringArrayField(

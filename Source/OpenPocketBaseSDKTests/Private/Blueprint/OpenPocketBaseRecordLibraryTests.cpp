@@ -150,6 +150,12 @@ bool FOpenPocketBaseRecordValueBuilderTest::RunTest(const FString& Parameters)
         TEXT("Native body setters chain"),
         NativeBody.Data.JsonObject->GetBoolField(TEXT("done")));
 
+    FOpenPocketBaseRecordBody NullBody;
+    NullBody.SetNullField(Fields.Title);
+    TestTrue(
+        TEXT("Specific field references can be set to null"),
+        NullBody.Data.JsonObject->HasTypedField<EJson::Null>(TEXT("title")));
+
     FOpenPocketBaseListOptions Options;
     Options
         .AtPage(2)

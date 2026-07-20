@@ -130,7 +130,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
         EOpenPocketBaseDateComparison Comparison,
         const FDateTime& Value);
     static FOpenPocketBaseFilter Null(
-        const FOpenPocketBaseAnyFieldRef& Field,
+        const FOpenPocketBaseFieldRef& Field,
         EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
     static FOpenPocketBaseFilter DynamicString(
         FString Field,

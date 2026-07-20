@@ -84,7 +84,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFieldSelection
 namespace OpenPocketBase::Query
 {
 OPENPOCKETBASESDK_API FOpenPocketBaseSort Sort(
-    const FOpenPocketBaseAnyFieldRef& Field,
+    const FOpenPocketBaseFieldRef& Field,
     EOpenPocketBaseSortDirection Direction);
 OPENPOCKETBASESDK_API FOpenPocketBaseExpand Expand(
     const FOpenPocketBaseRelationFieldRef& Relation);
@@ -92,14 +92,14 @@ OPENPOCKETBASESDK_API FOpenPocketBaseExpand ThenExpand(
     FOpenPocketBaseExpand Path,
     const FOpenPocketBaseRelationFieldRef& Relation);
 OPENPOCKETBASESDK_API FOpenPocketBaseFieldSelection Select(
-    const FOpenPocketBaseAnyFieldRef& Field);
+    const FOpenPocketBaseFieldRef& Field);
 OPENPOCKETBASESDK_API FOpenPocketBaseFieldSelection SelectExcerpt(
     const FOpenPocketBaseStringFieldRef& Field,
     int32 MaxLength,
     bool bWithEllipsis = false);
 OPENPOCKETBASESDK_API FOpenPocketBaseFieldSelection SelectExpanded(
     FOpenPocketBaseExpand Path,
-    const FOpenPocketBaseAnyFieldRef& Field);
+    const FOpenPocketBaseFieldRef& Field);
 OPENPOCKETBASESDK_API FOpenPocketBaseFieldSelection SelectExpandedExcerpt(
     FOpenPocketBaseExpand Path,
     const FOpenPocketBaseStringFieldRef& Field,

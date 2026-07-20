@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "OpenPocketBaseFilter.h"
 #include "OpenPocketBaseQuery.h"
 #include "OpenPocketBaseSchema.h"
 
@@ -58,7 +59,7 @@ bool FOpenPocketBaseTypedQueryTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseCollectionRef TasksRef;
     Schema->MakeCollectionRef(TEXT("tasks_id"), TasksRef);
-    FOpenPocketBaseAnyFieldRef ScoreRef;
+    FOpenPocketBaseNumberFieldRef ScoreRef;
     Schema->MakeTypedFieldRef(TasksRef, TEXT("score_id"), ScoreRef);
     const FOpenPocketBaseSort Sort = OpenPocketBase::Query::Sort(
         ScoreRef,
@@ -73,6 +74,16 @@ bool FOpenPocketBaseTypedQueryTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseStringFieldRef TitleRef;
     Schema->MakeTypedFieldRef(TasksRef, Title.Id, TitleRef);
+    const FOpenPocketBaseFieldSelection TitleSelection = OpenPocketBase::Query::Select(TitleRef);
+    TestEqual(
+        TEXT("Specific field references can be selected directly"),
+        TitleSelection.ToQueryValue(),
+        FString(TEXT("title")));
+    const FOpenPocketBaseFilter NullTitle = FOpenPocketBaseFilter::Null(TitleRef);
+    TestEqual(
+        TEXT("Specific field references can build null filters"),
+        NullTitle.ToString(),
+        FString(TEXT("title = null")));
     const FOpenPocketBaseFieldSelection Excerpt = OpenPocketBase::Query::SelectExcerpt(
         TitleRef,
         40,

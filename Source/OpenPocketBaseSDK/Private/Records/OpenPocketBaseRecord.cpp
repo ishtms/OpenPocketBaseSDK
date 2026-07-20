@@ -167,10 +167,10 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetBooleanField(
 }
 
 FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNullField(
-    const FOpenPocketBaseAnyFieldRef& Field,
+    const FOpenPocketBaseFieldRef& Field,
     const EOpenPocketBaseFieldModifier Modifier)
 {
-    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field) || !AcceptField(Field))
+    if (!Field.IsSet() || !AcceptField(Field))
     {
         if (bValid)
         {

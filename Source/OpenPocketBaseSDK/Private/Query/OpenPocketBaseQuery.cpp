@@ -86,11 +86,11 @@ FString FOpenPocketBaseFieldSelection::ToQueryValue() const
 }
 
 FOpenPocketBaseSort OpenPocketBase::Query::Sort(
-    const FOpenPocketBaseAnyFieldRef& Field,
+    const FOpenPocketBaseFieldRef& Field,
     const EOpenPocketBaseSortDirection Direction)
 {
     FOpenPocketBaseSort Result;
-    Result.Field = Field;
+    static_cast<FOpenPocketBaseFieldRef&>(Result.Field) = Field;
     Result.Direction = Direction;
     return Result;
 }
@@ -167,14 +167,14 @@ bool FieldMatchesExpandTarget(
 }
 
 FOpenPocketBaseFieldSelection OpenPocketBase::Query::Select(
-    const FOpenPocketBaseAnyFieldRef& Field)
+    const FOpenPocketBaseFieldRef& Field)
 {
-    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field))
+    if (!Field.IsSet())
     {
         return InvalidSelection(TEXT("Choose a field to select."));
     }
     FOpenPocketBaseFieldSelection Result;
-    Result.Field = Field;
+    static_cast<FOpenPocketBaseFieldRef&>(Result.Field) = Field;
     return Result;
 }
 
@@ -197,14 +197,14 @@ FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExcerpt(
 
 FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExpanded(
     FOpenPocketBaseExpand Path,
-    const FOpenPocketBaseAnyFieldRef& Field)
+    const FOpenPocketBaseFieldRef& Field)
 {
-    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field) || !FieldMatchesExpandTarget(Path, Field))
+    if (!Field.IsSet() || !FieldMatchesExpandTarget(Path, Field))
     {
         return InvalidSelection(TEXT("The selected field must belong to the expanded collection."));
     }
     FOpenPocketBaseFieldSelection Result;
-    Result.Field = Field;
+    static_cast<FOpenPocketBaseFieldRef&>(Result.Field) = Field;
     Result.Expand = MoveTemp(Path);
     return Result;
 }

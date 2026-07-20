@@ -417,10 +417,10 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Date(
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::Null(
-    const FOpenPocketBaseAnyFieldRef& Field,
+    const FOpenPocketBaseFieldRef& Field,
     const EOpenPocketBaseNullComparison Comparison)
 {
-    if (!FOpenPocketBaseAnyFieldRef::Accepts(Field))
+    if (!Field.IsSet())
     {
         return MakeInvalidFilter(TEXT("Choose a field for this filter."));
     }
