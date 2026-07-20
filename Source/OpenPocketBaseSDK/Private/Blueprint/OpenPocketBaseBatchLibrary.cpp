@@ -2,7 +2,14 @@
 
 namespace
 {
-bool ResolveBatchCollection(
+enum class EResolvedBatchCollection : uint8
+{
+    Invalid,
+    Typed,
+    Dynamic
+};
+
+EResolvedBatchCollection ResolveBatchCollection(
     FOpenPocketBaseBatchRequest& Batch,
     const FOpenPocketBaseCollection& Collection,
     FOpenPocketBaseWritableCollectionRef& OutCollection)
@@ -10,14 +17,35 @@ bool ResolveBatchCollection(
     Batch.BindClient(Collection.Client);
     if (!Batch.IsValid())
     {
-        return false;
+        return EResolvedBatchCollection::Invalid;
     }
-    if (!Collection.Reference.ResolveCurrentAs(OutCollection))
+    if (Collection.Reference.IsSet())
     {
-        Batch.Invalidate(TEXT("Choose a writable PocketBase collection for every batch operation."));
-        return false;
+        if (!Collection.Reference.ResolveCurrentAs(OutCollection))
+        {
+            Batch.Invalidate(TEXT("Choose a writable PocketBase collection for every batch operation."));
+            return EResolvedBatchCollection::Invalid;
+        }
+        return EResolvedBatchCollection::Typed;
     }
-    return true;
+    if (Collection.Reference.Name.IsEmpty())
+    {
+        Batch.Invalidate(TEXT("Choose a PocketBase collection for every batch operation."));
+        return EResolvedBatchCollection::Invalid;
+    }
+    return EResolvedBatchCollection::Dynamic;
+}
+
+template <typename ValueType>
+TArray<FString> ToDynamicQueryValues(const TArray<ValueType>& Values)
+{
+    TArray<FString> Result;
+    Result.Reserve(Values.Num());
+    for (const ValueType& Value : Values)
+    {
+        Result.Add(Value.ToQueryValue());
+    }
+    return Result;
 }
 }
 
@@ -33,9 +61,18 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithCreate(
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    if (ResolveBatchCollection(Batch, Collection, Current))
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddCreate(MoveTemp(Current), MoveTemp(Body), MoveTemp(ResponseOptions));
+    }
+    else if (Resolved == EResolvedBatchCollection::Dynamic)
+    {
+        Batch.AddDynamicCreate(
+            Collection.Reference.Name,
+            MoveTemp(Body),
+            ToDynamicQueryValues(ResponseOptions.Expand),
+            ToDynamicQueryValues(ResponseOptions.Fields));
     }
     return Batch;
 }
@@ -48,13 +85,23 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpdate(
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    if (ResolveBatchCollection(Batch, Collection, Current))
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddUpdate(
             MoveTemp(Current),
             RecordId,
             MoveTemp(Body),
             MoveTemp(ResponseOptions));
+    }
+    else if (Resolved == EResolvedBatchCollection::Dynamic)
+    {
+        Batch.AddDynamicUpdate(
+            Collection.Reference.Name,
+            RecordId,
+            MoveTemp(Body),
+            ToDynamicQueryValues(ResponseOptions.Expand),
+            ToDynamicQueryValues(ResponseOptions.Fields));
     }
     return Batch;
 }
@@ -66,9 +113,18 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpsert(
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    if (ResolveBatchCollection(Batch, Collection, Current))
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddUpsert(MoveTemp(Current), MoveTemp(Body), MoveTemp(ResponseOptions));
+    }
+    else if (Resolved == EResolvedBatchCollection::Dynamic)
+    {
+        Batch.AddDynamicUpsert(
+            Collection.Reference.Name,
+            MoveTemp(Body),
+            ToDynamicQueryValues(ResponseOptions.Expand),
+            ToDynamicQueryValues(ResponseOptions.Fields));
     }
     return Batch;
 }
@@ -79,9 +135,14 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithDelete(
     const FString& RecordId)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    if (ResolveBatchCollection(Batch, Collection, Current))
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddDelete(MoveTemp(Current), RecordId);
+    }
+    else if (Resolved == EResolvedBatchCollection::Dynamic)
+    {
+        Batch.AddDynamicDelete(Collection.Reference.Name, RecordId);
     }
     return Batch;
 }

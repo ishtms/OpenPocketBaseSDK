@@ -20,7 +20,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Query",
-        meta = (DisplayName = "Sort Descending", NativeMakeFunc))
+        meta = (DisplayName = "Sort Descending", NativeMakeFunc, ToolTip = "Sorts records from highest to lowest by the selected field.", Keywords = "pocketbase records query sort descending order"))
     static FOpenPocketBaseSort SortDescending(FOpenPocketBaseAnyFieldRef Field);
 
     UFUNCTION(
@@ -40,7 +40,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Query",
-        meta = (DisplayName = "Select Field", NativeMakeFunc))
+        meta = (DisplayName = "Select Field", NativeMakeFunc, ToolTip = "Requests only the selected field in each returned record.", Keywords = "pocketbase records query fields select projection"))
     static FOpenPocketBaseFieldSelection SelectField(FOpenPocketBaseAnyFieldRef Field);
 
     UFUNCTION(

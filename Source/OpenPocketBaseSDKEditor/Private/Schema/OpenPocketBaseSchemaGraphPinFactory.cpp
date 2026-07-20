@@ -3,6 +3,8 @@
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
 #include "OpenPocketBaseSchemaPicker.h"
+#include "OpenPocketBaseRecord.h"
+#include "Schema/SOpenPocketBaseMultiSelectChoicePin.h"
 #include "Schema/SOpenPocketBaseSchemaPin.h"
 #include "Schema/SOpenPocketBaseSelectChoicePin.h"
 
@@ -27,6 +29,14 @@ TSharedPtr<SGraphPin> FOpenPocketBaseSchemaGraphPinFactory::CreatePin(UEdGraphPi
     }
 
     const UScriptStruct* Struct = Cast<UScriptStruct>(Pin->PinType.PinSubCategoryObject.Get());
+    if (Struct == FOpenPocketBaseSelectValues::StaticStruct() &&
+        Pin->GetOwningNode() != nullptr &&
+        !Pin->GetOwningNode()->GetPinMetaData(
+            Pin->PinName,
+            TEXT("OpenPocketBaseSelectField")).IsEmpty())
+    {
+        return SNew(SOpenPocketBaseMultiSelectChoicePin, Pin);
+    }
     if (!FOpenPocketBaseSchemaPickerModel::SupportsCollectionStruct(Struct) &&
         !FOpenPocketBaseSchemaPickerModel::SupportsFieldStruct(Struct))
     {

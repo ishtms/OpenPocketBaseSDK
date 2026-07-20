@@ -234,6 +234,9 @@ public:
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Geo Point)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseGeoPointToString(const FOpenPocketBaseGeoPoint& Value);
 
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (JSON Value)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseJsonValueToString(const FOpenPocketBaseJsonValue& Value);
+
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Record Body)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseRecordBodyToString(const FOpenPocketBaseRecordBody& Value);
 
@@ -242,6 +245,9 @@ public:
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Record Page)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseRecordPageToString(const FOpenPocketBaseRecordPage& Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Select Values)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseSelectValuesToString(const FOpenPocketBaseSelectValues& Value);
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Request Options)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseRequestOptionsToString(const FOpenPocketBaseRequestOptions& Value);
@@ -314,6 +320,9 @@ public:
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (JSON Root Type)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseJsonRootTypeToString(EOpenPocketBaseJsonRootType Value);
+
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (JSON Value Type)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
+    static FString Conv_OpenPocketBaseJsonValueTypeToString(EOpenPocketBaseJsonValueType Value);
 
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Realtime Action)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Open PocketBase|Utilities|String")
     static FString Conv_OpenPocketBaseRealtimeActionToString(EOpenPocketBaseRealtimeAction Value);

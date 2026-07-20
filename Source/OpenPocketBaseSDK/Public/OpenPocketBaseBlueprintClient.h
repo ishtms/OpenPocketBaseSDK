@@ -97,7 +97,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Collections",
-        meta = (DisplayName = "Use Collection", Keywords = "records write auth users table"))
+        meta = (DisplayName = "Use Collection", ToolTip = "Binds this client to a schema collection for typed record, write, or authentication operations.", Keywords = "pocketbase records write auth users table collection"))
     FOpenPocketBaseCollection Collection(FOpenPocketBaseCollectionRef Reference);
 
     FOpenPocketBaseWritableCollection WritableCollection(
@@ -105,6 +105,10 @@ public:
 
     FOpenPocketBaseAuthCollection AuthCollection(FOpenPocketBaseAuthCollectionRef Reference);
 
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Collections|Advanced",
+        meta = (DisplayName = "Use Dynamic Collection (Advanced)", ToolTip = "Creates an untyped collection value for a runtime-defined PocketBase collection name.", Keywords = "pocketbase dynamic collection records runtime"))
     FOpenPocketBaseCollection DynamicCollection(FString Name);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Utilities")

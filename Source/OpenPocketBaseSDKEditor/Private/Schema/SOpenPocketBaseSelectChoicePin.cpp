@@ -9,6 +9,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -45,6 +46,19 @@ TSharedRef<SWidget> SOpenPocketBaseSelectChoicePin::BuildMenu()
     TSharedRef<SVerticalBox> Content = SNew(SVerticalBox);
     if (ResolveField(Field) && !Field.Choices.IsEmpty())
     {
+        Content->AddSlot()
+            .AutoHeight()
+            [
+                SNew(SButton)
+                .ButtonStyle(FAppStyle::Get(), "Menu.Button")
+                .Text(LOCTEXT("ClearSelectChoice", "Clear selection"))
+                .OnClicked_Lambda([this]() { return SetChoice(FString()); })
+            ];
+        Content->AddSlot()
+            .AutoHeight()
+            [
+                SNew(SSeparator)
+            ];
         for (const FString& Choice : Field.Choices)
         {
             Content->AddSlot()

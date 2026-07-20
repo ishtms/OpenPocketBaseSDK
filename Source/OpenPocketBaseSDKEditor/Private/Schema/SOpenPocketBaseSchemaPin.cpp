@@ -7,6 +7,7 @@
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "Modules/ModuleManager.h"
+#include "OpenPocketBaseProjectSettings.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
@@ -487,6 +488,11 @@ void SOpenPocketBaseSchemaPin::LoadSchemas(
         }
     }
 
+    if (!OutSchemas.IsEmpty())
+    {
+        return;
+    }
+
     FAssetRegistryModule& AssetRegistryModule =
         FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
     TArray<FAssetData> Assets;
@@ -494,10 +500,19 @@ void SOpenPocketBaseSchemaPin::LoadSchemas(
         UOpenPocketBaseSchema::StaticClass()->GetClassPathName(),
         Assets,
         true);
+    TArray<UOpenPocketBaseSchema*> AvailableSchemas;
     for (const FAssetData& Asset : Assets)
     {
-        AddSchema(Cast<UOpenPocketBaseSchema>(Asset.GetAsset()));
+        UOpenPocketBaseSchema* Schema = Cast<UOpenPocketBaseSchema>(Asset.GetAsset());
+        if (Schema != nullptr)
+        {
+            AvailableSchemas.AddUnique(Schema);
+        }
     }
+    FOpenPocketBaseSchemaPickerModel::ChooseProfileSchemas(
+        *GetDefault<UOpenPocketBaseProjectSettings>(),
+        AvailableSchemas,
+        OutSchemas);
 }
 
 #undef LOCTEXT_NAMESPACE

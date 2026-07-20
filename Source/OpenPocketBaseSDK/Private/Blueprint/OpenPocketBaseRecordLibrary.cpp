@@ -199,7 +199,7 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithDateField(
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithJsonField(
     FOpenPocketBaseRecordBody Body,
     const FOpenPocketBaseJsonFieldRef Field,
-    const FJsonObjectWrapper& Value)
+    FOpenPocketBaseJsonValue Value)
 {
     Body.SetJsonField(Field, Value);
     return Body;
@@ -236,10 +236,10 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithSingleSelectField(
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithMultipleSelectField(
     FOpenPocketBaseRecordBody Body,
     const FOpenPocketBaseMultipleSelectFieldRef Field,
-    const TArray<FString>& Values,
+    FOpenPocketBaseSelectValues Values,
     const EOpenPocketBaseFieldModifier Modifier)
 {
-    Body.SetMultipleSelectField(Field, Values, Modifier);
+    Body.SetMultipleSelectField(Field, Values.Values, Modifier);
     return Body;
 }
 
@@ -337,7 +337,7 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithDynamicDateField(
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithDynamicJsonField(
     FOpenPocketBaseRecordBody Body,
     const FString& FieldName,
-    const FJsonObjectWrapper& Value)
+    FOpenPocketBaseJsonValue Value)
 {
     Body.SetDynamicJsonField(FieldName, Value);
     return Body;
@@ -548,6 +548,21 @@ bool UOpenPocketBaseRecordLibrary::TryGetStringArrayField(
         OutValue.Add(MoveTemp(StringValue));
     }
     return true;
+}
+
+bool UOpenPocketBaseRecordLibrary::TryGetJsonField(
+    const FOpenPocketBaseRecord& Record,
+    const FOpenPocketBaseJsonFieldRef Field,
+    FOpenPocketBaseJsonValue& OutValue)
+{
+    OutValue = {};
+    const TSharedPtr<FJsonValue> Value = FindValue(Record, Field);
+    if (!Value.IsValid())
+    {
+        return false;
+    }
+    OutValue = FOpenPocketBaseJsonValue::FromJsonValue(Value);
+    return OutValue.IsValid();
 }
 
 bool UOpenPocketBaseRecordLibrary::TryGetObjectField(

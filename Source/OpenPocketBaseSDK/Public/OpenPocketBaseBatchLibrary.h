@@ -22,7 +22,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Batch",
-        meta = (DisplayName = "With Create", Keywords = "batch add record"))
+        meta = (DisplayName = "With Create", ToolTip = "Returns a copy of the batch with one create-record operation added.", Keywords = "pocketbase batch add create record"))
     static FOpenPocketBaseBatchRequest WithCreate(
         FOpenPocketBaseBatchRequest Batch,
         UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,

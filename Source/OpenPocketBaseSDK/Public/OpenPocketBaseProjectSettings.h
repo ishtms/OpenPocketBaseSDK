@@ -6,6 +6,8 @@
 
 #include "OpenPocketBaseProjectSettings.generated.h"
 
+class UOpenPocketBaseSchema;
+
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseProjectProfile
 {
@@ -16,6 +18,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseProjectProfile
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Open PocketBase")
     FString BaseUrl;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Open PocketBase", meta = (ToolTip = "Schema asset used to scope collection and field pickers for this profile."))
+    TSoftObjectPtr<UOpenPocketBaseSchema> Schema;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Open PocketBase")
     FString AcceptLanguage;

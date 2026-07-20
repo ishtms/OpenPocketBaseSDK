@@ -253,6 +253,24 @@ bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
         OtherClientCollection,
         TEXT("task00000000002"));
     TestFalse(TEXT("A Blueprint batch cannot mix clients"), MixedClients.IsValid());
+
+    FOpenPocketBaseCollection DynamicCollection;
+    DynamicCollection.Client = Collection.Client;
+    DynamicCollection.Reference.Name = TEXT("tasks");
+    const FOpenPocketBaseBatchRequest DynamicBatch = UOpenPocketBaseBatchLibrary::WithCreate(
+        UOpenPocketBaseBatchLibrary::NewBatch(),
+        DynamicCollection,
+        Body,
+        {});
+    TestTrue(TEXT("Advanced dynamic collections remain usable in Blueprint batches"), DynamicBatch.IsValid());
+    TestEqual(TEXT("Dynamic batch operations are added"), DynamicBatch.Entries.Num(), 1);
+    if (DynamicBatch.Entries.Num() == 1)
+    {
+        TestEqual(
+            TEXT("Dynamic batch operations preserve the collection name"),
+            DynamicBatch.Entries[0].DynamicCollection,
+            FString(TEXT("tasks")));
+    }
     return true;
 }
 

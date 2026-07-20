@@ -1,9 +1,40 @@
 #include "OpenPocketBaseSchemaPicker.h"
 
 #include "Misc/OutputDeviceNull.h"
+#include "OpenPocketBaseProjectSettings.h"
 #include "UObject/StructOnScope.h"
 
 #define LOCTEXT_NAMESPACE "OpenPocketBaseSchemaPicker"
+
+void FOpenPocketBaseSchemaPickerModel::ChooseProfileSchemas(
+    const UOpenPocketBaseProjectSettings& Settings,
+    const TArray<UOpenPocketBaseSchema*>& AvailableSchemas,
+    TArray<UOpenPocketBaseSchema*>& OutSchemas)
+{
+    OutSchemas.Reset();
+    const FOpenPocketBaseProjectProfile* Profile = Settings.Profiles.FindByPredicate(
+        [&Settings](const FOpenPocketBaseProjectProfile& Candidate)
+        {
+            return Candidate.Name == Settings.DefaultProfile;
+        });
+    if (Profile != nullptr && !Profile->Schema.IsNull())
+    {
+        UOpenPocketBaseSchema* ProfileSchema = Profile->Schema.LoadSynchronous();
+        if (ProfileSchema != nullptr)
+        {
+            OutSchemas.Add(ProfileSchema);
+            return;
+        }
+    }
+
+    for (UOpenPocketBaseSchema* Schema : AvailableSchemas)
+    {
+        if (Schema != nullptr)
+        {
+            OutSchemas.AddUnique(Schema);
+        }
+    }
+}
 
 namespace
 {

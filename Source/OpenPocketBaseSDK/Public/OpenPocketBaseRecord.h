@@ -5,6 +5,7 @@
 #include "JsonObjectWrapper.h"
 #include "OpenPocketBaseError.h"
 #include "OpenPocketBaseFilter.h"
+#include "OpenPocketBaseJsonValue.h"
 #include "OpenPocketBaseQuery.h"
 #include "OpenPocketBaseSchema.h"
 
@@ -30,6 +31,15 @@ enum class EOpenPocketBaseFieldModifier : uint8
 };
 
 struct FOpenPocketBaseRecord;
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseSelectValues
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
+    TArray<FString> Values;
+};
 
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseGeoPoint
@@ -100,7 +110,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         const FDateTime& Value);
     FOpenPocketBaseRecordBody& SetJsonField(
         const FOpenPocketBaseJsonFieldRef& Field,
-        const FJsonObjectWrapper& Value);
+        const FOpenPocketBaseJsonValue& Value);
     FOpenPocketBaseRecordBody& SetGeoPointField(
         const FOpenPocketBaseGeoPointFieldRef& Field,
         const FOpenPocketBaseGeoPoint& Value);
@@ -150,7 +160,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         const FDateTime& Value);
     FOpenPocketBaseRecordBody& SetDynamicJsonField(
         const FString& FieldName,
-        const FJsonObjectWrapper& Value);
+        const FOpenPocketBaseJsonValue& Value);
     FOpenPocketBaseRecordBody& SetDynamicGeoPointField(
         const FString& FieldName,
         const FOpenPocketBaseGeoPoint& Value);

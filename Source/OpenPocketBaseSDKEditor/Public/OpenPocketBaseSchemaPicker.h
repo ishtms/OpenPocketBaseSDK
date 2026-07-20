@@ -4,6 +4,7 @@
 #include "OpenPocketBaseSchema.h"
 
 class UScriptStruct;
+class UOpenPocketBaseProjectSettings;
 
 enum class EOpenPocketBaseSchemaReferenceStatus : uint8
 {
@@ -64,6 +65,10 @@ public:
         const TArray<UOpenPocketBaseSchema*>& Schemas,
         const FOpenPocketBaseFieldPickerFilter& Filter,
         TArray<FOpenPocketBaseSchemaPickerChoice>& OutChoices);
+    static void ChooseProfileSchemas(
+        const UOpenPocketBaseProjectSettings& Settings,
+        const TArray<UOpenPocketBaseSchema*>& AvailableSchemas,
+        TArray<UOpenPocketBaseSchema*>& OutSchemas);
 
     static bool ParseCollectionDefault(
         const FString& DefaultValue,

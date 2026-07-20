@@ -135,7 +135,9 @@ public:
         Category = "Open PocketBase|Utilities",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Check Health"))
+            DisplayName = "Check Health",
+            ToolTip = "Checks whether the configured PocketBase API is reachable and healthy.",
+            Keywords = "pocketbase server health ping status"))
     static UOpenPocketBaseHealthAsyncAction* CheckHealth(
         UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseRequestOptions Options);
@@ -281,7 +283,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Create Record"))
+            DisplayName = "Create Record",
+            ToolTip = "Creates one record in the selected writable collection using the validated record body.",
+            Keywords = "pocketbase records create insert add"))
     static UOpenPocketBaseCreateRecordAsyncAction* CreateRecord(
         UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
@@ -536,7 +540,9 @@ public:
         Category = "Open PocketBase|Records",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "List Records"))
+            DisplayName = "List Records",
+            ToolTip = "Returns one filtered, sorted, and paginated page of records from the selected collection.",
+            Keywords = "pocketbase records list query page search"))
     static UOpenPocketBaseListRecordsAsyncAction* ListRecords(
         FOpenPocketBaseCollection Collection,
         FOpenPocketBaseListOptions Options);
@@ -1086,7 +1092,9 @@ public:
         Category = "Open PocketBase|Authentication",
         meta = (
             BlueprintInternalUseOnly = "true",
-            DisplayName = "Log In with Password"))
+            DisplayName = "Log In with Password",
+            ToolTip = "Authenticates a user in the selected auth collection with an identity and password.",
+            Keywords = "pocketbase auth login sign in email username password"))
     static UOpenPocketBasePasswordAuthAsyncAction* LogInWithPassword(
         UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Identity,

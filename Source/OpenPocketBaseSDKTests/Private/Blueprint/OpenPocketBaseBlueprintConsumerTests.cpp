@@ -519,6 +519,144 @@ bool FOpenPocketBaseBlueprintNodeDefaultsTest::RunTest(const FString& Parameters
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintComplexValueApiTest,
+    "OpenPocketBase.Blueprint.Values.SupportsComplexFields",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintComplexValueApiTest::RunTest(const FString& Parameters)
+{
+    TestNotNull(
+        TEXT("Blueprint can opt into a runtime-defined collection"),
+        UOpenPocketBaseClient::StaticClass()->FindFunctionByName(TEXT("DynamicCollection")));
+
+    UClass* JsonLibrary = FindObject<UClass>(
+        nullptr,
+        TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseJsonValueLibrary"));
+    TestNotNull(TEXT("The Blueprint JSON value library exists"), JsonLibrary);
+    if (JsonLibrary != nullptr)
+    {
+        TestNotNull(TEXT("Blueprint can create JSON objects"), JsonLibrary->FindFunctionByName(TEXT("MakeJsonObject")));
+        TestNotNull(TEXT("Blueprint can create JSON arrays"), JsonLibrary->FindFunctionByName(TEXT("MakeJsonArray")));
+        TestNotNull(TEXT("Blueprint can create JSON strings"), JsonLibrary->FindFunctionByName(TEXT("JsonString")));
+        TestNotNull(TEXT("Blueprint can create JSON numbers"), JsonLibrary->FindFunctionByName(TEXT("JsonNumber")));
+        TestNotNull(TEXT("Blueprint can create JSON booleans"), JsonLibrary->FindFunctionByName(TEXT("JsonBoolean")));
+        TestNotNull(TEXT("Blueprint can create JSON null"), JsonLibrary->FindFunctionByName(TEXT("JsonNull")));
+        TestNotNull(TEXT("Blueprint can set JSON object properties"), JsonLibrary->FindFunctionByName(TEXT("SetJsonProperty")));
+        TestNotNull(TEXT("Blueprint can append JSON array items"), JsonLibrary->FindFunctionByName(TEXT("AddJsonItem")));
+    }
+
+    const UFunction* WithJsonField =
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithJsonField));
+    const FStructProperty* JsonValueParameter = WithJsonField != nullptr
+        ? CastField<FStructProperty>(WithJsonField->FindPropertyByName(TEXT("Value")))
+        : nullptr;
+    TestNotNull(TEXT("JSON field writes expose a value input"), JsonValueParameter);
+    if (JsonValueParameter != nullptr)
+    {
+        TestEqual(
+            TEXT("JSON field writes accept every JSON root"),
+            JsonValueParameter->Struct->GetName(),
+            FString(TEXT("OpenPocketBaseJsonValue")));
+    }
+
+    const UFunction* WithSingleSelect =
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithSingleSelectField));
+    const FProperty* SingleChoice = WithSingleSelect != nullptr
+        ? WithSingleSelect->FindPropertyByName(TEXT("Value"))
+        : nullptr;
+    TestNotNull(TEXT("Single-select writes expose a choice input"), SingleChoice);
+    if (SingleChoice != nullptr)
+    {
+        TestEqual(
+            TEXT("Single-select choices stay linked to their field picker"),
+            SingleChoice->GetMetaData(TEXT("OpenPocketBaseSelectField")),
+            FString(TEXT("Field")));
+    }
+
+    const UFunction* WithMultipleSelect =
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithMultipleSelectField));
+    const FStructProperty* MultipleChoices = WithMultipleSelect != nullptr
+        ? CastField<FStructProperty>(WithMultipleSelect->FindPropertyByName(TEXT("Values")))
+        : nullptr;
+    TestNotNull(TEXT("Multiple-select writes expose a checklist value"), MultipleChoices);
+    if (MultipleChoices != nullptr)
+    {
+        TestEqual(
+            TEXT("Multiple-select writes use the select-values type"),
+            MultipleChoices->Struct->GetName(),
+            FString(TEXT("OpenPocketBaseSelectValues")));
+        TestEqual(
+            TEXT("Multiple-select choices stay linked to their field picker"),
+            MultipleChoices->GetMetaData(TEXT("OpenPocketBaseSelectField")),
+            FString(TEXT("Field")));
+    }
+
+    const UFunction* TryGetJsonField =
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("TryGetJsonField"));
+    TestNotNull(TEXT("Blueprint can read any JSON field value"), TryGetJsonField);
+    const FStructProperty* JsonOutput = TryGetJsonField != nullptr
+        ? CastField<FStructProperty>(TryGetJsonField->FindPropertyByName(TEXT("OutValue")))
+        : nullptr;
+    TestNotNull(TEXT("JSON field reads return a JSON value"), JsonOutput);
+    if (JsonOutput != nullptr)
+    {
+        TestEqual(
+            TEXT("JSON field reads preserve the root type"),
+            JsonOutput->Struct->GetName(),
+            FString(TEXT("OpenPocketBaseJsonValue")));
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintDiscoverabilityTest,
+    "OpenPocketBase.Blueprint.Nodes.ExplainCoreWorkflow",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintDiscoverabilityTest::RunTest(const FString& Parameters)
+{
+    const TArray<TPair<UClass*, FName>> CoreFunctions = {
+        {UOpenPocketBaseClientLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClientLibrary, InitializePocketBase)},
+        {UOpenPocketBaseClient::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, Collection)},
+        {UOpenPocketBaseRecordLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, NewRecordBody)},
+        {UOpenPocketBaseRecordLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithStringField)},
+        {UOpenPocketBaseRecordLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithJsonField)},
+        {UOpenPocketBaseRecordLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithRelationRecord)},
+        {UOpenPocketBaseRecordLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, TryGetStringField)},
+        {UOpenPocketBaseFilterLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFilterLibrary, BooleanFilter)},
+        {UOpenPocketBaseFilterLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFilterLibrary, AndFilters)},
+        {UOpenPocketBaseQueryLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseQueryLibrary, SortDescending)},
+        {UOpenPocketBaseQueryLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseQueryLibrary, SelectField)},
+        {UOpenPocketBaseFileLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFileLibrary, FileFromPath)},
+        {UOpenPocketBaseBatchLibrary::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseBatchLibrary, WithCreate)},
+        {UOpenPocketBaseHealthAsyncAction::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseHealthAsyncAction, CheckHealth)},
+        {UOpenPocketBaseListRecordsAsyncAction::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseListRecordsAsyncAction, ListRecords)},
+        {UOpenPocketBaseCreateRecordAsyncAction::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord)},
+        {UOpenPocketBasePasswordAuthAsyncAction::StaticClass(), GET_FUNCTION_NAME_CHECKED(UOpenPocketBasePasswordAuthAsyncAction, LogInWithPassword)}};
+
+    for (const TPair<UClass*, FName>& Entry : CoreFunctions)
+    {
+        const UFunction* Function = Entry.Key->FindFunctionByName(Entry.Value);
+        TestNotNull(
+            *FString::Printf(TEXT("Core node %s exists"), *Entry.Value.ToString()),
+            Function);
+        if (Function != nullptr)
+        {
+            TestFalse(
+                *FString::Printf(TEXT("Core node %s explains when to use it"), *Entry.Value.ToString()),
+                Function->GetMetaData(TEXT("ToolTip")).TrimStartAndEnd().IsEmpty());
+            TestFalse(
+                *FString::Printf(TEXT("Core node %s is easy to find"), *Entry.Value.ToString()),
+                Function->GetMetaData(TEXT("Keywords")).TrimStartAndEnd().IsEmpty());
+        }
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseBlueprintClientEntryApiTest,
     "OpenPocketBase.Blueprint.Client.UsesDirectEntryPoints",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

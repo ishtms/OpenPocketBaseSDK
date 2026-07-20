@@ -219,6 +219,7 @@ OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseGeoPoint, FOpenPocketBaseGe
 OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseRecordBody, FOpenPocketBaseRecordBody)
 OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseRecordOptions, FOpenPocketBaseRecordOptions)
 OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseRecordPage, FOpenPocketBaseRecordPage)
+OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseSelectValues, FOpenPocketBaseSelectValues)
 OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseRequestOptions, FOpenPocketBaseRequestOptions)
 OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseSessionRestoreResult, FOpenPocketBaseSessionRestoreResult)
 OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseSessionSnapshot, FOpenPocketBaseSessionSnapshot)
@@ -228,6 +229,18 @@ OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseTransferProgress, FOpenPock
 OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(OpenPocketBaseUploadLimits, FOpenPocketBaseUploadLimits)
 
 #undef OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING
+
+FString UOpenPocketBaseStringLibrary::Conv_OpenPocketBaseJsonValueToString(
+    const FOpenPocketBaseJsonValue& Value)
+{
+    if (!Value.IsValid())
+    {
+        return FString::Printf(
+            TEXT("Open Pocket Base JSON Value\nInvalid: %s"),
+            Value.ErrorMessage.IsEmpty() ? TEXT("The value is not set.") : *Value.ErrorMessage);
+    }
+    return FString::Printf(TEXT("Open Pocket Base JSON Value\n%s"), *Value.Json);
+}
 
 FString UOpenPocketBaseStringLibrary::Conv_OpenPocketBaseFileTokenToString(
     const FOpenPocketBaseFileToken& Value)
@@ -260,6 +273,7 @@ OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseDateComparison, EOpenPocketBa
 OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseNullComparison, EOpenPocketBaseNullComparison)
 OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseFileDownloadTarget, EOpenPocketBaseFileDownloadTarget)
 OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseJsonRootType, EOpenPocketBaseJsonRootType)
+OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseJsonValueType, EOpenPocketBaseJsonValueType)
 OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseRealtimeAction, EOpenPocketBaseRealtimeAction)
 OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseRealtimeConnectionState, EOpenPocketBaseRealtimeConnectionState)
 OPENPOCKETBASE_IMPLEMENT_ENUM_STRING(OpenPocketBaseSessionChangeReason, EOpenPocketBaseSessionChangeReason)

@@ -3,6 +3,7 @@
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Misc/AutomationTest.h"
+#include "OpenPocketBaseJsonValueLibrary.h"
 #include "OpenPocketBaseRecordLibrary.h"
 #include "OpenPocketBaseSchema.h"
 
@@ -236,9 +237,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FOpenPocketBaseCompleteRecordBodyTest::RunTest(const FString& Parameters)
 {
     const FRecordFieldFixture Fields;
-    FJsonObjectWrapper Settings;
-    Settings.JsonObject = MakeShared<FJsonObject>();
-    Settings.JsonObject->SetBoolField(TEXT("notifications"), true);
+    const FOpenPocketBaseJsonValue Settings =
+        UOpenPocketBaseJsonValueLibrary::SetJsonProperty(
+            UOpenPocketBaseJsonValueLibrary::MakeJsonObject(),
+            TEXT("notifications"),
+            UOpenPocketBaseJsonValueLibrary::JsonBoolean(true));
+    TestTrue(TEXT("JSON object builders create a valid value"), Settings.IsValid());
 
     FOpenPocketBaseRecordBody Body;
     Body
@@ -262,7 +266,82 @@ bool FOpenPocketBaseCompleteRecordBodyTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Multiple selects use an array"), Body.Data.JsonObject->GetArrayField(TEXT("labels")).Num(), 2);
     TestEqual(TEXT("Multiple relations use an array"), Body.Data.JsonObject->GetArrayField(TEXT("reviewers")).Num(), 2);
     TestTrue(TEXT("JSON objects are preserved"), Body.Data.JsonObject->GetObjectField(TEXT("settings"))->GetBoolField(TEXT("notifications")));
+    FOpenPocketBaseJsonValue Notifications;
+    TestTrue(
+        TEXT("JSON object properties can be read without serialization"),
+        UOpenPocketBaseJsonValueLibrary::TryGetJsonProperty(
+            Settings,
+            TEXT("notifications"),
+            Notifications));
+    bool bNotifications = false;
+    TestTrue(
+        TEXT("JSON Boolean properties retain their type"),
+        UOpenPocketBaseJsonValueLibrary::TryGetJsonBoolean(
+            Notifications,
+            bNotifications));
+    TestTrue(TEXT("JSON Boolean properties retain their value"), bNotifications);
     TestEqual(TEXT("Registration confirmation is available through the dynamic escape hatch"), Body.Data.JsonObject->GetStringField(TEXT("passwordConfirm")), FString(TEXT("secret123")));
+
+    const FOpenPocketBaseJsonValue JsonArray = UOpenPocketBaseJsonValueLibrary::AddJsonItem(
+        UOpenPocketBaseJsonValueLibrary::AddJsonItem(
+            UOpenPocketBaseJsonValueLibrary::MakeJsonArray(),
+            UOpenPocketBaseJsonValueLibrary::JsonString(TEXT("unreal"))),
+        UOpenPocketBaseJsonValueLibrary::JsonNumber(5.0));
+    TestTrue(TEXT("JSON array builders create a valid value"), JsonArray.IsValid());
+    FOpenPocketBaseRecordBody ArrayBody;
+    ArrayBody.SetJsonField(Fields.Settings, JsonArray);
+    TestTrue(TEXT("JSON arrays are accepted as field roots"), ArrayBody.IsValid());
+    TestEqual(TEXT("JSON arrays preserve every item"), ArrayBody.Data.JsonObject->GetArrayField(TEXT("settings")).Num(), 2);
+    int32 ArrayLength = 0;
+    TestTrue(
+        TEXT("JSON array length is available"),
+        UOpenPocketBaseJsonValueLibrary::TryGetJsonArrayLength(JsonArray, ArrayLength));
+    TestEqual(TEXT("JSON array length is correct"), ArrayLength, 2);
+
+    const FOpenPocketBaseJsonValue JsonScalar =
+        UOpenPocketBaseJsonValueLibrary::JsonString(TEXT("scalar"));
+    TestTrue(TEXT("JSON scalar builders create a valid value"), JsonScalar.IsValid());
+    FOpenPocketBaseRecordBody ScalarBody;
+    ScalarBody.SetJsonField(Fields.Settings, JsonScalar);
+    TestTrue(TEXT("JSON scalars are accepted as field roots"), ScalarBody.IsValid());
+    TestEqual(TEXT("JSON scalar roots are preserved"), ScalarBody.Data.JsonObject->GetStringField(TEXT("settings")), FString(TEXT("scalar")));
+
+    FOpenPocketBaseRecord ScalarRecord;
+    ScalarRecord.CollectionId = Fields.Tasks.CollectionId;
+    ScalarRecord.Data = ScalarBody.Data;
+    FOpenPocketBaseJsonValue ReadScalar;
+    TestTrue(
+        TEXT("JSON record reads preserve scalar roots"),
+        UOpenPocketBaseRecordLibrary::TryGetJsonField(
+            ScalarRecord,
+            Fields.Settings,
+            ReadScalar));
+    FString ReadString;
+    TestTrue(
+        TEXT("JSON scalar readers expose the original value"),
+        UOpenPocketBaseJsonValueLibrary::TryGetJsonString(ReadScalar, ReadString));
+    TestEqual(TEXT("JSON scalar reader output is unchanged"), ReadString, FString(TEXT("scalar")));
+
+    FOpenPocketBaseJsonValue ParsedBoolean;
+    TestTrue(
+        TEXT("JSON parsing accepts scalar roots"),
+        UOpenPocketBaseJsonValueLibrary::ParseJson(TEXT("true"), ParsedBoolean));
+    bool bParsedBoolean = false;
+    TestTrue(
+        TEXT("Parsed scalar roots retain their type"),
+        UOpenPocketBaseJsonValueLibrary::TryGetJsonBoolean(
+            ParsedBoolean,
+            bParsedBoolean));
+    TestTrue(TEXT("Parsed scalar roots retain their value"), bParsedBoolean);
+
+    const FOpenPocketBaseJsonValue JsonNull = UOpenPocketBaseJsonValueLibrary::JsonNull();
+    TestTrue(TEXT("JSON null builders create a valid value"), JsonNull.IsValid());
+    FOpenPocketBaseRecordBody JsonNullBody;
+    JsonNullBody.SetJsonField(Fields.Settings, JsonNull);
+    TestTrue(TEXT("JSON null is accepted as a field root"), JsonNullBody.IsValid());
+    TestTrue(
+        TEXT("JSON null roots are preserved"),
+        JsonNullBody.Data.JsonObject->HasTypedField<EJson::Null>(TEXT("settings")));
 
     FOpenPocketBaseRecord Owner;
     Owner.Id = TEXT("user00000000001");

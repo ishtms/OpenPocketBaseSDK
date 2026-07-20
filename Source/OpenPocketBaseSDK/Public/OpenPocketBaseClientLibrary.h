@@ -21,7 +21,9 @@ public:
             DefaultToSelf = "WorldContextObject",
             HidePin = "WorldContextObject",
             ExpandBoolAsExecs = "ReturnValue",
-            ReturnDisplayName = "Succeeded"))
+            ReturnDisplayName = "Succeeded",
+            ToolTip = "Creates the default PocketBase client for this game instance and validates the server URL.",
+            Keywords = "pocketbase setup connect client start"))
     static bool InitializePocketBase(
         const UObject* WorldContextObject,
         const FString& BaseUrl,

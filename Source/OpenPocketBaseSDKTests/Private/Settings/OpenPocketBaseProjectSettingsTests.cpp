@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "UObject/UnrealType.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -11,6 +12,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseProjectSettingsTest::RunTest(const FString& Parameters)
 {
+    const FSoftObjectProperty* ProfileSchema = CastField<FSoftObjectProperty>(
+        FOpenPocketBaseProjectProfile::StaticStruct()->FindPropertyByName(TEXT("Schema")));
+    TestNotNull(TEXT("Each project profile can select its PocketBase schema"), ProfileSchema);
+    if (ProfileSchema != nullptr)
+    {
+        TestEqual(
+            TEXT("Profile schema references use the PocketBase schema asset"),
+            ProfileSchema->PropertyClass->GetName(),
+            FString(TEXT("OpenPocketBaseSchema")));
+    }
+
     UOpenPocketBaseProjectSettings* Settings = NewObject<UOpenPocketBaseProjectSettings>();
     Settings->DefaultProfile = TEXT("Local");
     FOpenPocketBaseProjectProfile Local;

@@ -266,20 +266,23 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDateField(
 
 FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetJsonField(
     const FOpenPocketBaseJsonFieldRef& Field,
-    const FJsonObjectWrapper& Value)
+    const FOpenPocketBaseJsonValue& Value)
 {
     FOpenPocketBaseFieldRef Current;
+    const TSharedPtr<FJsonValue> JsonValue = Value.ToJsonValue();
     if (!AcceptField(Field, Current) || !FOpenPocketBaseJsonFieldRef::Accepts(Current) ||
-        !Value.JsonObject.IsValid())
+        !JsonValue.IsValid())
     {
         if (bValid)
         {
             bValid = false;
-            ErrorMessage = TEXT("Choose a writable JSON field and a valid JSON object.");
+            ErrorMessage = Value.ErrorMessage.IsEmpty()
+                ? TEXT("Choose a writable JSON field and a valid JSON value.")
+                : Value.ErrorMessage;
         }
         return *this;
     }
-    GetOrCreateBodyObject(*this)->SetObjectField(Current.Name, Value.JsonObject);
+    GetOrCreateBodyObject(*this)->SetField(Current.Name, JsonValue);
     return *this;
 }
 
@@ -545,15 +548,18 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicDateField(
 
 FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicJsonField(
     const FString& FieldName,
-    const FJsonObjectWrapper& Value)
+    const FOpenPocketBaseJsonValue& Value)
 {
-    if (!Value.JsonObject.IsValid())
+    const TSharedPtr<FJsonValue> JsonValue = Value.ToJsonValue();
+    if (!JsonValue.IsValid())
     {
         bValid = false;
-        ErrorMessage = TEXT("A valid JSON object is required.");
+        ErrorMessage = Value.ErrorMessage.IsEmpty()
+            ? TEXT("A valid JSON value is required.")
+            : Value.ErrorMessage;
         return *this;
     }
-    GetOrCreateBodyObject(*this)->SetObjectField(FieldName, Value.JsonObject);
+    GetOrCreateBodyObject(*this)->SetField(FieldName, JsonValue);
     return *this;
 }
 

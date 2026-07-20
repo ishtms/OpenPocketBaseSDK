@@ -16,7 +16,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Files",
-        meta = (DisplayName = "File From Path"))
+        meta = (DisplayName = "File From Path", ToolTip = "Prepares a local file for upload to the selected PocketBase file field. File name and content type are inferred when omitted.", Keywords = "pocketbase upload file path attachment"))
     static FOpenPocketBaseFileInput FileFromPath(
         FOpenPocketBaseFileFieldRef Field,
         FString FilePath,

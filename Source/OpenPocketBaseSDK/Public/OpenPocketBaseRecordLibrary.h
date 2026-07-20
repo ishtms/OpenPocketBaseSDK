@@ -16,14 +16,14 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Body",
-        meta = (DisplayName = "New Record Body", NativeMakeFunc))
+        meta = (DisplayName = "New Record Body", NativeMakeFunc, ToolTip = "Starts a validated record body for the selected writable collection.", Keywords = "pocketbase record body create make collection"))
     static FOpenPocketBaseRecordBody NewRecordBody(
         UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection);
 
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Body",
-        meta = (DisplayName = "With String Field", Keywords = "record body set add"))
+        meta = (DisplayName = "With String Field", ToolTip = "Returns a copy of the record body with a text field set.", Keywords = "pocketbase record body string text set add"))
     static FOpenPocketBaseRecordBody WithStringField(
         FOpenPocketBaseRecordBody Body,
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseTextFieldRef Field,
@@ -77,11 +77,11 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Body",
-        meta = (DisplayName = "With JSON Field", Keywords = "record body json object"))
+        meta = (DisplayName = "With JSON Field", ToolTip = "Returns a copy of the record body with any JSON object, array, scalar, or null value set.", Keywords = "pocketbase record body json object array scalar"))
     static FOpenPocketBaseRecordBody WithJsonField(
         FOpenPocketBaseRecordBody Body,
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseJsonFieldRef Field,
-        const FJsonObjectWrapper& Value);
+        FOpenPocketBaseJsonValue Value);
 
     UFUNCTION(
         BlueprintPure,
@@ -114,13 +114,13 @@ public:
     static FOpenPocketBaseRecordBody WithMultipleSelectField(
         FOpenPocketBaseRecordBody Body,
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseMultipleSelectFieldRef Field,
-        const TArray<FString>& Values,
+        UPARAM(meta = (OpenPocketBaseSelectField = "Field")) FOpenPocketBaseSelectValues Values,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Body",
-        meta = (DisplayName = "With Relation Record", Keywords = "record body related record"))
+        meta = (DisplayName = "With Relation Record", ToolTip = "Sets a single relation using the ID of a PocketBase record.", Keywords = "pocketbase record body relation related record"))
     static FOpenPocketBaseRecordBody WithRelationRecord(
         FOpenPocketBaseRecordBody Body,
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseSingleRelationFieldRef Field,
@@ -194,7 +194,7 @@ public:
     static FOpenPocketBaseRecordBody WithDynamicJsonField(
         FOpenPocketBaseRecordBody Body,
         const FString& FieldName,
-        const FJsonObjectWrapper& Value);
+        FOpenPocketBaseJsonValue Value);
 
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Body|Advanced", meta = (DisplayName = "With Dynamic Geo Point Field"))
     static FOpenPocketBaseRecordBody WithDynamicGeoPointField(
@@ -281,7 +281,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records",
-        meta = (ReturnDisplayName = "Found"))
+        meta = (ReturnDisplayName = "Found", ToolTip = "Reads a text-compatible field from the record data. Found is false for missing, null, wrong-type, or wrong-collection values.", Keywords = "pocketbase record get read string text field"))
     static bool TryGetStringField(
         const FOpenPocketBaseRecord& Record,
         FOpenPocketBaseStringFieldRef Field,
@@ -348,6 +348,15 @@ public:
         BlueprintPure,
         Category = "Open PocketBase|Records",
         meta = (ReturnDisplayName = "Found"))
+    static bool TryGetJsonField(
+        const FOpenPocketBaseRecord& Record,
+        FOpenPocketBaseJsonFieldRef Field,
+        FOpenPocketBaseJsonValue& OutValue);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Advanced",
+        meta = (ReturnDisplayName = "Found", DisplayName = "Try Get JSON Object Field (Advanced)"))
     static bool TryGetObjectField(
         const FOpenPocketBaseRecord& Record,
         FOpenPocketBaseJsonFieldRef Field,

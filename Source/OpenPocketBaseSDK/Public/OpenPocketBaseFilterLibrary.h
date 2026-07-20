@@ -42,7 +42,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Filters",
-        meta = (DisplayName = "Boolean Filter", Keywords = "where query bool true false"))
+        meta = (DisplayName = "Boolean Filter", ToolTip = "Creates a type-safe PocketBase filter for a Boolean field.", Keywords = "pocketbase where query bool true false filter"))
     static FOpenPocketBaseFilter BooleanFilter(
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseBooleanFieldRef Field,
         EOpenPocketBaseBooleanComparison Comparison,
@@ -102,7 +102,7 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Filters",
-        meta = (DisplayName = "And Filters", Keywords = "where query combine"))
+        meta = (DisplayName = "And Filters", ToolTip = "Requires both PocketBase filters to match.", Keywords = "pocketbase where query combine and filter"))
     static FOpenPocketBaseFilter AndFilters(
         const FOpenPocketBaseFilter& A,
         const FOpenPocketBaseFilter& B);
