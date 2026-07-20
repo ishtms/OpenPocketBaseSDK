@@ -5,6 +5,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "OpenPocketBaseSchema.h"
+#include "OpenPocketBaseSchemaDiagnostics.h"
 #include "OpenPocketBaseSchemaImporter.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -235,6 +236,138 @@ bool FOpenPocketBaseSchemaFactoryReimportTest::RunTest(const FString& Parameters
     TestEqual(TEXT("Reimport updates the collection"), Schema->Collections[0].Name, FString(TEXT("renamed_tasks")));
     TestEqual(TEXT("Reimport updates the fields"), Schema->Collections[0].Fields[0].Name, FString(TEXT("renamed_title")));
 
+    IFileManager::Get().Delete(*SourcePath);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseSchemaDiagnosticsTest,
+    "OpenPocketBase.Schema.DetailsSummarizeDiffAndValidate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseSchemaDiagnosticsTest::RunTest(const FString& Parameters)
+{
+    UOpenPocketBaseSchema* Current = NewObject<UOpenPocketBaseSchema>();
+    Current->SchemaId = FGuid(21, 34, 55, 89);
+    Current->Fingerprint = TEXT("current");
+
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("sdk_tasks");
+    Tasks.Type = EOpenPocketBaseCollectionType::Base;
+    FOpenPocketBaseSchemaField Title;
+    Title.Id = TEXT("title_id");
+    Title.Name = TEXT("title");
+    Title.Type = EOpenPocketBaseFieldType::Text;
+    Title.bRequired = true;
+    FOpenPocketBaseSchemaField Done;
+    Done.Id = TEXT("done_id");
+    Done.Name = TEXT("done");
+    Done.Type = EOpenPocketBaseFieldType::Boolean;
+    Tasks.Fields = {Title, Done};
+
+    FOpenPocketBaseSchemaCollection Users;
+    Users.Id = TEXT("users_id");
+    Users.Name = TEXT("sdk_users");
+    Users.Type = EOpenPocketBaseCollectionType::Auth;
+    FOpenPocketBaseSchemaField Email;
+    Email.Id = TEXT("email_id");
+    Email.Name = TEXT("email");
+    Email.Type = EOpenPocketBaseFieldType::Email;
+    Users.Fields = {Email};
+
+    FOpenPocketBaseSchemaCollection Report;
+    Report.Id = TEXT("report_id");
+    Report.Name = TEXT("task_report");
+    Report.Type = EOpenPocketBaseCollectionType::View;
+    Current->Collections = {Tasks, Users, Report};
+
+    const FOpenPocketBaseSchemaSummary Summary =
+        FOpenPocketBaseSchemaDiagnostics::Summarize(*Current);
+    TestEqual(TEXT("The summary counts every collection"), Summary.CollectionCount, 3);
+    TestEqual(TEXT("The summary counts base collections"), Summary.BaseCollectionCount, 1);
+    TestEqual(TEXT("The summary counts auth collections"), Summary.AuthCollectionCount, 1);
+    TestEqual(TEXT("The summary counts view collections"), Summary.ViewCollectionCount, 1);
+    TestEqual(TEXT("The summary counts fields"), Summary.FieldCount, 3);
+    TestEqual(TEXT("The summary counts required fields"), Summary.RequiredFieldCount, 1);
+    TestTrue(TEXT("The summary explains the schema at a glance"), Summary.ToText().Contains(TEXT("3 collections")));
+
+    UOpenPocketBaseSchema* Candidate = DuplicateObject<UOpenPocketBaseSchema>(
+        Current,
+        GetTransientPackage());
+    Candidate->Collections[0].Name = TEXT("tasks");
+    Candidate->Collections[0].Fields[0].Name = TEXT("headline");
+    Candidate->Collections[0].Fields[0].bRequired = false;
+    Candidate->Collections[0].Fields.RemoveAt(1);
+    FOpenPocketBaseSchemaField Score;
+    Score.Id = TEXT("score_id");
+    Score.Name = TEXT("score");
+    Score.Type = EOpenPocketBaseFieldType::Number;
+    Candidate->Collections[0].Fields.Add(Score);
+
+    const FOpenPocketBaseSchemaDiff Diff =
+        FOpenPocketBaseSchemaDiagnostics::Compare(*Current, *Candidate);
+    TestEqual(TEXT("Collection renames are detected by stable ID"), Diff.RenamedCollections.Num(), 1);
+    TestEqual(TEXT("Field renames are detected by stable ID"), Diff.RenamedFields.Num(), 1);
+    TestEqual(TEXT("Field constraint changes are detected"), Diff.ChangedFields.Num(), 1);
+    TestEqual(TEXT("Removed fields are detected"), Diff.RemovedFields.Num(), 1);
+    TestEqual(TEXT("Added fields are detected"), Diff.AddedFields.Num(), 1);
+    TestTrue(TEXT("The diff produces readable preview text"), Diff.ToText().Contains(TEXT("headline")));
+
+    UOpenPocketBaseSchema* Broken = NewObject<UOpenPocketBaseSchema>();
+    Broken->Collections.Add(Tasks);
+    Broken->Collections.Add(Tasks);
+    const FOpenPocketBaseSchemaValidationReport Validation =
+        FOpenPocketBaseSchemaDiagnostics::Validate(*Broken);
+    TestTrue(TEXT("Invalid schema assets report errors"), Validation.HasErrors());
+    TestTrue(TEXT("Validation text explains duplicate IDs"), Validation.ToText().Contains(TEXT("Duplicate collection ID")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseSchemaSourcePreviewTest,
+    "OpenPocketBase.Schema.DetailsPreviewSourceWithoutMutation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseSchemaSourcePreviewTest::RunTest(const FString& Parameters)
+{
+    const FString SourcePath = FPaths::CreateTempFilename(
+        *FPaths::ProjectIntermediateDir(), TEXT("OpenPocketBasePreview"), TEXT(".json"));
+    const FString Json = TEXT(R"json([{
+        "id": "tasks_id",
+        "name": "renamed_tasks",
+        "type": "base",
+        "fields": [{ "id": "title_id", "name": "title", "type": "text" }]
+    }])json");
+    if (!TestTrue(TEXT("The preview fixture is written"), FFileHelper::SaveStringToFile(Json, *SourcePath)))
+    {
+        return false;
+    }
+
+    UOpenPocketBaseSchema* Current = NewObject<UOpenPocketBaseSchema>();
+    Current->SchemaId = FGuid(34, 55, 89, 144);
+    Current->Source = SourcePath;
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("sdk_tasks");
+    Tasks.Type = EOpenPocketBaseCollectionType::Base;
+    Current->Collections.Add(Tasks);
+
+    UOpenPocketBaseSchema* Preview = nullptr;
+    FText Error;
+    TestTrue(
+        TEXT("The source can be loaded as a non-mutating preview"),
+        FOpenPocketBaseSchemaDiagnostics::LoadSourcePreview(
+            *Current,
+            Preview,
+            Error));
+    TestNotNull(TEXT("A preview schema is returned"), Preview);
+    if (Preview != nullptr)
+    {
+        TestEqual(TEXT("Preview preserves the schema identity"), Preview->SchemaId, Current->SchemaId);
+        TestEqual(TEXT("Preview contains source changes"), Preview->Collections[0].Name, FString(TEXT("renamed_tasks")));
+    }
+    TestEqual(TEXT("Preview does not mutate the current asset"), Current->Collections[0].Name, FString(TEXT("sdk_tasks")));
     IFileManager::Get().Delete(*SourcePath);
     return true;
 }

@@ -3,6 +3,7 @@
 #include "IDetailCustomization.h"
 
 class UOpenPocketBaseSchema;
+class IPropertyUtilities;
 
 class FOpenPocketBaseSchemaDetails final : public IDetailCustomization
 {
@@ -11,8 +12,11 @@ public:
     virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 private:
+    FReply PreviewChanges();
+    FReply RefreshSchema();
     FReply GenerateAccessors();
     void ShowNotification(const FText& Message, bool bSuccess) const;
 
     TWeakObjectPtr<UOpenPocketBaseSchema> Schema;
+    TWeakPtr<IPropertyUtilities> PropertyUtilities;
 };
