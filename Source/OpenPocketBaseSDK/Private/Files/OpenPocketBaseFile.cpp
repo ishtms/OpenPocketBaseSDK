@@ -1,5 +1,28 @@
 #include "OpenPocketBaseFile.h"
 
+#include "GenericPlatform/GenericPlatformHttp.h"
+#include "Misc/Paths.h"
+
+namespace
+{
+FString ResolveFileName(const FString& FilePath, FString FileName)
+{
+    FileName.TrimStartAndEndInline();
+    return FileName.IsEmpty() ? FPaths::GetCleanFilename(FilePath) : MoveTemp(FileName);
+}
+
+FString ResolveContentType(const FString& FileName, FString ContentType)
+{
+    ContentType.TrimStartAndEndInline();
+    if (!ContentType.IsEmpty())
+    {
+        return ContentType;
+    }
+    ContentType = FGenericPlatformHttp::GetMimeType(FileName);
+    return ContentType.IsEmpty() ? TEXT("application/octet-stream") : MoveTemp(ContentType);
+}
+}
+
 FOpenPocketBaseFileInput FOpenPocketBaseFileInput::FromPath(
     FOpenPocketBaseFileFieldRef Field,
     FString FilePath,
@@ -10,8 +33,8 @@ FOpenPocketBaseFileInput FOpenPocketBaseFileInput::FromPath(
     FOpenPocketBaseFileInput Input;
     Input.Field = MoveTemp(Field);
     Input.FilePath = MoveTemp(FilePath);
-    Input.FileName = MoveTemp(FileName);
-    Input.ContentType = MoveTemp(ContentType);
+    Input.FileName = ResolveFileName(Input.FilePath, MoveTemp(FileName));
+    Input.ContentType = ResolveContentType(Input.FileName, MoveTemp(ContentType));
     Input.Modifier = Modifier;
     Input.bUseFilePath = true;
     return Input;
@@ -27,8 +50,8 @@ FOpenPocketBaseFileInput FOpenPocketBaseFileInput::FromBytes(
     FOpenPocketBaseFileInput Input;
     Input.Field = MoveTemp(Field);
     Input.Bytes = MoveTemp(Bytes);
-    Input.FileName = MoveTemp(FileName);
-    Input.ContentType = MoveTemp(ContentType);
+    Input.FileName = ResolveFileName({}, MoveTemp(FileName));
+    Input.ContentType = ResolveContentType(Input.FileName, MoveTemp(ContentType));
     Input.Modifier = Modifier;
     Input.bUseFilePath = false;
     return Input;
@@ -44,8 +67,8 @@ FOpenPocketBaseFileInput FOpenPocketBaseFileInput::DynamicFromPath(
     FOpenPocketBaseFileInput Input;
     Input.DynamicFieldName = MoveTemp(FieldName);
     Input.FilePath = MoveTemp(FilePath);
-    Input.FileName = MoveTemp(FileName);
-    Input.ContentType = MoveTemp(ContentType);
+    Input.FileName = ResolveFileName(Input.FilePath, MoveTemp(FileName));
+    Input.ContentType = ResolveContentType(Input.FileName, MoveTemp(ContentType));
     Input.Modifier = Modifier;
     Input.bUseFilePath = true;
     return Input;
@@ -61,8 +84,8 @@ FOpenPocketBaseFileInput FOpenPocketBaseFileInput::DynamicFromBytes(
     FOpenPocketBaseFileInput Input;
     Input.DynamicFieldName = MoveTemp(FieldName);
     Input.Bytes = MoveTemp(Bytes);
-    Input.FileName = MoveTemp(FileName);
-    Input.ContentType = MoveTemp(ContentType);
+    Input.FileName = ResolveFileName({}, MoveTemp(FileName));
+    Input.ContentType = ResolveContentType(Input.FileName, MoveTemp(ContentType));
     Input.Modifier = Modifier;
     Input.bUseFilePath = false;
     return Input;
@@ -70,18 +93,19 @@ FOpenPocketBaseFileInput FOpenPocketBaseFileInput::DynamicFromBytes(
 
 FString FOpenPocketBaseFileInput::GetFieldName() const
 {
-    return Field.IsSet() ? Field.Name : DynamicFieldName;
+    FOpenPocketBaseFileFieldRef Current;
+    return Field.ResolveCurrentAs(Current) ? Current.Name : DynamicFieldName;
 }
 
 bool FOpenPocketBaseFileInput::IsValid() const
 {
-    return Field.IsSet()
-        ? FOpenPocketBaseFileFieldRef::Accepts(Field)
-        : !DynamicFieldName.IsEmpty();
+    FOpenPocketBaseFileFieldRef Current;
+    return Field.IsSet() ? Field.ResolveCurrentAs(Current) : !DynamicFieldName.IsEmpty();
 }
 
 bool FOpenPocketBaseFileInput::BelongsTo(
     const FOpenPocketBaseCollectionRef& Collection) const
 {
-    return FOpenPocketBaseFileFieldRef::Accepts(Field) && Field.BelongsTo(Collection);
+    FOpenPocketBaseFileFieldRef Current;
+    return Field.ResolveCurrentAs(Current) && Current.BelongsTo(Collection);
 }

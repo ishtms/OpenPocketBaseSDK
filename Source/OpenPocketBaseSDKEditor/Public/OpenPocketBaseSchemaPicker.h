@@ -13,7 +13,16 @@ enum class EOpenPocketBaseSchemaReferenceStatus : uint8
     StaleSchema,
     MissingCollection,
     MissingField,
-    WrongFieldType
+    WrongCollectionType,
+    WrongFieldType,
+    ReadOnlyField
+};
+
+enum class EOpenPocketBaseCollectionRequirement : uint8
+{
+    Any,
+    Writable,
+    Auth
 };
 
 struct FOpenPocketBaseSchemaPickerChoice
@@ -49,6 +58,7 @@ public:
         const TArray<UOpenPocketBaseSchema*>& Schemas,
         const UScriptStruct* ReferenceStruct,
         bool bIncludeSystemCollections,
+        EOpenPocketBaseCollectionRequirement Requirement,
         TArray<FOpenPocketBaseSchemaPickerChoice>& OutChoices);
     static void BuildFieldChoices(
         const TArray<UOpenPocketBaseSchema*>& Schemas,
@@ -70,9 +80,11 @@ public:
     static EOpenPocketBaseSchemaReferenceStatus ValidateCollection(
         const UScriptStruct* ReferenceStruct,
         const FOpenPocketBaseCollectionRef& Ref,
+        EOpenPocketBaseCollectionRequirement Requirement,
         FText& OutMessage);
     static EOpenPocketBaseSchemaReferenceStatus ValidateField(
         const UScriptStruct* ReferenceStruct,
         const FOpenPocketBaseFieldRef& Ref,
+        bool bWritableOnly,
         FText& OutMessage);
 };

@@ -168,8 +168,9 @@ FString ValueReferenceType(const FOpenPocketBaseSchemaField& Field)
     case EOpenPocketBaseFieldValueType::StringArray:
         return TEXT("FOpenPocketBaseStringArrayFieldRef");
     case EOpenPocketBaseFieldValueType::Json:
-    case EOpenPocketBaseFieldValueType::GeoPoint:
         return TEXT("FOpenPocketBaseJsonFieldRef");
+    case EOpenPocketBaseFieldValueType::GeoPoint:
+        return TEXT("FOpenPocketBaseGeoPointFieldRef");
     default:
         return TEXT("FOpenPocketBaseAnyFieldRef");
     }
@@ -177,15 +178,26 @@ FString ValueReferenceType(const FOpenPocketBaseSchemaField& Field)
 
 FString PrimaryReferenceType(const FOpenPocketBaseSchemaField& Field)
 {
-    if (Field.Type == EOpenPocketBaseFieldType::File)
+    switch (Field.Type)
     {
+    case EOpenPocketBaseFieldType::Text:
+    case EOpenPocketBaseFieldType::Email:
+    case EOpenPocketBaseFieldType::Url:
+    case EOpenPocketBaseFieldType::Editor:
+        return TEXT("FOpenPocketBaseTextFieldRef");
+    case EOpenPocketBaseFieldType::Select:
+        return Field.bMultiple
+            ? TEXT("FOpenPocketBaseMultipleSelectFieldRef")
+            : TEXT("FOpenPocketBaseSingleSelectFieldRef");
+    case EOpenPocketBaseFieldType::File:
         return TEXT("FOpenPocketBaseFileFieldRef");
+    case EOpenPocketBaseFieldType::Relation:
+        return Field.bMultiple
+            ? TEXT("FOpenPocketBaseMultipleRelationFieldRef")
+            : TEXT("FOpenPocketBaseSingleRelationFieldRef");
+    default:
+        return ValueReferenceType(Field);
     }
-    if (Field.Type == EOpenPocketBaseFieldType::Relation)
-    {
-        return TEXT("FOpenPocketBaseRelationFieldRef");
-    }
-    return ValueReferenceType(Field);
 }
 
 FString CollectionReferenceType(const EOpenPocketBaseCollectionType Type)
@@ -233,13 +245,35 @@ void AppendFieldAccessor(
     const FString& CollectionId)
 {
     const FOpenPocketBaseSchemaField& Field = *Accessor.Field;
+    const auto StringArrayLiteral = [](const TArray<FString>& Values)
+    {
+        TArray<FString> Literals;
+        Literals.Reserve(Values.Num());
+        for (const FString& Value : Values)
+        {
+            Literals.Add(FString::Printf(TEXT("TEXT(\"%s\")"), *EscapeStringLiteral(Value)));
+        }
+        return FString::Printf(TEXT("{%s}"), *FString::Join(Literals, TEXT(", ")));
+    };
     Header.Appendf(
         TEXT("inline %s %s()\n")
         TEXT("{\n")
-        TEXT("    return Detail::MakeFieldRef<%s>(TEXT(\"%s\"), TEXT(\"%s\"), TEXT(\"%s\"), %s, %s, %s, TEXT(\"%s\"));\n")
+        TEXT("    %s Result = Detail::MakeFieldRef<%s>(TEXT(\"%s\"), TEXT(\"%s\"), TEXT(\"%s\"), %s, %s, %s, static_cast<EOpenPocketBaseFieldStorage>(%d), TEXT(\"%s\"));\n")
+        TEXT("    Result.bHasMin = %s;\n")
+        TEXT("    Result.Min = %.17g;\n")
+        TEXT("    Result.bHasMax = %s;\n")
+        TEXT("    Result.Max = %.17g;\n")
+        TEXT("    Result.Pattern = TEXT(\"%s\");\n")
+        TEXT("    Result.Choices = %s;\n")
+        TEXT("    Result.MimeTypes = %s;\n")
+        TEXT("    Result.MaxSizeBytes = %lld;\n")
+        TEXT("    Result.MinSelect = %d;\n")
+        TEXT("    Result.MaxSelect = %d;\n")
+        TEXT("    return Result;\n")
         TEXT("}\n\n"),
         *Accessor.Type,
         *Accessor.Name,
+        *Accessor.Type,
         *Accessor.Type,
         *EscapeStringLiteral(CollectionId),
         *EscapeStringLiteral(Field.Id),
@@ -247,7 +281,18 @@ void AppendFieldAccessor(
         FieldTypeLiteral(Field.Type),
         Field.bMultiple ? TEXT("true") : TEXT("false"),
         Field.bReadOnly ? TEXT("true") : TEXT("false"),
-        *EscapeStringLiteral(Field.RelatedCollectionId));
+        static_cast<int32>(Field.Storage),
+        *EscapeStringLiteral(Field.RelatedCollectionId),
+        Field.bHasMin ? TEXT("true") : TEXT("false"),
+        Field.Min,
+        Field.bHasMax ? TEXT("true") : TEXT("false"),
+        Field.Max,
+        *EscapeStringLiteral(Field.Pattern),
+        *StringArrayLiteral(Field.Choices),
+        *StringArrayLiteral(Field.MimeTypes),
+        Field.MaxSizeBytes,
+        Field.MinSelect,
+        Field.MaxSelect);
 }
 }
 
@@ -321,6 +366,7 @@ bool FOpenPocketBaseSchemaCodeGenerator::GenerateHeader(
         TEXT("    EOpenPocketBaseFieldType Type,\n")
         TEXT("    bool bMultiple,\n")
         TEXT("    bool bReadOnly,\n")
+        TEXT("    EOpenPocketBaseFieldStorage Storage,\n")
         TEXT("    const TCHAR* RelatedCollectionId)\n")
         TEXT("{\n")
         TEXT("    TField Result;\n")
@@ -331,9 +377,15 @@ bool FOpenPocketBaseSchemaCodeGenerator::GenerateHeader(
         TEXT("    Result.Type = Type;\n")
         TEXT("    Result.bMultiple = bMultiple;\n")
         TEXT("    Result.bReadOnly = bReadOnly;\n")
+        TEXT("    Result.Storage = Storage;\n")
         TEXT("    Result.RelatedCollectionId = RelatedCollectionId;\n")
         TEXT("    return Result;\n")
         TEXT("}\n")
+        TEXT("}\n\n"));
+    OutHeader.Append(
+        TEXT("inline bool IsCurrentSchema(const UOpenPocketBaseSchema& Schema)\n")
+        TEXT("{\n")
+        TEXT("    return Schema.SchemaId == Detail::SchemaId() && Schema.Fingerprint == Detail::SchemaFingerprint();\n")
         TEXT("}\n\n"));
 
     for (const FOpenPocketBaseSchemaCollection* CollectionPtr : SortedCollections)
@@ -392,7 +444,8 @@ bool FOpenPocketBaseSchemaCodeGenerator::GenerateHeader(
             ++AccessorNameCounts.FindOrAdd(Primary.Name);
 
             if (Field.Type == EOpenPocketBaseFieldType::File ||
-                Field.Type == EOpenPocketBaseFieldType::Relation)
+                Field.Type == EOpenPocketBaseFieldType::Relation ||
+                Field.Type == EOpenPocketBaseFieldType::Select)
             {
                 FFieldAccessor& Value = Accessors.AddDefaulted_GetRef();
                 Value.Field = &Field;

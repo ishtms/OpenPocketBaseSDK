@@ -30,6 +30,7 @@ private:
     void RefreshChoices();
     void ApplySearch(const FText& SearchText);
     void SelectChoice(FChoicePtr Choice, ESelectInfo::Type SelectInfo);
+    FReply ClearChoice();
     void SetShowSystemCollections(ECheckBoxState State);
     void SetShowHiddenFields(ECheckBoxState State);
     FText GetCurrentLabel() const;

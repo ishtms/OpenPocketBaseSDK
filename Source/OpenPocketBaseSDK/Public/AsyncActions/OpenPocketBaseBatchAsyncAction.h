@@ -36,7 +36,6 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Send Batch"))
     static UOpenPocketBaseSendBatchAsyncAction* SendBatch(
-        UOpenPocketBaseClient* PocketBaseClient,
         FOpenPocketBaseBatchRequest Batch,
         FOpenPocketBaseBatchOptions Options);
 

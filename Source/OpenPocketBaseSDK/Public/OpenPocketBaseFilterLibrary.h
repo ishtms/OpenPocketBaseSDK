@@ -24,6 +24,15 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Filters",
+        meta = (DisplayName = "String Array Filter", Keywords = "where query list select relation contains"))
+    static FOpenPocketBaseFilter StringArrayFilter(
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseStringArrayFieldRef Field,
+        EOpenPocketBaseStringComparison Comparison,
+        const FString& Value);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Filters",
         meta = (DisplayName = "Number Filter", Keywords = "where query compare"))
     static FOpenPocketBaseFilter NumberFilter(
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseNumberFieldRef Field,
@@ -54,6 +63,40 @@ public:
         meta = (DisplayName = "Null Filter", Keywords = "where query empty null"))
     static FOpenPocketBaseFilter NullFilter(
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Read")) FOpenPocketBaseAnyFieldRef Field,
+        EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Filters|Relations", meta = (DisplayName = "Related String Filter"))
+    static FOpenPocketBaseFilter RelatedStringFilter(
+        FOpenPocketBaseExpand Relations,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read", OpenPocketBaseRelationTarget = "Relations")) FOpenPocketBaseStringFieldRef Field,
+        EOpenPocketBaseStringComparison Comparison,
+        const FString& Value);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Filters|Relations", meta = (DisplayName = "Related Number Filter"))
+    static FOpenPocketBaseFilter RelatedNumberFilter(
+        FOpenPocketBaseExpand Relations,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read", OpenPocketBaseRelationTarget = "Relations")) FOpenPocketBaseNumberFieldRef Field,
+        EOpenPocketBaseNumberComparison Comparison,
+        double Value);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Filters|Relations", meta = (DisplayName = "Related Boolean Filter"))
+    static FOpenPocketBaseFilter RelatedBooleanFilter(
+        FOpenPocketBaseExpand Relations,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read", OpenPocketBaseRelationTarget = "Relations")) FOpenPocketBaseBooleanFieldRef Field,
+        EOpenPocketBaseBooleanComparison Comparison,
+        bool bValue);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Filters|Relations", meta = (DisplayName = "Related Date Filter"))
+    static FOpenPocketBaseFilter RelatedDateFilter(
+        FOpenPocketBaseExpand Relations,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read", OpenPocketBaseRelationTarget = "Relations")) FOpenPocketBaseDateFieldRef Field,
+        EOpenPocketBaseDateComparison Comparison,
+        FDateTime Value);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Filters|Relations", meta = (DisplayName = "Related Null Filter"))
+    static FOpenPocketBaseFilter RelatedNullFilter(
+        FOpenPocketBaseExpand Relations,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Read", OpenPocketBaseRelationTarget = "Relations")) FOpenPocketBaseAnyFieldRef Field,
         EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
 
     UFUNCTION(

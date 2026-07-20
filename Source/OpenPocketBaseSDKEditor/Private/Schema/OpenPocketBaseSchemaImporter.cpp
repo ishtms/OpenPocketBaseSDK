@@ -127,7 +127,26 @@ void AddResponseMetadataField(
     Field.Type = EOpenPocketBaseFieldType::Text;
     Field.bSystem = true;
     Field.bReadOnly = true;
+    Field.Storage = FCString::Strcmp(Name, TEXT("collectionId")) == 0
+        ? EOpenPocketBaseFieldStorage::CollectionId
+        : EOpenPocketBaseFieldStorage::CollectionName;
     Collection.Fields.Add(MoveTemp(Field));
+}
+
+void MarkRecordMetadata(FOpenPocketBaseSchemaField& Field)
+{
+    if (Field.Name == TEXT("id"))
+    {
+        Field.Storage = EOpenPocketBaseFieldStorage::RecordId;
+    }
+    else if (Field.Name == TEXT("created"))
+    {
+        Field.Storage = EOpenPocketBaseFieldStorage::Created;
+    }
+    else if (Field.Name == TEXT("updated"))
+    {
+        Field.Storage = EOpenPocketBaseFieldStorage::Updated;
+    }
 }
 
 bool ParseField(
@@ -151,8 +170,47 @@ bool ParseField(
     Object->TryGetBoolField(TEXT("hidden"), OutField.bHidden);
     Object->TryGetStringField(TEXT("collectionId"), OutField.RelatedCollectionId);
 
+    OutField.bHasMin = Object->TryGetNumberField(TEXT("min"), OutField.Min);
+    OutField.bHasMax = Object->TryGetNumberField(TEXT("max"), OutField.Max);
+    Object->TryGetStringField(TEXT("pattern"), OutField.Pattern);
+
+    const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+    if (Object->TryGetArrayField(TEXT("values"), Values) && Values != nullptr)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : *Values)
+        {
+            FString Choice;
+            if (Value.IsValid() && Value->TryGetString(Choice))
+            {
+                OutField.Choices.Add(MoveTemp(Choice));
+            }
+        }
+    }
+    const TArray<TSharedPtr<FJsonValue>>* MimeTypes = nullptr;
+    if (Object->TryGetArrayField(TEXT("mimeTypes"), MimeTypes) && MimeTypes != nullptr)
+    {
+        for (const TSharedPtr<FJsonValue>& Value : *MimeTypes)
+        {
+            FString MimeType;
+            if (Value.IsValid() && Value->TryGetString(MimeType))
+            {
+                OutField.MimeTypes.Add(MoveTemp(MimeType));
+            }
+        }
+    }
+
+    double MaxSize = 0.0;
+    if (Object->TryGetNumberField(TEXT("maxSize"), MaxSize))
+    {
+        OutField.MaxSizeBytes = static_cast<int64>(MaxSize);
+    }
+    double MinSelect = 0.0;
+    Object->TryGetNumberField(TEXT("minSelect"), MinSelect);
+    OutField.MinSelect = static_cast<int32>(MinSelect);
+
     double MaxSelect = 1.0;
     Object->TryGetNumberField(TEXT("maxSelect"), MaxSelect);
+    OutField.MaxSelect = static_cast<int32>(MaxSelect);
     OutField.bMultiple =
         (OutField.Type == EOpenPocketBaseFieldType::Select ||
          OutField.Type == EOpenPocketBaseFieldType::File ||
@@ -205,6 +263,7 @@ bool ParseCollection(
         {
             return false;
         }
+        MarkRecordMetadata(Field);
         if (FieldIds.Contains(Field.Id) || FieldNames.Contains(Field.Name))
         {
             OutError = FText::Format(
@@ -263,7 +322,7 @@ FString BuildFingerprint(const FString& Version, const TArray<FOpenPocketBaseSch
         for (const FOpenPocketBaseSchemaField* Field : SortedFields)
         {
             Normalized += FString::Printf(
-                TEXT("|f:%s:%s:%d:%d:%d:%d:%d:%d:%s"),
+                TEXT("|f:%s:%s:%d:%d:%d:%d:%d:%d:%d:%s:%d:%.17g:%d:%.17g:%d:%d:%lld"),
                 *Field->Id,
                 *Field->Name,
                 static_cast<int32>(Field->Type),
@@ -272,7 +331,29 @@ FString BuildFingerprint(const FString& Version, const TArray<FOpenPocketBaseSch
                 Field->bSystem ? 1 : 0,
                 Field->bHidden ? 1 : 0,
                 Field->bReadOnly ? 1 : 0,
-                *Field->RelatedCollectionId);
+                static_cast<int32>(Field->Storage),
+                *Field->RelatedCollectionId,
+                Field->bHasMin ? 1 : 0,
+                Field->Min,
+                Field->bHasMax ? 1 : 0,
+                Field->Max,
+                Field->MinSelect,
+                Field->MaxSelect,
+                Field->MaxSizeBytes);
+            Normalized += FString::Printf(
+                TEXT(":p:%d:%s:c:%d"),
+                Field->Pattern.Len(),
+                *Field->Pattern,
+                Field->Choices.Num());
+            for (const FString& Choice : Field->Choices)
+            {
+                Normalized += FString::Printf(TEXT(":%d:%s"), Choice.Len(), *Choice);
+            }
+            Normalized += FString::Printf(TEXT(":m:%d"), Field->MimeTypes.Num());
+            for (const FString& MimeType : Field->MimeTypes)
+            {
+                Normalized += FString::Printf(TEXT(":%d:%s"), MimeType.Len(), *MimeType);
+            }
         }
     }
 
@@ -424,6 +505,63 @@ bool UOpenPocketBaseSchemaFactory::FactoryCanImport(const FString& Filename)
 FText UOpenPocketBaseSchemaFactory::GetDisplayName() const
 {
     return LOCTEXT("SchemaFactoryDisplayName", "PocketBase Schema");
+}
+
+bool UOpenPocketBaseSchemaFactory::CanReimport(UObject* Obj, TArray<FString>& OutFilenames)
+{
+    const UOpenPocketBaseSchema* Schema = Cast<UOpenPocketBaseSchema>(Obj);
+    if (Schema == nullptr || Schema->Source.IsEmpty())
+    {
+        return false;
+    }
+
+    OutFilenames.Add(Schema->Source);
+    return true;
+}
+
+void UOpenPocketBaseSchemaFactory::SetReimportPaths(
+    UObject* Obj,
+    const TArray<FString>& NewReimportPaths)
+{
+    UOpenPocketBaseSchema* Schema = Cast<UOpenPocketBaseSchema>(Obj);
+    if (Schema == nullptr || NewReimportPaths.IsEmpty())
+    {
+        return;
+    }
+
+    Schema->Modify();
+    Schema->Source = NewReimportPaths[0];
+    Schema->MarkPackageDirty();
+}
+
+EReimportResult::Type UOpenPocketBaseSchemaFactory::Reimport(UObject* Obj)
+{
+    UOpenPocketBaseSchema* Schema = Cast<UOpenPocketBaseSchema>(Obj);
+    if (Schema == nullptr || Schema->Source.IsEmpty())
+    {
+        return EReimportResult::Failed;
+    }
+
+    FString Json;
+    if (!FFileHelper::LoadFileToString(Json, *Schema->Source))
+    {
+        return EReimportResult::Failed;
+    }
+
+    FText Error;
+    if (!FOpenPocketBaseSchemaImporter::ImportJson(Json, Schema->Source, *Schema, Error))
+    {
+        return EReimportResult::Failed;
+    }
+
+    Schema->PostEditChange();
+    Schema->MarkPackageDirty();
+    return EReimportResult::Succeeded;
+}
+
+int32 UOpenPocketBaseSchemaFactory::GetPriority() const
+{
+    return ImportPriority;
 }
 
 UObject* UOpenPocketBaseSchemaFactory::FactoryCreateText(

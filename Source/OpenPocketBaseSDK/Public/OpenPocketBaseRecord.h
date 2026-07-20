@@ -29,6 +29,22 @@ enum class EOpenPocketBaseFieldModifier : uint8
     Remove
 };
 
+struct FOpenPocketBaseRecord;
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseGeoPoint
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
+    double Latitude = 0.0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records")
+    double Longitude = 0.0;
+
+    bool IsValid() const;
+};
+
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
 {
@@ -56,7 +72,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
     FString CollectionId;
 
     FOpenPocketBaseRecordBody& SetStringField(
-        const FOpenPocketBaseStringFieldRef& Field,
+        const FOpenPocketBaseTextFieldRef& Field,
         const FString& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
@@ -79,6 +95,37 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
+    FOpenPocketBaseRecordBody& SetDateField(
+        const FOpenPocketBaseDateFieldRef& Field,
+        const FDateTime& Value);
+    FOpenPocketBaseRecordBody& SetJsonField(
+        const FOpenPocketBaseJsonFieldRef& Field,
+        const FJsonObjectWrapper& Value);
+    FOpenPocketBaseRecordBody& SetGeoPointField(
+        const FOpenPocketBaseGeoPointFieldRef& Field,
+        const FOpenPocketBaseGeoPoint& Value);
+    FOpenPocketBaseRecordBody& SetSingleSelectField(
+        const FOpenPocketBaseSingleSelectFieldRef& Field,
+        const FString& Value);
+    FOpenPocketBaseRecordBody& SetMultipleSelectField(
+        const FOpenPocketBaseMultipleSelectFieldRef& Field,
+        const TArray<FString>& Value,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& SetSingleRelationField(
+        const FOpenPocketBaseSingleRelationFieldRef& Field,
+        const FString& RecordId);
+    FOpenPocketBaseRecordBody& SetMultipleRelationField(
+        const FOpenPocketBaseMultipleRelationFieldRef& Field,
+        const TArray<FString>& RecordIds,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& SetSingleRelationRecord(
+        const FOpenPocketBaseSingleRelationFieldRef& Field,
+        const FOpenPocketBaseRecord& Record);
+    FOpenPocketBaseRecordBody& SetMultipleRelationRecords(
+        const FOpenPocketBaseMultipleRelationFieldRef& Field,
+        const TArray<FOpenPocketBaseRecord>& Records,
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+
     FOpenPocketBaseRecordBody& SetDynamicStringField(
         const FString& FieldName,
         const FString& Value,
@@ -98,6 +145,15 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         const FString& FieldName,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& SetDynamicDateField(
+        const FString& FieldName,
+        const FDateTime& Value);
+    FOpenPocketBaseRecordBody& SetDynamicJsonField(
+        const FString& FieldName,
+        const FJsonObjectWrapper& Value);
+    FOpenPocketBaseRecordBody& SetDynamicGeoPointField(
+        const FString& FieldName,
+        const FOpenPocketBaseGeoPoint& Value);
 
     bool IsValid() const;
     bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
@@ -107,7 +163,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         EOpenPocketBaseFieldModifier Modifier);
 
 private:
-    bool AcceptField(const FOpenPocketBaseFieldRef& Field);
+    bool AcceptField(
+        const FOpenPocketBaseFieldRef& Field,
+        FOpenPocketBaseFieldRef& OutCurrentField);
 };
 
 USTRUCT(BlueprintType)

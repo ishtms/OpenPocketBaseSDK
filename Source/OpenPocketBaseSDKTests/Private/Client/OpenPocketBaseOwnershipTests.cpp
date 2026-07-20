@@ -186,6 +186,15 @@ bool FOpenPocketBaseGameInstanceOwnershipTest::RunTest(const FString& Parameters
     TestTrue(TEXT("A ready client creates a valid collection value"), Collection.IsValid());
     TestEqual(TEXT("Collection names are trimmed"), Collection.Reference.Name, FString(TEXT("sdk_tasks")));
     TestEqual(TEXT("Collection values retain their client"), Collection.Client.Get(), DefaultClient);
+    TestTrue(
+        TEXT("Dynamic collection values remain usable for reads"),
+        DefaultClient->GetNativeClient()->Collection(Collection.Reference).IsValid());
+    TestTrue(
+        TEXT("Dynamic collection values remain usable for writes"),
+        DefaultClient->GetNativeClient()->WritableCollection(Collection.Reference).IsValid());
+    TestTrue(
+        TEXT("Dynamic collection values remain usable for authentication"),
+        DefaultClient->GetNativeClient()->AuthCollection(Collection.Reference).IsValid());
 
     UOpenPocketBaseClient* ReusedClient = nullptr;
     TestTrue(

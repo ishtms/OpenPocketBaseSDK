@@ -79,6 +79,24 @@ bool FOpenPocketBaseCollectionRef::IsSet() const
     return SchemaId.IsValid() && !CollectionId.IsEmpty() && !Name.IsEmpty();
 }
 
+bool FOpenPocketBaseCollectionRef::ResolveCurrent(FOpenPocketBaseCollectionRef& OutRef) const
+{
+    OutRef = {};
+    if (!IsSet())
+    {
+        return false;
+    }
+    if (Schema.IsNull())
+    {
+        OutRef = *this;
+        return true;
+    }
+
+    const UOpenPocketBaseSchema* CurrentSchema = Schema.LoadSynchronous();
+    return CurrentSchema != nullptr && CurrentSchema->SchemaId == SchemaId &&
+        CurrentSchema->MakeCollectionRef(CollectionId, OutRef);
+}
+
 bool FOpenPocketBaseAuthCollectionRef::Accepts(
     const FOpenPocketBaseCollectionRef& Collection)
 {
@@ -96,6 +114,33 @@ bool FOpenPocketBaseWritableCollectionRef::Accepts(
 bool FOpenPocketBaseFieldRef::IsSet() const
 {
     return SchemaId.IsValid() && !CollectionId.IsEmpty() && !FieldId.IsEmpty() && !Name.IsEmpty();
+}
+
+bool FOpenPocketBaseFieldRef::ResolveCurrent(FOpenPocketBaseFieldRef& OutRef) const
+{
+    OutRef = {};
+    if (!IsSet())
+    {
+        return false;
+    }
+    if (Schema.IsNull())
+    {
+        OutRef = *this;
+        return true;
+    }
+
+    const UOpenPocketBaseSchema* CurrentSchema = Schema.LoadSynchronous();
+    if (CurrentSchema == nullptr || CurrentSchema->SchemaId != SchemaId)
+    {
+        return false;
+    }
+
+    FOpenPocketBaseCollectionRef Collection;
+    if (!CurrentSchema->MakeCollectionRef(CollectionId, Collection))
+    {
+        return false;
+    }
+    return CurrentSchema->MakeFieldRef(Collection, FieldId, OutRef);
 }
 
 EOpenPocketBaseFieldValueType FOpenPocketBaseFieldRef::GetValueType() const
@@ -117,6 +162,15 @@ bool FOpenPocketBaseAnyFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
 bool FOpenPocketBaseStringFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
 {
     return Field.IsSet() && Field.GetValueType() == EOpenPocketBaseFieldValueType::String;
+}
+
+bool FOpenPocketBaseTextFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
+{
+    return Field.IsSet() &&
+        (Field.Type == EOpenPocketBaseFieldType::Text ||
+         Field.Type == EOpenPocketBaseFieldType::Email ||
+         Field.Type == EOpenPocketBaseFieldType::Url ||
+         Field.Type == EOpenPocketBaseFieldType::Editor);
 }
 
 bool FOpenPocketBaseNumberFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
@@ -141,15 +195,37 @@ bool FOpenPocketBaseStringArrayFieldRef::Accepts(const FOpenPocketBaseFieldRef& 
 
 bool FOpenPocketBaseJsonFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
 {
-    const EOpenPocketBaseFieldValueType ValueType = Field.GetValueType();
-    return Field.IsSet() &&
-        (ValueType == EOpenPocketBaseFieldValueType::Json ||
-         ValueType == EOpenPocketBaseFieldValueType::GeoPoint);
+    return Field.IsSet() && Field.GetValueType() == EOpenPocketBaseFieldValueType::Json;
+}
+
+bool FOpenPocketBaseGeoPointFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
+{
+    return Field.IsSet() && Field.GetValueType() == EOpenPocketBaseFieldValueType::GeoPoint;
+}
+
+bool FOpenPocketBaseSingleSelectFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
+{
+    return Field.IsSet() && Field.Type == EOpenPocketBaseFieldType::Select && !Field.bMultiple;
+}
+
+bool FOpenPocketBaseMultipleSelectFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
+{
+    return Field.IsSet() && Field.Type == EOpenPocketBaseFieldType::Select && Field.bMultiple;
 }
 
 bool FOpenPocketBaseRelationFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
 {
     return Field.IsSet() && Field.Type == EOpenPocketBaseFieldType::Relation;
+}
+
+bool FOpenPocketBaseSingleRelationFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
+{
+    return Field.IsSet() && Field.Type == EOpenPocketBaseFieldType::Relation && !Field.bMultiple;
+}
+
+bool FOpenPocketBaseMultipleRelationFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
+{
+    return Field.IsSet() && Field.Type == EOpenPocketBaseFieldType::Relation && Field.bMultiple;
 }
 
 bool FOpenPocketBaseFileFieldRef::Accepts(const FOpenPocketBaseFieldRef& Field)
@@ -224,6 +300,17 @@ bool UOpenPocketBaseSchema::MakeFieldRef(
     OutRef.Type = Field->Type;
     OutRef.bMultiple = Field->bMultiple;
     OutRef.bReadOnly = Field->bReadOnly;
+    OutRef.Storage = Field->Storage;
+    OutRef.bHasMin = Field->bHasMin;
+    OutRef.Min = Field->Min;
+    OutRef.bHasMax = Field->bHasMax;
+    OutRef.Max = Field->Max;
+    OutRef.Pattern = Field->Pattern;
+    OutRef.Choices = Field->Choices;
+    OutRef.MimeTypes = Field->MimeTypes;
+    OutRef.MaxSizeBytes = Field->MaxSizeBytes;
+    OutRef.MinSelect = Field->MinSelect;
+    OutRef.MaxSelect = Field->MaxSelect;
     OutRef.RelatedCollectionId = Field->RelatedCollectionId;
     return true;
 }

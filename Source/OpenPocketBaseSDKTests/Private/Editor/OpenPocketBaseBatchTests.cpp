@@ -210,11 +210,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
 {
-    FOpenPocketBaseWritableCollectionRef Collection;
-    Collection.SchemaId = FGuid(1, 2, 3, 5);
-    Collection.CollectionId = TEXT("tasks_id");
-    Collection.Name = TEXT("tasks");
-    Collection.Type = EOpenPocketBaseCollectionType::Base;
+    FOpenPocketBaseCollection Collection;
+    Collection.Client = NewObject<UOpenPocketBaseClient>();
+    Collection.Reference.SchemaId = FGuid(1, 2, 3, 5);
+    Collection.Reference.CollectionId = TEXT("tasks_id");
+    Collection.Reference.Name = TEXT("tasks");
+    Collection.Reference.Type = EOpenPocketBaseCollectionType::Base;
     FOpenPocketBaseRecordBody Body;
     Body.SetDynamicStringField(TEXT("title"), TEXT("Create"));
 
@@ -232,6 +233,7 @@ bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("The original batch remains empty"), Empty.Entries.Num(), 0);
     TestEqual(TEXT("The create value has one entry"), WithCreate.Entries.Num(), 1);
     TestEqual(TEXT("The next value retains both entries"), WithDelete.Entries.Num(), 2);
+    TestEqual(TEXT("The batch retains its client"), WithDelete.GetClient(), Collection.Client.Get());
     if (WithDelete.Entries.Num() == 2)
     {
         TestEqual(
@@ -243,6 +245,14 @@ bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
             WithDelete.Entries[1].Operation,
             EOpenPocketBaseBatchOperation::Delete);
     }
+
+    FOpenPocketBaseCollection OtherClientCollection = Collection;
+    OtherClientCollection.Client = NewObject<UOpenPocketBaseClient>();
+    const FOpenPocketBaseBatchRequest MixedClients = UOpenPocketBaseBatchLibrary::WithDelete(
+        WithCreate,
+        OtherClientCollection,
+        TEXT("task00000000002"));
+    TestFalse(TEXT("A Blueprint batch cannot mix clients"), MixedClients.IsValid());
     return true;
 }
 

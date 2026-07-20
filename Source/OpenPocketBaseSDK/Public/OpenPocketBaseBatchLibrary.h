@@ -25,7 +25,7 @@ public:
         meta = (DisplayName = "With Create", Keywords = "batch add record"))
     static FOpenPocketBaseBatchRequest WithCreate(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseWritableCollectionRef Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions ResponseOptions);
 
@@ -35,7 +35,7 @@ public:
         meta = (DisplayName = "With Update", Keywords = "batch add record"))
     static FOpenPocketBaseBatchRequest WithUpdate(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseWritableCollectionRef Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         const FString& RecordId,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions ResponseOptions);
@@ -46,7 +46,7 @@ public:
         meta = (DisplayName = "With Upsert", Keywords = "batch add record"))
     static FOpenPocketBaseBatchRequest WithUpsert(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseWritableCollectionRef Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions ResponseOptions);
 
@@ -56,6 +56,6 @@ public:
         meta = (DisplayName = "With Delete", Keywords = "batch add remove record"))
     static FOpenPocketBaseBatchRequest WithDelete(
         FOpenPocketBaseBatchRequest Batch,
-        FOpenPocketBaseWritableCollectionRef Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         const FString& RecordId);
 };

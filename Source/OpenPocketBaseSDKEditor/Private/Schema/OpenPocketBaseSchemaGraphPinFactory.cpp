@@ -4,10 +4,24 @@
 #include "EdGraphSchema_K2.h"
 #include "OpenPocketBaseSchemaPicker.h"
 #include "Schema/SOpenPocketBaseSchemaPin.h"
+#include "Schema/SOpenPocketBaseSelectChoicePin.h"
 
 TSharedPtr<SGraphPin> FOpenPocketBaseSchemaGraphPinFactory::CreatePin(UEdGraphPin* Pin) const
 {
-    if (Pin == nullptr || Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Struct)
+    if (Pin == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_String &&
+        Pin->GetOwningNode() != nullptr &&
+        !Pin->GetOwningNode()->GetPinMetaData(
+            Pin->PinName,
+            TEXT("OpenPocketBaseSelectField")).IsEmpty())
+    {
+        return SNew(SOpenPocketBaseSelectChoicePin, Pin);
+    }
+    if (Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Struct)
     {
         return nullptr;
     }

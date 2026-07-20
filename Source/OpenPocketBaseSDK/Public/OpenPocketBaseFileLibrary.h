@@ -20,9 +20,9 @@ public:
     static FOpenPocketBaseFileInput FileFromPath(
         FOpenPocketBaseFileFieldRef Field,
         FString FilePath,
-        FString FileName,
-        FString ContentType,
-        EOpenPocketBaseFieldModifier Modifier);
+        FString FileName = "",
+        FString ContentType = "",
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     UFUNCTION(
         BlueprintPure,
@@ -32,8 +32,8 @@ public:
         FOpenPocketBaseFileFieldRef Field,
         TArray<uint8> Bytes,
         FString FileName,
-        FString ContentType,
-        EOpenPocketBaseFieldModifier Modifier);
+        FString ContentType = "",
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     UFUNCTION(
         BlueprintPure,
@@ -42,9 +42,9 @@ public:
     static FOpenPocketBaseFileInput DynamicFileFromPath(
         FString FieldName,
         FString FilePath,
-        FString FileName,
-        FString ContentType,
-        EOpenPocketBaseFieldModifier Modifier);
+        FString FileName = "",
+        FString ContentType = "",
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     UFUNCTION(
         BlueprintPure,
@@ -54,8 +54,8 @@ public:
         FString FieldName,
         TArray<uint8> Bytes,
         FString FileName,
-        FString ContentType,
-        EOpenPocketBaseFieldModifier Modifier);
+        FString ContentType = "",
+        EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     UFUNCTION(
         BlueprintCallable,

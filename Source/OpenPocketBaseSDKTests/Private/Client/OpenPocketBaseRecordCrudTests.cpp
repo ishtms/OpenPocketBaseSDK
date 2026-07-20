@@ -133,10 +133,11 @@ public:
         const FOpenPocketBaseHttpRequest& CreateRequest = State->Transport->Requests[0];
         Test->TestEqual(TEXT("Create uses POST"), CreateRequest.Method, FString(TEXT("POST")));
         Test->TestTrue(
-            TEXT("Create accepts a collection name and record projections"),
+            TEXT("Create uses current schema names in record projections"),
             CreateRequest.Url.Contains(TEXT("/api/collections/tasks/records?")) &&
-                CreateRequest.Url.Contains(TEXT("expand=owner.team")) &&
-                CreateRequest.Url.Contains(TEXT("fields=")));
+                CreateRequest.Url.Contains(TEXT("expand=renamed_owner.team")) &&
+                CreateRequest.Url.Contains(TEXT("fields=")) &&
+                CreateRequest.Url.Contains(TEXT("renamed_title")));
 
         TSharedPtr<FJsonObject> BodyObject;
         const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(FromUtf8(CreateRequest.Body));
@@ -161,6 +162,9 @@ public:
 
         const FOpenPocketBaseHttpRequest& FirstRequest = State->Transport->Requests[3];
         Test->TestEqual(TEXT("First matching record uses GET"), FirstRequest.Method, FString(TEXT("GET")));
+        Test->TestTrue(
+            TEXT("Collection services use the current wire name after a schema rename"),
+            FirstRequest.Url.Contains(TEXT("/api/collections/renamed_tasks/records?")));
         Test->TestTrue(TEXT("First matching record requests one item"), FirstRequest.Url.Contains(TEXT("page=1&perPage=1")));
         Test->TestTrue(TEXT("First matching record skips totals"), FirstRequest.Url.Contains(TEXT("skipTotal=true")));
         Test->TestTrue(TEXT("First matching record sends the filter"), FirstRequest.Url.Contains(TEXT("filter=")));
@@ -244,6 +248,10 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
     Schema->MakeTypedFieldRef(TasksRef, Owner.Id, OwnerRef);
     Schema->MakeTypedFieldRef(UsersRef, Team.Id, TeamRef);
 
+    Schema->Collections[0].Name = TEXT("renamed_tasks");
+    Schema->Collections[0].Fields[1].Name = TEXT("renamed_title");
+    Schema->Collections[0].Fields[2].Name = TEXT("renamed_owner");
+
     const FOpenPocketBaseExpand OwnerExpand = OpenPocketBase::Query::Expand(OwnerRef);
     FOpenPocketBaseRecordOptions RecordOptions;
     RecordOptions
@@ -303,7 +311,7 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
             ++State->CompletionCount;
         });
 
-    State->Client->DynamicCollection(TEXT("tasks")).GetFirstListItem(
+    State->Client->Collection(TasksRef).GetFirstListItem(
         FOpenPocketBaseFilter::DynamicString(
             TEXT("status"),
             EOpenPocketBaseStringComparison::Equals,
@@ -320,6 +328,94 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
         RecordOptions);
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyCrudContract(State, this));
+    return true;
+}
+
+namespace
+{
+struct FStaleCollectionTestState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FCrudTransport, ESPMode::ThreadSafe> Transport;
+    int32 CompletionCount = 0;
+    bool bFailedLocally = false;
+};
+
+class FVerifyStaleCollectionRejected final : public IAutomationLatentCommand
+{
+public:
+    FVerifyStaleCollectionRejected(
+        const TSharedRef<FStaleCollectionTestState, ESPMode::ThreadSafe>& InState,
+        FAutomationTestBase* InTest)
+        : State(InState)
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (State->CompletionCount < 1)
+        {
+            return false;
+        }
+
+        Test->TestTrue(TEXT("A replaced schema asset fails locally"), State->bFailedLocally);
+        Test->TestEqual(
+            TEXT("A stale collection never reaches the transport"),
+            State->Transport->Requests.Num(),
+            0);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FStaleCollectionTestState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseStaleCollectionRuntimeTest,
+    "OpenPocketBase.Client.Records.StaleCollectionsFailBeforeDispatch",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseStaleCollectionRuntimeTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FStaleCollectionTestState, ESPMode::ThreadSafe> State =
+        MakeShared<FStaleCollectionTestState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FCrudTransport, ESPMode::ThreadSafe>();
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError CreateError;
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), CreateError);
+    if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
+    {
+        return false;
+    }
+
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    Schema->SchemaId = FGuid(55, 89, 144, 233);
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("sdk_tasks");
+    Tasks.Type = EOpenPocketBaseCollectionType::Base;
+    Schema->Collections.Add(Tasks);
+
+    FOpenPocketBaseCollectionRef TasksRef;
+    TestTrue(TEXT("The fixture collection resolves"), Schema->MakeCollectionRef(Tasks.Id, TasksRef));
+    Schema->SchemaId = FGuid(377, 610, 987, 1597);
+
+    State->Client->Collection(TasksRef).GetOne(
+        TEXT("task000000001"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bFailedLocally = !Result.IsSuccess() &&
+                Result.GetError().Kind == EOpenPocketBaseErrorKind::InvalidArgument;
+            ++State->CompletionCount;
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyStaleCollectionRejected(State, this));
     return true;
 }
 

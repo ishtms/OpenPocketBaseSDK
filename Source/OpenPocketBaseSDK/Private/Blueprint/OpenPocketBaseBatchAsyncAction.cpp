@@ -1,12 +1,11 @@
 #include "AsyncActions/OpenPocketBaseBatchAsyncAction.h"
 
 UOpenPocketBaseSendBatchAsyncAction* UOpenPocketBaseSendBatchAsyncAction::SendBatch(
-    UOpenPocketBaseClient* PocketBaseClient,
     FOpenPocketBaseBatchRequest InBatch,
     FOpenPocketBaseBatchOptions InOptions)
 {
     UOpenPocketBaseSendBatchAsyncAction* Action = NewObject<UOpenPocketBaseSendBatchAsyncAction>();
-    Action->Client = PocketBaseClient;
+    Action->Client = InBatch.GetClient();
     Action->Batch = MoveTemp(InBatch);
     Action->Options = MoveTemp(InOptions);
     Action->RegisterWithGameInstance(Action->Client);
@@ -17,13 +16,15 @@ void UOpenPocketBaseSendBatchAsyncAction::Activate()
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
         Client != nullptr ? Client->GetNativeClient() : nullptr;
-    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    if (!Batch.IsValid() || !NativeClient.IsValid() || NativeClient->IsShutdown())
     {
         if (TryBeginTerminal() && ShouldBroadcastDelegates())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            Error.ServerMessage = Batch.IsValid()
+                ? TEXT("A ready PocketBase client is required.")
+                : Batch.ErrorMessage;
             Failed.Broadcast(FOpenPocketBaseBatchResult(), Error);
         }
         Finish();

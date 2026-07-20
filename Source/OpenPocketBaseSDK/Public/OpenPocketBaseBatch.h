@@ -5,6 +5,8 @@
 
 #include "OpenPocketBaseBatch.generated.h"
 
+class UOpenPocketBaseClient;
+
 UENUM(BlueprintType)
 enum class EOpenPocketBaseBatchOperation : uint8
 {
@@ -55,6 +57,20 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchRequest
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
     TArray<FOpenPocketBaseBatchEntry> Entries;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UOpenPocketBaseClient> Client;
+
+    UPROPERTY(Transient)
+    bool bValid = true;
+
+    UPROPERTY(Transient)
+    FString ErrorMessage;
+
+    bool IsValid() const;
+    UOpenPocketBaseClient* GetClient() const;
+    void BindClient(UOpenPocketBaseClient* InClient);
+    void Invalidate(FString Message);
 
     FOpenPocketBaseBatchRequest& AddCreate(
         FOpenPocketBaseWritableCollectionRef Collection,

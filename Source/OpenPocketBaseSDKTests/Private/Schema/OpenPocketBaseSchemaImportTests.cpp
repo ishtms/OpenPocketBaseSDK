@@ -1,6 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
+#include "EditorReimportHandler.h"
+#include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Paths.h"
 #include "OpenPocketBaseSchema.h"
 #include "OpenPocketBaseSchemaImporter.h"
 
@@ -132,6 +135,107 @@ bool FOpenPocketBaseSchemaImportAtomicityTest::RunTest(const FString& Parameters
     TestFalse(TEXT("A useful import error is returned"), Error.IsEmpty());
     TestEqual(TEXT("Failed imports leave collections unchanged"), Schema->Collections.Num(), 1);
     TestEqual(TEXT("Failed imports preserve existing data"), Schema->Collections[0].Id, FString(TEXT("existing_id")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseSchemaConstraintFingerprintTest,
+    "OpenPocketBase.Schema.FingerprintIncludesFieldConstraints",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseSchemaConstraintFingerprintTest::RunTest(const FString& Parameters)
+{
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    FText Error;
+    const FString FirstJson = TEXT(R"json([{
+        "id": "tasks_id",
+        "name": "sdk_tasks",
+        "type": "base",
+        "fields": [{
+            "id": "status_id",
+            "name": "status",
+            "type": "select",
+            "values": ["active"],
+            "maxSelect": 1
+        }]
+    }])json");
+    const FString SecondJson = TEXT(R"json([{
+        "id": "tasks_id",
+        "name": "sdk_tasks",
+        "type": "base",
+        "fields": [{
+            "id": "status_id",
+            "name": "status",
+            "type": "select",
+            "values": ["active", "paused"],
+            "maxSelect": 1
+        }]
+    }])json");
+
+    TestTrue(
+        TEXT("The first constrained schema imports"),
+        FOpenPocketBaseSchemaImporter::ImportJson(
+            FirstJson,
+            TEXT("schema.json"),
+            *Schema,
+            Error));
+    const FString FirstFingerprint = Schema->Fingerprint;
+    TestTrue(
+        TEXT("The changed constrained schema imports"),
+        FOpenPocketBaseSchemaImporter::ImportJson(
+            SecondJson,
+            TEXT("schema.json"),
+            *Schema,
+            Error));
+    TestNotEqual(
+        TEXT("Changing only select choices changes the schema fingerprint"),
+        Schema->Fingerprint,
+        FirstFingerprint);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseSchemaFactoryReimportTest,
+    "OpenPocketBase.Schema.ReimportsThroughUnreal",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseSchemaFactoryReimportTest::RunTest(const FString& Parameters)
+{
+    const FString SourcePath = FPaths::CreateTempFilename(
+        *FPaths::ProjectIntermediateDir(), TEXT("OpenPocketBaseSchema"), TEXT(".json"));
+    const FString Json = TEXT(R"json([
+        {
+            "id": "tasks_id",
+            "name": "renamed_tasks",
+            "type": "base",
+            "fields": [
+                { "id": "title_id", "name": "renamed_title", "type": "text" }
+            ]
+        }
+    ])json");
+    if (!TestTrue(TEXT("The reimport fixture is written"), FFileHelper::SaveStringToFile(Json, *SourcePath)))
+    {
+        return false;
+    }
+
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    Schema->SchemaId = FGuid(13, 21, 34, 55);
+    Schema->Source = SourcePath;
+    FOpenPocketBaseSchemaCollection Existing;
+    Existing.Id = TEXT("tasks_id");
+    Existing.Name = TEXT("sdk_tasks");
+    Schema->Collections.Add(Existing);
+
+    UOpenPocketBaseSchemaFactory* Factory = NewObject<UOpenPocketBaseSchemaFactory>();
+    TArray<FString> Sources;
+    TestTrue(TEXT("The Unreal reimport handler accepts schema assets"), Factory->CanReimport(Schema, Sources));
+    TestEqual(TEXT("The source file is reported"), Sources.Num(), 1);
+    TestEqual(TEXT("The reimport succeeds"), Factory->Reimport(Schema), EReimportResult::Succeeded);
+    TestEqual(TEXT("Reimport preserves the schema ID"), Schema->SchemaId, FGuid(13, 21, 34, 55));
+    TestEqual(TEXT("Reimport updates the collection"), Schema->Collections[0].Name, FString(TEXT("renamed_tasks")));
+    TestEqual(TEXT("Reimport updates the fields"), Schema->Collections[0].Fields[0].Name, FString(TEXT("renamed_title")));
+
+    IFileManager::Get().Delete(*SourcePath);
     return true;
 }
 

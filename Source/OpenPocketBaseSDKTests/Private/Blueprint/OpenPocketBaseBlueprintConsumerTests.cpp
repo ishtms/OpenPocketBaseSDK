@@ -69,6 +69,7 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     };
 
     TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("StringFilter"));
+    TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("StringArrayFilter"));
     TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("NumberFilter"));
     TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("BooleanFilter"));
     TestPureFunction(UOpenPocketBaseFilterLibrary::StaticClass(), TEXT("DateFilter"));
@@ -83,6 +84,15 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithBooleanField"));
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithNullField"));
     TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithStringArrayField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithDateField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithJsonField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithGeoPointField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithSingleSelectField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithMultipleSelectField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithSingleRelationField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithMultipleRelationField"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithRelationRecord"));
+    TestPureFunction(UOpenPocketBaseRecordLibrary::StaticClass(), TEXT("WithRelationRecords"));
     TestPureFunction(UOpenPocketBaseQueryLibrary::StaticClass(), TEXT("SelectField"));
     TestPureFunction(UOpenPocketBaseQueryLibrary::StaticClass(), TEXT("SelectTextExcerpt"));
     TestPureFunction(UOpenPocketBaseQueryLibrary::StaticClass(), TEXT("SelectExpandedRecord"));
@@ -157,66 +167,80 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
         TEXT("Collection handles do not expose an untyped name"),
         FOpenPocketBaseCollection::StaticStruct()->FindPropertyByName(TEXT("Name")));
 
-    const UFunction* WritableCollectionFunction = UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, WritableCollection));
-    const FStructProperty* WritableCollectionReferenceParameter = WritableCollectionFunction != nullptr
-        ? CastField<FStructProperty>(WritableCollectionFunction->FindPropertyByName(TEXT("Reference")))
-        : nullptr;
-    TestNotNull(TEXT("Writable Collection uses a schema picker parameter"), WritableCollectionReferenceParameter);
-    if (WritableCollectionReferenceParameter != nullptr)
-    {
-        TestEqual(
-            TEXT("Writable Collection rejects view collections"),
-            WritableCollectionReferenceParameter->Struct->GetFName(),
-            FOpenPocketBaseWritableCollectionRef::StaticStruct()->GetFName());
-    }
-    TestNotNull(
-        TEXT("Writable collection handles retain their schema reference"),
-        FOpenPocketBaseWritableCollection::StaticStruct()->FindPropertyByName(TEXT("Reference")));
+    TestNull(
+        TEXT("Blueprint exposes one collection entry point"),
+        UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, WritableCollection)));
 
     const UFunction* CreateRecord = UOpenPocketBaseCreateRecordAsyncAction::StaticClass()->FindFunctionByName(
         GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord));
     const FStructProperty* CreateCollection = CreateRecord != nullptr
         ? CastField<FStructProperty>(CreateRecord->FindPropertyByName(TEXT("Collection")))
         : nullptr;
-    TestNotNull(TEXT("Create Record accepts a writable collection value"), CreateCollection);
+    TestNotNull(TEXT("Create Record accepts the unified collection value"), CreateCollection);
     if (CreateCollection != nullptr)
     {
         TestEqual(
-            TEXT("Create Record rejects read-only collection handles"),
+            TEXT("Create Record uses the unified collection handle"),
             CreateCollection->Struct->GetFName(),
-            FOpenPocketBaseWritableCollection::StaticStruct()->GetFName());
+            FOpenPocketBaseCollection::StaticStruct()->GetFName());
     }
 
-    const UFunction* AuthCollectionFunction = UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
-        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, AuthCollection));
-    const FStructProperty* AuthCollectionReferenceParameter = AuthCollectionFunction != nullptr
-        ? CastField<FStructProperty>(AuthCollectionFunction->FindPropertyByName(TEXT("Reference")))
+    TestNull(
+        TEXT("Blueprint does not require a second auth collection node"),
+        UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, AuthCollection)));
+
+    const UFunction* WithStringField =
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithStringField));
+    const FStructProperty* TextFieldParameter = WithStringField != nullptr
+        ? CastField<FStructProperty>(WithStringField->FindPropertyByName(TEXT("Field")))
         : nullptr;
-    TestNotNull(TEXT("Auth Collection uses a schema picker parameter"), AuthCollectionReferenceParameter);
-    if (AuthCollectionReferenceParameter != nullptr)
+    TestNotNull(TEXT("With String Field exposes a schema field picker"), TextFieldParameter);
+    if (TextFieldParameter != nullptr)
     {
         TestEqual(
-            TEXT("Auth Collection accepts only auth collection references"),
-            AuthCollectionReferenceParameter->Struct->GetFName(),
-            FOpenPocketBaseAuthCollectionRef::StaticStruct()->GetFName());
+            TEXT("Ordinary string writes accept text fields instead of every string-like field"),
+            TextFieldParameter->Struct->GetName(),
+            FString(TEXT("OpenPocketBaseTextFieldRef")));
     }
-    TestNotNull(
-        TEXT("Auth collection handles retain their schema reference"),
-        FOpenPocketBaseAuthCollection::StaticStruct()->FindPropertyByName(TEXT("Reference")));
+
+    const UFunction* BatchCreate = UOpenPocketBaseBatchLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseBatchLibrary, WithCreate));
+    const FStructProperty* BatchCollection = BatchCreate != nullptr
+        ? CastField<FStructProperty>(BatchCreate->FindPropertyByName(TEXT("Collection")))
+        : nullptr;
+    TestNotNull(TEXT("Batch Create exposes a collection input"), BatchCollection);
+    if (BatchCollection != nullptr)
+    {
+        TestEqual(
+            TEXT("Batch builders use the same collection handle as CRUD"),
+            BatchCollection->Struct->GetFName(),
+            FOpenPocketBaseCollection::StaticStruct()->GetFName());
+    }
+    const UFunction* SendBatch = UOpenPocketBaseSendBatchAsyncAction::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseSendBatchAsyncAction, SendBatch));
+    TestNotNull(TEXT("Send Batch is available"), SendBatch);
+    if (SendBatch != nullptr)
+    {
+        TestNull(
+            TEXT("Send Batch gets its client from the collection-backed batch value"),
+            SendBatch->FindPropertyByName(TEXT("PocketBaseClient")));
+    }
 
     const UFunction* PasswordLogin = UOpenPocketBasePasswordAuthAsyncAction::StaticClass()->FindFunctionByName(
         GET_FUNCTION_NAME_CHECKED(UOpenPocketBasePasswordAuthAsyncAction, LogInWithPassword));
     const FStructProperty* PasswordAuthCollection = PasswordLogin != nullptr
         ? CastField<FStructProperty>(PasswordLogin->FindPropertyByName(TEXT("AuthCollection")))
         : nullptr;
-    TestNotNull(TEXT("Password login accepts an auth collection value"), PasswordAuthCollection);
+    TestNotNull(TEXT("Password login accepts the unified collection value"), PasswordAuthCollection);
     if (PasswordAuthCollection != nullptr)
     {
         TestEqual(
-            TEXT("Password login rejects generic collection handles"),
+            TEXT("Password login uses the unified collection handle"),
             PasswordAuthCollection->Struct->GetFName(),
-            FOpenPocketBaseAuthCollection::StaticStruct()->GetFName());
+            FOpenPocketBaseCollection::StaticStruct()->GetFName());
     }
 
     const auto TestTypedArray = [this](
@@ -265,6 +289,43 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
             FileFieldParameter->Struct->GetFName(),
             FOpenPocketBaseFileFieldRef::StaticStruct()->GetFName());
     }
+    TestTrue(
+        TEXT("File From Path derives the file name by default"),
+        FileFromPath != nullptr && FileFromPath->HasMetaData(TEXT("CPP_Default_FileName")));
+    TestTrue(
+        TEXT("File From Path infers the content type by default"),
+        FileFromPath != nullptr && FileFromPath->HasMetaData(TEXT("CPP_Default_ContentType")));
+    TestEqual(
+        TEXT("File From Path replaces the field by default"),
+        FileFromPath != nullptr ? FileFromPath->GetMetaData(TEXT("CPP_Default_Modifier")) : FString(),
+        FString(TEXT("Replace")));
+
+    FOpenPocketBaseFileFieldRef AttachmentField;
+    const FOpenPocketBaseFileInput InferredFile = UOpenPocketBaseFileLibrary::FileFromPath(
+        AttachmentField,
+        TEXT("C:/uploads/cover.png"),
+        {},
+        {},
+        EOpenPocketBaseFieldModifier::Replace);
+    TestEqual(TEXT("File names are derived from paths"), InferredFile.FileName, FString(TEXT("cover.png")));
+    TestEqual(TEXT("File MIME types are inferred"), InferredFile.ContentType, FString(TEXT("image/png")));
+
+    TestNotNull(
+        TEXT("Single relations can be written from records"),
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("WithRelationRecord")));
+    TestNotNull(
+        TEXT("Multiple relations can be written from records"),
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("WithRelationRecords")));
+    const UFunction* MultipleSelect = UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithMultipleSelectField));
+    TestNotNull(
+        TEXT("Multiple select writes expose append, prepend, remove, and replace"),
+        MultipleSelect != nullptr ? MultipleSelect->FindPropertyByName(TEXT("Modifier")) : nullptr);
+    const UFunction* MultipleRelation = UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithMultipleRelationField));
+    TestNotNull(
+        TEXT("Multiple relation writes expose append, prepend, remove, and replace"),
+        MultipleRelation != nullptr ? MultipleRelation->FindPropertyByName(TEXT("Modifier")) : nullptr);
     return true;
 }
 

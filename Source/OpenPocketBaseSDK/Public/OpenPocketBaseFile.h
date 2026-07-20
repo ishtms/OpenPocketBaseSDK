@@ -38,25 +38,25 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFileInput
         FOpenPocketBaseFileFieldRef Field,
         FString FilePath,
         FString FileName = {},
-        FString ContentType = TEXT("application/octet-stream"),
+        FString ContentType = {},
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
     static FOpenPocketBaseFileInput FromBytes(
         FOpenPocketBaseFileFieldRef Field,
         TArray<uint8> Bytes,
         FString FileName,
-        FString ContentType = TEXT("application/octet-stream"),
+        FString ContentType = {},
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
     static FOpenPocketBaseFileInput DynamicFromPath(
         FString FieldName,
         FString FilePath,
         FString FileName = {},
-        FString ContentType = TEXT("application/octet-stream"),
+        FString ContentType = {},
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
     static FOpenPocketBaseFileInput DynamicFromBytes(
         FString FieldName,
         TArray<uint8> Bytes,
         FString FileName,
-        FString ContentType = TEXT("application/octet-stream"),
+        FString ContentType = {},
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
 
     FString GetFieldName() const;

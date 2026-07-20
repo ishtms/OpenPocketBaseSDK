@@ -227,6 +227,10 @@ protected:
     bool ValidateFiles(
         const TArray<FOpenPocketBaseFileInput>& Files,
         FOpenPocketBaseError& OutError) const;
+    bool ValidateCreateBody(
+        const FOpenPocketBaseRecordBody& Body,
+        const TArray<FOpenPocketBaseFileInput>* Files,
+        FOpenPocketBaseError& OutError) const;
 
     friend class FOpenPocketBaseClient;
 };
@@ -307,6 +311,9 @@ protected:
         FOpenPocketBaseAuthCollectionRef InCollection);
     FOpenPocketBaseAuthCollectionService(
         TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+        FOpenPocketBaseCollectionRef InCollection);
+    FOpenPocketBaseAuthCollectionService(
+        TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
         FString InCollection);
 
 private:
@@ -359,8 +366,12 @@ public:
     FOpenPocketBaseCollectionService Collection(FOpenPocketBaseCollectionRef CollectionReference);
     FOpenPocketBaseWritableCollectionService WritableCollection(
         FOpenPocketBaseWritableCollectionRef CollectionReference);
+    FOpenPocketBaseWritableCollectionService WritableCollection(
+        FOpenPocketBaseCollectionRef CollectionReference);
     FOpenPocketBaseAuthCollectionService AuthCollection(
         FOpenPocketBaseAuthCollectionRef CollectionReference);
+    FOpenPocketBaseAuthCollectionService AuthCollection(
+        FOpenPocketBaseCollectionRef CollectionReference);
     FOpenPocketBaseDynamicCollectionService DynamicCollection(FString CollectionName);
     FOpenPocketBaseFileService Files();
 

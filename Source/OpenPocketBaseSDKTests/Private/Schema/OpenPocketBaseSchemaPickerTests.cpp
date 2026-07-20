@@ -62,6 +62,7 @@ bool FOpenPocketBaseSchemaPickerChoicesTest::RunTest(const FString& Parameters)
         Schemas,
         FOpenPocketBaseCollectionRef::StaticStruct(),
         false,
+        EOpenPocketBaseCollectionRequirement::Any,
         Collections);
     TestEqual(TEXT("System collections stay out of the normal picker"), Collections.Num(), 1);
     if (Collections.IsEmpty())
@@ -89,6 +90,45 @@ bool FOpenPocketBaseSchemaPickerChoicesTest::RunTest(const FString& Parameters)
     TArray<FOpenPocketBaseSchemaPickerChoice> WritableFields;
     FOpenPocketBaseSchemaPickerModel::BuildFieldChoices(Schemas, WritableFilter, WritableFields);
     TestEqual(TEXT("Read-only fields stay out of write pickers"), WritableFields.Num(), 2);
+
+    FOpenPocketBaseSchemaCollection Users;
+    Users.Id = TEXT("users_id");
+    Users.Name = TEXT("sdk_users");
+    Users.Type = EOpenPocketBaseCollectionType::Auth;
+    Schema->Collections.Add(Users);
+    FOpenPocketBaseSchemaCollection Summary;
+    Summary.Id = TEXT("summary_id");
+    Summary.Name = TEXT("task_summary");
+    Summary.Type = EOpenPocketBaseCollectionType::View;
+    Schema->Collections.Add(Summary);
+
+    TArray<FOpenPocketBaseSchemaPickerChoice> WritableCollections;
+    FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
+        Schemas,
+        FOpenPocketBaseCollectionRef::StaticStruct(),
+        false,
+        EOpenPocketBaseCollectionRequirement::Writable,
+        WritableCollections);
+    TestEqual(
+        TEXT("Write operations offer base and auth collections"),
+        WritableCollections.Num(),
+        2);
+
+    TArray<FOpenPocketBaseSchemaPickerChoice> AuthCollections;
+    FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
+        Schemas,
+        FOpenPocketBaseCollectionRef::StaticStruct(),
+        false,
+        EOpenPocketBaseCollectionRequirement::Auth,
+        AuthCollections);
+    TestEqual(TEXT("Auth operations offer only auth collections"), AuthCollections.Num(), 1);
+    if (!AuthCollections.IsEmpty())
+    {
+        TestEqual(
+            TEXT("The auth collection is offered"),
+            AuthCollections[0].Collection.Name,
+            FString(TEXT("sdk_users")));
+    }
     return true;
 }
 
@@ -128,6 +168,7 @@ bool FOpenPocketBaseSchemaPickerSerializationTest::RunTest(const FString& Parame
         FOpenPocketBaseSchemaPickerModel::ValidateField(
             FOpenPocketBaseBooleanFieldRef::StaticStruct(),
             ParsedField,
+            false,
             ValidationMessage),
         EOpenPocketBaseSchemaReferenceStatus::Valid);
 
@@ -137,9 +178,53 @@ bool FOpenPocketBaseSchemaPickerSerializationTest::RunTest(const FString& Parame
         FOpenPocketBaseSchemaPickerModel::ValidateField(
             FOpenPocketBaseBooleanFieldRef::StaticStruct(),
             ParsedField,
+            false,
             ValidationMessage),
         EOpenPocketBaseSchemaReferenceStatus::MissingField);
     TestFalse(TEXT("Stale references explain the problem"), ValidationMessage.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseSchemaPickerCurrentDefinitionTest,
+    "OpenPocketBase.Schema.PickerValidatesCurrentDefinitions",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseSchemaPickerCurrentDefinitionTest::RunTest(const FString& Parameters)
+{
+    UOpenPocketBaseSchema* Schema = MakePickerSchema();
+    FOpenPocketBaseCollectionRef Collection;
+    FOpenPocketBaseBooleanFieldRef Done;
+    TestTrue(TEXT("The collection resolves"), Schema->MakeCollectionRef(TEXT("sdk_tasks"), Collection));
+    TestTrue(TEXT("The Boolean field resolves"), Schema->MakeTypedFieldRef(Collection, TEXT("done"), Done));
+
+    FText Message;
+    Schema->Collections[0].Fields[1].Type = EOpenPocketBaseFieldType::Text;
+    TestEqual(
+        TEXT("A changed field type invalidates an old typed reference"),
+        FOpenPocketBaseSchemaPickerModel::ValidateField(
+            FOpenPocketBaseBooleanFieldRef::StaticStruct(), Done, false, Message),
+        EOpenPocketBaseSchemaReferenceStatus::WrongFieldType);
+
+    Schema->Collections[0].Fields[1].Type = EOpenPocketBaseFieldType::Boolean;
+    Schema->Collections[0].Fields[1].bReadOnly = true;
+    TestEqual(
+        TEXT("A field that became read-only invalidates a write reference"),
+        FOpenPocketBaseSchemaPickerModel::ValidateField(
+            FOpenPocketBaseBooleanFieldRef::StaticStruct(), Done, true, Message),
+        EOpenPocketBaseSchemaReferenceStatus::ReadOnlyField);
+
+    Schema->Collections[0].Type = EOpenPocketBaseCollectionType::View;
+    FOpenPocketBaseWritableCollectionRef Writable;
+    static_cast<FOpenPocketBaseCollectionRef&>(Writable) = Collection;
+    TestEqual(
+        TEXT("A collection that became a view invalidates a writable reference"),
+        FOpenPocketBaseSchemaPickerModel::ValidateCollection(
+            FOpenPocketBaseWritableCollectionRef::StaticStruct(),
+            Writable,
+            EOpenPocketBaseCollectionRequirement::Any,
+            Message),
+        EOpenPocketBaseSchemaReferenceStatus::WrongCollectionType);
     return true;
 }
 

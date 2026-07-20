@@ -47,6 +47,17 @@ enum class EOpenPocketBaseFieldValueType : uint8
     Unknown
 };
 
+UENUM(BlueprintType)
+enum class EOpenPocketBaseFieldStorage : uint8
+{
+    Data,
+    RecordId,
+    CollectionId,
+    CollectionName,
+    Created,
+    Updated
+};
+
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseSchemaField
 {
@@ -75,6 +86,39 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseSchemaField
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
     bool bReadOnly = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    EOpenPocketBaseFieldStorage Storage = EOpenPocketBaseFieldStorage::Data;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    bool bHasMin = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    double Min = 0.0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    bool bHasMax = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    double Max = 0.0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    FString Pattern;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    TArray<FString> Choices;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    TArray<FString> MimeTypes;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    int64 MaxSizeBytes = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    int32 MinSelect = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    int32 MaxSelect = 1;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
     FString RelatedCollectionId;
@@ -128,6 +172,21 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseCollectionRef
     EOpenPocketBaseCollectionType Type = EOpenPocketBaseCollectionType::Unknown;
 
     bool IsSet() const;
+    bool ResolveCurrent(FOpenPocketBaseCollectionRef& OutRef) const;
+
+    template <typename CollectionRefType>
+    bool ResolveCurrentAs(CollectionRefType& OutRef) const
+    {
+        OutRef = {};
+        FOpenPocketBaseCollectionRef Current;
+        if (!ResolveCurrent(Current) || !CollectionRefType::Accepts(Current))
+        {
+            return false;
+        }
+
+        static_cast<FOpenPocketBaseCollectionRef&>(OutRef) = MoveTemp(Current);
+        return true;
+    }
 };
 
 USTRUCT(BlueprintType)
@@ -176,9 +235,58 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFieldRef
     bool bReadOnly = false;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    EOpenPocketBaseFieldStorage Storage = EOpenPocketBaseFieldStorage::Data;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    bool bHasMin = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    double Min = 0.0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    bool bHasMax = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    double Max = 0.0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    FString Pattern;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    TArray<FString> Choices;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    TArray<FString> MimeTypes;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    int64 MaxSizeBytes = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    int32 MinSelect = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
+    int32 MaxSelect = 1;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Open PocketBase|Schema")
     FString RelatedCollectionId;
 
     bool IsSet() const;
+    bool ResolveCurrent(FOpenPocketBaseFieldRef& OutRef) const;
+
+    template <typename FieldRefType>
+    bool ResolveCurrentAs(FieldRefType& OutRef) const
+    {
+        OutRef = {};
+        FOpenPocketBaseFieldRef Current;
+        if (!ResolveCurrent(Current) || !FieldRefType::Accepts(Current))
+        {
+            return false;
+        }
+
+        static_cast<FOpenPocketBaseFieldRef&>(OutRef) = MoveTemp(Current);
+        return true;
+    }
+
     EOpenPocketBaseFieldValueType GetValueType() const;
     bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
 };
@@ -193,6 +301,14 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseAnyFieldRef : public FOpenPocketBase
 
 USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseStringFieldRef : public FOpenPocketBaseFieldRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseFieldRef& Field);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseTextFieldRef : public FOpenPocketBaseStringFieldRef
 {
     GENERATED_BODY()
 
@@ -240,7 +356,47 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseJsonFieldRef : public FOpenPocketBas
 };
 
 USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseGeoPointFieldRef : public FOpenPocketBaseFieldRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseFieldRef& Field);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseSingleSelectFieldRef : public FOpenPocketBaseFieldRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseFieldRef& Field);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseMultipleSelectFieldRef : public FOpenPocketBaseFieldRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseFieldRef& Field);
+};
+
+USTRUCT(BlueprintType)
 struct OPENPOCKETBASESDK_API FOpenPocketBaseRelationFieldRef : public FOpenPocketBaseFieldRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseFieldRef& Field);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseSingleRelationFieldRef : public FOpenPocketBaseFieldRef
+{
+    GENERATED_BODY()
+
+    static bool Accepts(const FOpenPocketBaseFieldRef& Field);
+};
+
+USTRUCT(BlueprintType)
+struct OPENPOCKETBASESDK_API FOpenPocketBaseMultipleRelationFieldRef : public FOpenPocketBaseFieldRef
 {
     GENERATED_BODY()
 

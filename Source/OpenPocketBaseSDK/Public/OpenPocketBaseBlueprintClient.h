@@ -96,21 +96,13 @@ public:
 
     UFUNCTION(
         BlueprintPure,
-        Category = "Open PocketBase|Records",
-        meta = (DisplayName = "Collection", Keywords = "records auth table"))
+        Category = "Open PocketBase|Collections",
+        meta = (DisplayName = "Use Collection", Keywords = "records write auth users table"))
     FOpenPocketBaseCollection Collection(FOpenPocketBaseCollectionRef Reference);
 
-    UFUNCTION(
-        BlueprintPure,
-        Category = "Open PocketBase|Records",
-        meta = (DisplayName = "Writable Collection", Keywords = "create update delete upload"))
     FOpenPocketBaseWritableCollection WritableCollection(
         FOpenPocketBaseWritableCollectionRef Reference);
 
-    UFUNCTION(
-        BlueprintPure,
-        Category = "Open PocketBase|Authentication",
-        meta = (DisplayName = "Auth Collection", Keywords = "users login identity"))
     FOpenPocketBaseAuthCollection AuthCollection(FOpenPocketBaseAuthCollectionRef Reference);
 
     FOpenPocketBaseCollection DynamicCollection(FString Name);

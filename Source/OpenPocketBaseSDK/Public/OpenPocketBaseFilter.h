@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "OpenPocketBaseError.h"
+#include "OpenPocketBaseQuery.h"
 #include "OpenPocketBaseSchema.h"
 
 #include "OpenPocketBaseFilter.generated.h"
@@ -117,6 +118,10 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
         const FOpenPocketBaseStringFieldRef& Field,
         EOpenPocketBaseStringComparison Comparison,
         const FString& Value);
+    static FOpenPocketBaseFilter StringArray(
+        const FOpenPocketBaseStringArrayFieldRef& Field,
+        EOpenPocketBaseStringComparison Comparison,
+        const FString& Value);
     static FOpenPocketBaseFilter Number(
         const FOpenPocketBaseNumberFieldRef& Field,
         EOpenPocketBaseNumberComparison Comparison,
@@ -130,6 +135,30 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFilter
         EOpenPocketBaseDateComparison Comparison,
         const FDateTime& Value);
     static FOpenPocketBaseFilter Null(
+        const FOpenPocketBaseFieldRef& Field,
+        EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
+    static FOpenPocketBaseFilter RelatedString(
+        const FOpenPocketBaseExpand& Relations,
+        const FOpenPocketBaseStringFieldRef& Field,
+        EOpenPocketBaseStringComparison Comparison,
+        const FString& Value);
+    static FOpenPocketBaseFilter RelatedNumber(
+        const FOpenPocketBaseExpand& Relations,
+        const FOpenPocketBaseNumberFieldRef& Field,
+        EOpenPocketBaseNumberComparison Comparison,
+        double Value);
+    static FOpenPocketBaseFilter RelatedBoolean(
+        const FOpenPocketBaseExpand& Relations,
+        const FOpenPocketBaseBooleanFieldRef& Field,
+        EOpenPocketBaseBooleanComparison Comparison,
+        bool bValue);
+    static FOpenPocketBaseFilter RelatedDate(
+        const FOpenPocketBaseExpand& Relations,
+        const FOpenPocketBaseDateFieldRef& Field,
+        EOpenPocketBaseDateComparison Comparison,
+        const FDateTime& Value);
+    static FOpenPocketBaseFilter RelatedNull(
+        const FOpenPocketBaseExpand& Relations,
         const FOpenPocketBaseFieldRef& Field,
         EOpenPocketBaseNullComparison Comparison = EOpenPocketBaseNullComparison::IsNull);
     static FOpenPocketBaseFilter DynamicString(

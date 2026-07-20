@@ -300,7 +300,7 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseCreateRecordAsyncAction* UOpenPocketBaseCreateRecordAsyncAction::CreateRecord(
-    FOpenPocketBaseWritableCollection InCollection,
+    FOpenPocketBaseCollection InCollection,
     FOpenPocketBaseRecordBody InBody,
     FOpenPocketBaseRecordOptions InOptions)
 {
@@ -366,9 +366,89 @@ void UOpenPocketBaseCreateRecordAsyncAction::BroadcastCancelled()
     Cancelled.Broadcast(FOpenPocketBaseRecord(), MakeCancelledError());
 }
 
+UOpenPocketBaseRegisterUserAsyncAction* UOpenPocketBaseRegisterUserAsyncAction::RegisterUser(
+    FOpenPocketBaseCollection InAuthCollection,
+    FOpenPocketBaseRecordBody InUserFields,
+    FString InPassword,
+    FString InConfirmPassword,
+    FOpenPocketBaseRecordOptions InOptions)
+{
+    UOpenPocketBaseRegisterUserAsyncAction* Action =
+        NewObject<UOpenPocketBaseRegisterUserAsyncAction>();
+    Action->Client = InAuthCollection.Client;
+    Action->AuthCollection = MoveTemp(InAuthCollection.Reference);
+    Action->UserFields = MoveTemp(InUserFields);
+    Action->Password = MoveTemp(InPassword);
+    Action->ConfirmPassword = MoveTemp(InConfirmPassword);
+    Action->Options = MoveTemp(InOptions);
+    Action->RegisterWithGameInstance(Action->Client);
+    return Action;
+}
+
+void UOpenPocketBaseRegisterUserAsyncAction::Activate()
+{
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    FOpenPocketBaseAuthCollectionRef CurrentCollection;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown() ||
+        !AuthCollection.ResolveCurrentAs(CurrentCollection) ||
+        !UserFields.IsValid() || !UserFields.BelongsTo(CurrentCollection) ||
+        Password.IsEmpty() || Password != ConfirmPassword)
+    {
+        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        {
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.ServerMessage = TEXT("A ready auth collection, valid user fields, and matching passwords are required.");
+            Failed.Broadcast(FOpenPocketBaseRecord(), Error);
+        }
+        Finish();
+        return;
+    }
+
+    UserFields
+        .SetDynamicStringField(TEXT("password"), Password)
+        .SetDynamicStringField(TEXT("passwordConfirm"), ConfirmPassword);
+
+    const TWeakObjectPtr<UOpenPocketBaseRegisterUserAsyncAction> WeakThis(this);
+    RequestHandle = NativeClient->AuthCollection(CurrentCollection).Create(
+        MoveTemp(UserFields),
+        [WeakThis](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            UOpenPocketBaseRegisterUserAsyncAction* Action = WeakThis.Get();
+            if (Action == nullptr || !Action->TryBeginTerminal())
+            {
+                return;
+            }
+
+            if (Action->ShouldBroadcastDelegates())
+            {
+                if (Result.IsSuccess())
+                {
+                    Action->Success.Broadcast(Result.GetValue(), FOpenPocketBaseError());
+                }
+                else if (Result.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled)
+                {
+                    Action->Cancelled.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
+                }
+                else
+                {
+                    Action->Failed.Broadcast(FOpenPocketBaseRecord(), Result.GetError());
+                }
+            }
+            Action->Finish();
+        },
+        MoveTemp(Options));
+}
+
+void UOpenPocketBaseRegisterUserAsyncAction::BroadcastCancelled()
+{
+    Cancelled.Broadcast(FOpenPocketBaseRecord(), MakeCancelledError());
+}
+
 UOpenPocketBaseCreateRecordWithFilesAsyncAction*
 UOpenPocketBaseCreateRecordWithFilesAsyncAction::CreateRecordWithFiles(
-    FOpenPocketBaseWritableCollection InCollection,
+    FOpenPocketBaseCollection InCollection,
     FOpenPocketBaseRecordBody InBody,
     TArray<FOpenPocketBaseFileInput> InFiles,
     FOpenPocketBaseRecordOptions InOptions,
@@ -468,7 +548,7 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseUpdateRecordAsyncAction* UOpenPocketBaseUpdateRecordAsyncAction::UpdateRecord(
-    FOpenPocketBaseWritableCollection InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRecordBody InBody,
     FOpenPocketBaseRecordOptions InOptions)
@@ -539,7 +619,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseUpdateRecordWithFilesAsyncAction*
 UOpenPocketBaseUpdateRecordWithFilesAsyncAction::UpdateRecordWithFiles(
-    FOpenPocketBaseWritableCollection InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRecordBody InBody,
     TArray<FOpenPocketBaseFileInput> InFiles,
@@ -642,7 +722,7 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseDeleteRecordAsyncAction* UOpenPocketBaseDeleteRecordAsyncAction::DeleteRecord(
-    FOpenPocketBaseWritableCollection InCollection,
+    FOpenPocketBaseCollection InCollection,
     FString InRecordId,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -968,7 +1048,7 @@ void UOpenPocketBaseRestoreSessionAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseListAuthMethodsAsyncAction*
 UOpenPocketBaseListAuthMethodsAsyncAction::ListAuthenticationMethods(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseRequestOptions InOptions)
 {
     UOpenPocketBaseListAuthMethodsAsyncAction* Action =
@@ -1032,7 +1112,7 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseRequestOtpAsyncAction* UOpenPocketBaseRequestOtpAsyncAction::RequestOneTimePassword(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InEmail,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -1098,7 +1178,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseOtpAuthAsyncAction* UOpenPocketBaseOtpAuthAsyncAction::LogInWithOneTimePassword(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InOtpId,
     FString InOneTimePassword,
     FOpenPocketBaseMfaContinuation InMfa,
@@ -1193,7 +1273,7 @@ void UOpenPocketBaseOtpAuthAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBaseBeginOAuth2AsyncAction* UOpenPocketBaseBeginOAuth2AsyncAction::BeginManualOAuth2(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseOAuth2StartOptions InOptions)
 {
     UOpenPocketBaseBeginOAuth2AsyncAction* Action =
@@ -1258,7 +1338,7 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseCompleteOAuth2AsyncAction*
 UOpenPocketBaseCompleteOAuth2AsyncAction::CompleteManualOAuth2(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseOAuth2Callback InCallback)
 {
     UOpenPocketBaseCompleteOAuth2AsyncAction* Action =
@@ -1346,7 +1426,7 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAssistedOAuth2AsyncAction*
 UOpenPocketBaseAssistedOAuth2AsyncAction::LogInWithOAuth2(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FOpenPocketBaseAssistedOAuth2Options InOptions)
 {
     UOpenPocketBaseAssistedOAuth2AsyncAction* Action =
@@ -1434,7 +1514,7 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateAction(
     const EOpenPocketBaseAccountActionKind InKind,
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InPrimary,
     FString InSecondary,
     FString InTertiary,
@@ -1454,7 +1534,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::CreateActi
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPasswordReset(
-    FOpenPocketBaseAuthCollection AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Email,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1468,7 +1548,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestPas
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPasswordReset(
-    FOpenPocketBaseAuthCollection AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Token,
     FString NewPassword,
     FString ConfirmPassword,
@@ -1484,7 +1564,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmPas
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestVerification(
-    FOpenPocketBaseAuthCollection AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Email,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1498,7 +1578,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestVer
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmVerification(
-    FOpenPocketBaseAuthCollection AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Token,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1512,7 +1592,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmVer
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEmailChange(
-    FOpenPocketBaseAuthCollection AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString NewEmail,
     FOpenPocketBaseRequestOptions Options)
 {
@@ -1526,7 +1606,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::RequestEma
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEmailChange(
-    FOpenPocketBaseAuthCollection AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString Token,
     FString CurrentPassword,
     FOpenPocketBaseRequestOptions Options)
@@ -1541,7 +1621,7 @@ UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::ConfirmEma
 }
 
 UOpenPocketBaseAccountAsyncAction* UOpenPocketBaseAccountAsyncAction::UnlinkExternalAuth(
-    FOpenPocketBaseAuthCollection AuthCollection,
+    FOpenPocketBaseCollection AuthCollection,
     FString RecordId,
     FString Provider,
     FOpenPocketBaseRequestOptions Options)
@@ -1650,7 +1730,7 @@ void UOpenPocketBaseAccountAsyncAction::BroadcastCancelled()
 
 UOpenPocketBaseListExternalAuthsAsyncAction*
 UOpenPocketBaseListExternalAuthsAsyncAction::ListLinkedExternalAuths(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InRecordId,
     FOpenPocketBaseRequestOptions InOptions)
 {
@@ -1719,7 +1799,7 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::BroadcastCancelled()
 }
 
 UOpenPocketBasePasswordAuthAsyncAction* UOpenPocketBasePasswordAuthAsyncAction::LogInWithPassword(
-    FOpenPocketBaseAuthCollection InAuthCollection,
+    FOpenPocketBaseCollection InAuthCollection,
     FString InIdentity,
     FString InPassword,
     FOpenPocketBaseRequestOptions InOptions)

@@ -112,15 +112,16 @@ FOpenPocketBaseFilter MakeComparison(
     const TCHAR* Operator,
     FString EncodedValue)
 {
-    if (!Field.IsSet() || !IsValidField(Field.Name))
+    FOpenPocketBaseFieldRef Current;
+    if (!Field.ResolveCurrent(Current) || !IsValidField(Current.Name))
     {
         return MakeInvalidFilter(TEXT("Choose a valid collection field for the filter."));
     }
 
     FOpenPocketBaseFilter Filter;
-    Filter.Expression = FString::Printf(TEXT("%s %s %s"), *Field.Name, Operator, *EncodedValue);
-    Filter.SchemaId = Field.SchemaId;
-    Filter.CollectionId = Field.CollectionId;
+    Filter.Expression = FString::Printf(TEXT("%s %s %s"), *Current.Name, Operator, *EncodedValue);
+    Filter.SchemaId = Current.SchemaId;
+    Filter.CollectionId = Current.CollectionId;
     return Filter;
 }
 
@@ -358,6 +359,38 @@ void FOpenPocketBaseDynamicFilterParams::Reset()
     EncodedValues.Reset();
 }
 
+namespace
+{
+FOpenPocketBaseFilter MakeRelatedFilter(
+    const FOpenPocketBaseExpand& Relations,
+    FOpenPocketBaseFilter Terminal)
+{
+    if (!Relations.IsSet() || !Terminal.IsValid() || Terminal.IsEmpty())
+    {
+        return MakeInvalidFilter(TEXT("Choose a valid relation path and terminal field."));
+    }
+
+    FOpenPocketBaseRelationFieldRef LastRelation;
+    if (!Relations.Path.Last().ResolveCurrentAs(LastRelation) ||
+        LastRelation.SchemaId != Terminal.SchemaId ||
+        LastRelation.RelatedCollectionId != Terminal.CollectionId)
+    {
+        return MakeInvalidFilter(TEXT("The filter field must belong to the relation path's target collection."));
+    }
+
+    FOpenPocketBaseRelationFieldRef RootRelation;
+    if (!Relations.Path[0].ResolveCurrentAs(RootRelation))
+    {
+        return MakeInvalidFilter(TEXT("The relation path is no longer valid in the schema."));
+    }
+
+    Terminal.Expression = Relations.ToQueryValue() + TEXT(".") + Terminal.Expression;
+    Terminal.SchemaId = RootRelation.SchemaId;
+    Terminal.CollectionId = RootRelation.CollectionId;
+    return Terminal;
+}
+}
+
 FOpenPocketBaseFilter FOpenPocketBaseFilter::String(
     const FOpenPocketBaseStringFieldRef& Field,
     const EOpenPocketBaseStringComparison Comparison,
@@ -368,6 +401,19 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::String(
         return MakeInvalidFilter(TEXT("Choose a string field for this filter."));
     }
     return MakeComparison(Field, StringOperator(Comparison), EncodeString(Value));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::StringArray(
+    const FOpenPocketBaseStringArrayFieldRef& Field,
+    const EOpenPocketBaseStringComparison Comparison,
+    const FString& Value)
+{
+    FOpenPocketBaseStringArrayFieldRef Current;
+    if (!Field.ResolveCurrentAs(Current))
+    {
+        return MakeInvalidFilter(TEXT("Choose a string-array field for this filter."));
+    }
+    return MakeComparison(Current, StringOperator(Comparison), EncodeString(Value));
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::Number(
@@ -425,6 +471,50 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Null(
         return MakeInvalidFilter(TEXT("Choose a field for this filter."));
     }
     return MakeComparison(Field, NullOperator(Comparison), TEXT("null"));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::RelatedString(
+    const FOpenPocketBaseExpand& Relations,
+    const FOpenPocketBaseStringFieldRef& Field,
+    const EOpenPocketBaseStringComparison Comparison,
+    const FString& Value)
+{
+    return MakeRelatedFilter(Relations, String(Field, Comparison, Value));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::RelatedNumber(
+    const FOpenPocketBaseExpand& Relations,
+    const FOpenPocketBaseNumberFieldRef& Field,
+    const EOpenPocketBaseNumberComparison Comparison,
+    const double Value)
+{
+    return MakeRelatedFilter(Relations, Number(Field, Comparison, Value));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::RelatedBoolean(
+    const FOpenPocketBaseExpand& Relations,
+    const FOpenPocketBaseBooleanFieldRef& Field,
+    const EOpenPocketBaseBooleanComparison Comparison,
+    const bool bValue)
+{
+    return MakeRelatedFilter(Relations, Boolean(Field, Comparison, bValue));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::RelatedDate(
+    const FOpenPocketBaseExpand& Relations,
+    const FOpenPocketBaseDateFieldRef& Field,
+    const EOpenPocketBaseDateComparison Comparison,
+    const FDateTime& Value)
+{
+    return MakeRelatedFilter(Relations, Date(Field, Comparison, Value));
+}
+
+FOpenPocketBaseFilter FOpenPocketBaseFilter::RelatedNull(
+    const FOpenPocketBaseExpand& Relations,
+    const FOpenPocketBaseFieldRef& Field,
+    const EOpenPocketBaseNullComparison Comparison)
+{
+    return MakeRelatedFilter(Relations, Null(Field, Comparison));
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicString(

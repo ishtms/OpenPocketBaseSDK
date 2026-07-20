@@ -1,4 +1,5 @@
 #include "Schema/SOpenPocketBaseSchemaPin.h"
+#include "Schema/OpenPocketBaseSchemaGraphContext.h"
 
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -10,6 +11,7 @@
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -94,6 +96,14 @@ TSharedRef<SWidget> SOpenPocketBaseSchemaPin::BuildMenu()
         .AutoHeight()
         [
             SNew(SSeparator)
+        ]
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(8.0f, 5.0f, 8.0f, 0.0f)
+        [
+            SNew(SButton)
+            .Text(LOCTEXT("ClearSchemaChoice", "Clear selection"))
+            .OnClicked(this, &SOpenPocketBaseSchemaPin::ClearChoice)
         ];
 
     if (IsCollectionPin())
@@ -172,6 +182,9 @@ void SOpenPocketBaseSchemaPin::RefreshChoices()
             Schemas,
             GetReferenceStruct(),
             bShowSystemCollections,
+            GraphPinObj != nullptr
+                ? OpenPocketBase::Editor::FindCollectionRequirement(*GraphPinObj)
+                : EOpenPocketBaseCollectionRequirement::Any,
             Choices);
     }
     else
@@ -241,6 +254,21 @@ void SOpenPocketBaseSchemaPin::SelectChoice(
     }
 }
 
+FReply SOpenPocketBaseSchemaPin::ClearChoice()
+{
+    if (GraphPinObj != nullptr && GraphPinObj->GetSchema() != nullptr)
+    {
+        const FScopedTransaction Transaction(LOCTEXT("ClearSchemaReference", "Clear PocketBase schema value"));
+        GraphPinObj->Modify();
+        GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, FString());
+    }
+    if (ComboButton.IsValid())
+    {
+        ComboButton->SetIsOpen(false);
+    }
+    return FReply::Handled();
+}
+
 void SOpenPocketBaseSchemaPin::SetShowSystemCollections(const ECheckBoxState State)
 {
     bShowSystemCollections = State == ECheckBoxState::Checked;
@@ -270,7 +298,8 @@ FText SOpenPocketBaseSchemaPin::GetCurrentLabel() const
         {
             return LOCTEXT("ChooseCollectionLabel", "Choose collection");
         }
-        return FText::FromString(Ref.Name);
+        FOpenPocketBaseCollectionRef Current;
+        return FText::FromString(Ref.ResolveCurrent(Current) ? Current.Name : Ref.Name);
     }
 
     FOpenPocketBaseFieldRef Ref;
@@ -283,13 +312,15 @@ FText SOpenPocketBaseSchemaPin::GetCurrentLabel() const
         return LOCTEXT("ChooseFieldLabel", "Choose field");
     }
 
-    UOpenPocketBaseSchema* Schema = Ref.Schema.LoadSynchronous();
+    FOpenPocketBaseFieldRef Current;
+    const FOpenPocketBaseFieldRef& DisplayRef = Ref.ResolveCurrent(Current) ? Current : Ref;
+    UOpenPocketBaseSchema* Schema = DisplayRef.Schema.LoadSynchronous();
     const FOpenPocketBaseSchemaCollection* Collection =
-        Schema != nullptr ? Schema->FindCollection(Ref.CollectionId) : nullptr;
+        Schema != nullptr ? Schema->FindCollection(DisplayRef.CollectionId) : nullptr;
     return FText::FromString(FString::Printf(
         TEXT("%s.%s"),
         Collection != nullptr ? *Collection->Name : TEXT("?"),
-        *Ref.Name));
+        *DisplayRef.Name));
 }
 
 FText SOpenPocketBaseSchemaPin::GetCurrentToolTip() const
@@ -309,6 +340,7 @@ FText SOpenPocketBaseSchemaPin::GetCurrentToolTip() const
         FOpenPocketBaseSchemaPickerModel::ValidateCollection(
             GetReferenceStruct(),
             Ref,
+            OpenPocketBase::Editor::FindCollectionRequirement(*GraphPinObj),
             Message);
     }
     else
@@ -318,7 +350,13 @@ FText SOpenPocketBaseSchemaPin::GetCurrentToolTip() const
             GetReferenceStruct(),
             GraphPinObj->GetDefaultAsString(),
             Ref);
-        FOpenPocketBaseSchemaPickerModel::ValidateField(GetReferenceStruct(), Ref, Message);
+        FOpenPocketBaseSchemaPickerModel::ValidateField(
+            GetReferenceStruct(),
+            Ref,
+            GraphPinObj->GetOwningNode()->GetPinMetaData(
+                GraphPinObj->PinName,
+                TEXT("OpenPocketBaseFieldAccess")) == TEXT("Write"),
+            Message);
     }
     return Message.IsEmpty() ? LOCTEXT("SchemaReferenceValid", "PocketBase schema reference") : Message;
 }
@@ -341,6 +379,7 @@ FSlateColor SOpenPocketBaseSchemaPin::GetCurrentColor() const
         Status = FOpenPocketBaseSchemaPickerModel::ValidateCollection(
             GetReferenceStruct(),
             Ref,
+            OpenPocketBase::Editor::FindCollectionRequirement(*GraphPinObj),
             Message);
     }
     else
@@ -350,7 +389,13 @@ FSlateColor SOpenPocketBaseSchemaPin::GetCurrentColor() const
             GetReferenceStruct(),
             GraphPinObj->GetDefaultAsString(),
             Ref);
-        Status = FOpenPocketBaseSchemaPickerModel::ValidateField(GetReferenceStruct(), Ref, Message);
+        Status = FOpenPocketBaseSchemaPickerModel::ValidateField(
+            GetReferenceStruct(),
+            Ref,
+            GraphPinObj->GetOwningNode()->GetPinMetaData(
+                GraphPinObj->PinName,
+                TEXT("OpenPocketBaseFieldAccess")) == TEXT("Write"),
+            Message);
     }
 
     if (Status == EOpenPocketBaseSchemaReferenceStatus::Valid)
@@ -395,32 +440,8 @@ bool SOpenPocketBaseSchemaPin::IsCollectionPin() const
 bool SOpenPocketBaseSchemaPin::FindSiblingCollection(
     FOpenPocketBaseCollectionRef& OutCollection) const
 {
-    OutCollection = {};
-    if (GraphPinObj == nullptr || GraphPinObj->GetOwningNode() == nullptr)
-    {
-        return false;
-    }
-
-    for (const UEdGraphPin* Pin : GraphPinObj->GetOwningNode()->Pins)
-    {
-        if (Pin == nullptr ||
-            Pin == GraphPinObj ||
-            Pin->Direction != EGPD_Input ||
-            !Pin->LinkedTo.IsEmpty() ||
-            !FOpenPocketBaseSchemaPickerModel::SupportsCollectionStruct(
-                Cast<UScriptStruct>(Pin->PinType.PinSubCategoryObject.Get())))
-        {
-            continue;
-        }
-        if (FOpenPocketBaseSchemaPickerModel::ParseCollectionDefault(
-                Pin->GetDefaultAsString(),
-                OutCollection) &&
-            OutCollection.IsSet())
-        {
-            return true;
-        }
-    }
-    return false;
+    return GraphPinObj != nullptr &&
+        OpenPocketBase::Editor::FindCollectionContext(*GraphPinObj, OutCollection);
 }
 
 void SOpenPocketBaseSchemaPin::LoadSchemas(

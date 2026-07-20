@@ -283,7 +283,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Create Record"))
     static UOpenPocketBaseCreateRecordAsyncAction* CreateRecord(
-        FOpenPocketBaseWritableCollection Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions Options);
 
@@ -293,8 +293,51 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseWritableCollectionRef Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FOpenPocketBaseRecordBody Body;
+    FOpenPocketBaseRecordOptions Options;
+};
+
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = AsyncAction))
+class OPENPOCKETBASESDK_API UOpenPocketBaseRegisterUserAsyncAction final
+    : public UOpenPocketBaseAsyncActionBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Success;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Failed;
+
+    UPROPERTY(BlueprintAssignable)
+    FOpenPocketBaseRecordActionSuccess Cancelled;
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Authentication",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DisplayName = "Register User",
+            Keywords = "create signup account password confirm"))
+    static UOpenPocketBaseRegisterUserAsyncAction* RegisterUser(
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
+        FOpenPocketBaseRecordBody UserFields,
+        FString Password,
+        FString ConfirmPassword,
+        FOpenPocketBaseRecordOptions Options);
+
+    virtual void Activate() override;
+
+protected:
+    virtual void BroadcastCancelled() override;
+
+private:
+    FOpenPocketBaseCollectionRef AuthCollection;
+    FOpenPocketBaseRecordBody UserFields;
+    FString Password;
+    FString ConfirmPassword;
     FOpenPocketBaseRecordOptions Options;
 };
 
@@ -326,7 +369,7 @@ public:
             AutoCreateRefTerm = "Files",
             AdvancedDisplay = "Limits"))
     static UOpenPocketBaseCreateRecordWithFilesAsyncAction* CreateRecordWithFiles(
-        FOpenPocketBaseWritableCollection Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FOpenPocketBaseRecordBody Body,
         TArray<FOpenPocketBaseFileInput> Files,
         FOpenPocketBaseRecordOptions Options,
@@ -338,7 +381,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseWritableCollectionRef Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FOpenPocketBaseRecordBody Body;
     TArray<FOpenPocketBaseFileInput> Files;
     FOpenPocketBaseRecordOptions Options;
@@ -368,7 +411,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Update Record"))
     static UOpenPocketBaseUpdateRecordAsyncAction* UpdateRecord(
-        FOpenPocketBaseWritableCollection Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions Options);
@@ -379,7 +422,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseWritableCollectionRef Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FString RecordId;
     FOpenPocketBaseRecordBody Body;
     FOpenPocketBaseRecordOptions Options;
@@ -413,7 +456,7 @@ public:
             AutoCreateRefTerm = "Files",
             AdvancedDisplay = "Limits"))
     static UOpenPocketBaseUpdateRecordWithFilesAsyncAction* UpdateRecordWithFiles(
-        FOpenPocketBaseWritableCollection Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FString RecordId,
         FOpenPocketBaseRecordBody Body,
         TArray<FOpenPocketBaseFileInput> Files,
@@ -426,7 +469,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseWritableCollectionRef Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FString RecordId;
     FOpenPocketBaseRecordBody Body;
     TArray<FOpenPocketBaseFileInput> Files;
@@ -457,7 +500,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Delete Record"))
     static UOpenPocketBaseDeleteRecordAsyncAction* DeleteRecord(
-        FOpenPocketBaseWritableCollection Collection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         FString RecordId,
         FOpenPocketBaseRequestOptions Options);
 
@@ -467,7 +510,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseWritableCollectionRef Collection;
+    FOpenPocketBaseCollectionRef Collection;
     FString RecordId;
     FOpenPocketBaseRequestOptions Options;
 };
@@ -602,7 +645,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "List Authentication Methods"))
     static UOpenPocketBaseListAuthMethodsAsyncAction* ListAuthenticationMethods(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseRequestOptions Options);
 
     virtual void Activate() override;
@@ -611,7 +654,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FOpenPocketBaseRequestOptions Options;
 };
 
@@ -638,7 +681,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Request One-Time Password"))
     static UOpenPocketBaseRequestOtpAsyncAction* RequestOneTimePassword(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Email,
         FOpenPocketBaseRequestOptions Options);
 
@@ -648,7 +691,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FString Email;
     FOpenPocketBaseRequestOptions Options;
 };
@@ -680,7 +723,7 @@ public:
             DisplayName = "Log In with One-Time Password",
             AdvancedDisplay = "Mfa"))
     static UOpenPocketBaseOtpAuthAsyncAction* LogInWithOneTimePassword(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString OtpId,
         FString OneTimePassword,
         FOpenPocketBaseMfaContinuation Mfa,
@@ -692,7 +735,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FString OtpId;
     FString Password;
     FOpenPocketBaseMfaContinuation Mfa;
@@ -722,7 +765,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Begin Manual OAuth2"))
     static UOpenPocketBaseBeginOAuth2AsyncAction* BeginManualOAuth2(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseOAuth2StartOptions Options);
 
     virtual void Activate() override;
@@ -731,7 +774,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FOpenPocketBaseOAuth2StartOptions Options;
 };
 
@@ -761,7 +804,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Complete Manual OAuth2"))
     static UOpenPocketBaseCompleteOAuth2AsyncAction* CompleteManualOAuth2(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseOAuth2Callback Callback);
 
     virtual void Activate() override;
@@ -770,7 +813,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FOpenPocketBaseOAuth2Callback Callback;
 };
 
@@ -800,7 +843,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Log In with OAuth2"))
     static UOpenPocketBaseAssistedOAuth2AsyncAction* LogInWithOAuth2(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FOpenPocketBaseAssistedOAuth2Options Options);
 
     virtual void Activate() override;
@@ -809,7 +852,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FOpenPocketBaseAssistedOAuth2Options Options;
 };
 
@@ -847,7 +890,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Request Password Reset"))
     static UOpenPocketBaseAccountAsyncAction* RequestPasswordReset(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Email,
         FOpenPocketBaseRequestOptions Options);
 
@@ -858,7 +901,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Confirm Password Reset"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmPasswordReset(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Token,
         FString NewPassword,
         FString ConfirmPassword,
@@ -871,7 +914,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Request Email Verification"))
     static UOpenPocketBaseAccountAsyncAction* RequestVerification(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Email,
         FOpenPocketBaseRequestOptions Options);
 
@@ -882,7 +925,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Confirm Email Verification"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmVerification(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Token,
         FOpenPocketBaseRequestOptions Options);
 
@@ -893,7 +936,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Request Email Change"))
     static UOpenPocketBaseAccountAsyncAction* RequestEmailChange(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString NewEmail,
         FOpenPocketBaseRequestOptions Options);
 
@@ -904,7 +947,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Confirm Email Change"))
     static UOpenPocketBaseAccountAsyncAction* ConfirmEmailChange(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Token,
         FString CurrentPassword,
         FOpenPocketBaseRequestOptions Options);
@@ -916,7 +959,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Unlink External Auth"))
     static UOpenPocketBaseAccountAsyncAction* UnlinkExternalAuth(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString RecordId,
         FString Provider,
         FOpenPocketBaseRequestOptions Options);
@@ -929,7 +972,7 @@ protected:
 private:
     static UOpenPocketBaseAccountAsyncAction* CreateAction(
         EOpenPocketBaseAccountActionKind Kind,
-        FOpenPocketBaseAuthCollection AuthCollection,
+        FOpenPocketBaseCollection AuthCollection,
         FString Primary,
         FString Secondary,
         FString Tertiary,
@@ -937,7 +980,7 @@ private:
 
     EOpenPocketBaseAccountActionKind Kind =
         EOpenPocketBaseAccountActionKind::RequestPasswordReset;
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FString Primary;
     FString Secondary;
     FString Tertiary;
@@ -967,7 +1010,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "List Linked External Auths"))
     static UOpenPocketBaseListExternalAuthsAsyncAction* ListLinkedExternalAuths(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString RecordId,
         FOpenPocketBaseRequestOptions Options);
 
@@ -977,7 +1020,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FString RecordId;
     FOpenPocketBaseRequestOptions Options;
 };
@@ -1045,7 +1088,7 @@ public:
             BlueprintInternalUseOnly = "true",
             DisplayName = "Log In with Password"))
     static UOpenPocketBasePasswordAuthAsyncAction* LogInWithPassword(
-        FOpenPocketBaseAuthCollection AuthCollection,
+        UPARAM(meta = (OpenPocketBaseCollectionAccess = "Auth")) FOpenPocketBaseCollection AuthCollection,
         FString Identity,
         FString Password,
         FOpenPocketBaseRequestOptions Options);
@@ -1056,7 +1099,7 @@ protected:
     virtual void BroadcastCancelled() override;
 
 private:
-    FOpenPocketBaseAuthCollectionRef AuthCollection;
+    FOpenPocketBaseCollectionRef AuthCollection;
     FString Identity;
     FString Password;
     FOpenPocketBaseRequestOptions Options;

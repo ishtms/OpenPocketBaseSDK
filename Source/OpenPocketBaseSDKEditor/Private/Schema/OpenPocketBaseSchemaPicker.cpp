@@ -145,6 +145,10 @@ bool FOpenPocketBaseSchemaPickerModel::AcceptsField(
     {
         return FOpenPocketBaseStringFieldRef::Accepts(Field);
     }
+    if (ReferenceStruct == FOpenPocketBaseTextFieldRef::StaticStruct())
+    {
+        return FOpenPocketBaseTextFieldRef::Accepts(Field);
+    }
     if (ReferenceStruct == FOpenPocketBaseNumberFieldRef::StaticStruct())
     {
         return FOpenPocketBaseNumberFieldRef::Accepts(Field);
@@ -165,9 +169,29 @@ bool FOpenPocketBaseSchemaPickerModel::AcceptsField(
     {
         return FOpenPocketBaseJsonFieldRef::Accepts(Field);
     }
+    if (ReferenceStruct == FOpenPocketBaseGeoPointFieldRef::StaticStruct())
+    {
+        return FOpenPocketBaseGeoPointFieldRef::Accepts(Field);
+    }
+    if (ReferenceStruct == FOpenPocketBaseSingleSelectFieldRef::StaticStruct())
+    {
+        return FOpenPocketBaseSingleSelectFieldRef::Accepts(Field);
+    }
+    if (ReferenceStruct == FOpenPocketBaseMultipleSelectFieldRef::StaticStruct())
+    {
+        return FOpenPocketBaseMultipleSelectFieldRef::Accepts(Field);
+    }
     if (ReferenceStruct == FOpenPocketBaseRelationFieldRef::StaticStruct())
     {
         return FOpenPocketBaseRelationFieldRef::Accepts(Field);
+    }
+    if (ReferenceStruct == FOpenPocketBaseSingleRelationFieldRef::StaticStruct())
+    {
+        return FOpenPocketBaseSingleRelationFieldRef::Accepts(Field);
+    }
+    if (ReferenceStruct == FOpenPocketBaseMultipleRelationFieldRef::StaticStruct())
+    {
+        return FOpenPocketBaseMultipleRelationFieldRef::Accepts(Field);
     }
     if (ReferenceStruct == FOpenPocketBaseFileFieldRef::StaticStruct())
     {
@@ -180,6 +204,7 @@ void FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
     const TArray<UOpenPocketBaseSchema*>& Schemas,
     const UScriptStruct* ReferenceStruct,
     const bool bIncludeSystemCollections,
+    const EOpenPocketBaseCollectionRequirement Requirement,
     TArray<FOpenPocketBaseSchemaPickerChoice>& OutChoices)
 {
     OutChoices.Reset();
@@ -203,6 +228,13 @@ void FOpenPocketBaseSchemaPickerModel::BuildCollectionChoices(
                 continue;
             }
             if (!AcceptsCollection(ReferenceStruct, Choice.Collection))
+            {
+                continue;
+            }
+            if ((Requirement == EOpenPocketBaseCollectionRequirement::Writable &&
+                 !FOpenPocketBaseWritableCollectionRef::Accepts(Choice.Collection)) ||
+                (Requirement == EOpenPocketBaseCollectionRequirement::Auth &&
+                 !FOpenPocketBaseAuthCollectionRef::Accepts(Choice.Collection)))
             {
                 continue;
             }
@@ -276,10 +308,15 @@ void FOpenPocketBaseSchemaPickerModel::BuildFieldChoices(
                 Choice.Collection = CollectionRef;
                 Choice.Field = MoveTemp(Field);
                 Choice.Label = FText::FromString(SchemaField.Name);
-                Choice.Detail = FText::Format(
-                    LOCTEXT("FieldDetail", "{0} | {1}"),
-                    FText::FromString(Collection.Name),
-                    FieldTypeText(Choice.Field));
+                Choice.Detail = SchemaField.Storage == EOpenPocketBaseFieldStorage::Data
+                    ? FText::Format(
+                          LOCTEXT("FieldDetail", "{0} | {1}"),
+                          FText::FromString(Collection.Name),
+                          FieldTypeText(Choice.Field))
+                    : FText::Format(
+                          LOCTEXT("MetadataFieldDetail", "{0} | {1} | Record metadata"),
+                          FText::FromString(Collection.Name),
+                          FieldTypeText(Choice.Field));
                 Choice.SearchText = FString::Printf(
                     TEXT("%s.%s %s %s"),
                     *Collection.Name,
@@ -405,6 +442,7 @@ FString FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
 EOpenPocketBaseSchemaReferenceStatus FOpenPocketBaseSchemaPickerModel::ValidateCollection(
     const UScriptStruct* ReferenceStruct,
     const FOpenPocketBaseCollectionRef& Ref,
+    const EOpenPocketBaseCollectionRequirement Requirement,
     FText& OutMessage)
 {
     OutMessage = FText::GetEmpty();
@@ -434,12 +472,30 @@ EOpenPocketBaseSchemaReferenceStatus FOpenPocketBaseSchemaPickerModel::ValidateC
             FText::FromString(Ref.Name));
         return EOpenPocketBaseSchemaReferenceStatus::MissingCollection;
     }
-    if (!AcceptsCollection(ReferenceStruct, Ref))
+    FOpenPocketBaseCollectionRef CurrentRef;
+    if (!Schema->MakeCollectionRef(Collection->Id, CurrentRef) ||
+        !AcceptsCollection(ReferenceStruct, CurrentRef))
     {
         OutMessage = FText::Format(
             LOCTEXT("WrongCollectionType", "Collection '{0}' does not have the type required by this pin."),
             FText::FromString(Collection->Name));
-        return EOpenPocketBaseSchemaReferenceStatus::MissingCollection;
+        return EOpenPocketBaseSchemaReferenceStatus::WrongCollectionType;
+    }
+    if (Requirement == EOpenPocketBaseCollectionRequirement::Writable &&
+        !FOpenPocketBaseWritableCollectionRef::Accepts(CurrentRef))
+    {
+        OutMessage = FText::Format(
+            LOCTEXT("ReadOnlyCollection", "Collection '{0}' is read-only and cannot be used by the connected operation."),
+            FText::FromString(Collection->Name));
+        return EOpenPocketBaseSchemaReferenceStatus::WrongCollectionType;
+    }
+    if (Requirement == EOpenPocketBaseCollectionRequirement::Auth &&
+        !FOpenPocketBaseAuthCollectionRef::Accepts(CurrentRef))
+    {
+        OutMessage = FText::Format(
+            LOCTEXT("NonAuthCollection", "Collection '{0}' is not an auth collection."),
+            FText::FromString(Collection->Name));
+        return EOpenPocketBaseSchemaReferenceStatus::WrongCollectionType;
     }
     return EOpenPocketBaseSchemaReferenceStatus::Valid;
 }
@@ -447,6 +503,7 @@ EOpenPocketBaseSchemaReferenceStatus FOpenPocketBaseSchemaPickerModel::ValidateC
 EOpenPocketBaseSchemaReferenceStatus FOpenPocketBaseSchemaPickerModel::ValidateField(
     const UScriptStruct* ReferenceStruct,
     const FOpenPocketBaseFieldRef& Ref,
+    const bool bWritableOnly,
     FText& OutMessage)
 {
     OutMessage = FText::GetEmpty();
@@ -481,12 +538,23 @@ EOpenPocketBaseSchemaReferenceStatus FOpenPocketBaseSchemaPickerModel::ValidateF
             FText::FromString(Ref.Name));
         return EOpenPocketBaseSchemaReferenceStatus::MissingField;
     }
-    if (!AcceptsField(ReferenceStruct, Ref))
+    FOpenPocketBaseCollectionRef CurrentCollection;
+    FOpenPocketBaseFieldRef CurrentRef;
+    if (!Schema->MakeCollectionRef(Ref.CollectionId, CurrentCollection) ||
+        !Schema->MakeFieldRef(CurrentCollection, Field->Id, CurrentRef) ||
+        !AcceptsField(ReferenceStruct, CurrentRef))
     {
         OutMessage = FText::Format(
             LOCTEXT("WrongFieldType", "Field '{0}' no longer has the type required by this pin."),
             FText::FromString(Field->Name));
         return EOpenPocketBaseSchemaReferenceStatus::WrongFieldType;
+    }
+    if (bWritableOnly && CurrentRef.bReadOnly)
+    {
+        OutMessage = FText::Format(
+            LOCTEXT("ReadOnlyField", "Field '{0}' is read-only and cannot be written."),
+            FText::FromString(Field->Name));
+        return EOpenPocketBaseSchemaReferenceStatus::ReadOnlyField;
     }
     return EOpenPocketBaseSchemaReferenceStatus::Valid;
 }

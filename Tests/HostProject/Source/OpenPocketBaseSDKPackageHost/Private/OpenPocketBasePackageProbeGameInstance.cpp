@@ -247,11 +247,11 @@ void UOpenPocketBasePackageProbeGameInstance::BeginTransferProbe()
             FOpenPocketBaseRecordBody Body;
             Body.SetDynamicStringField(TEXT("id"), TEXT("pkgprobe0000001"));
             Body.SetDynamicStringField(TEXT("title"), TEXT("Packaged transfer proof"));
-            FOpenPocketBaseFileInput File;
-            File.FieldName = TEXT("attachments");
-            File.FileName = TEXT("packaged-proof.txt");
-            File.ContentType = TEXT("text/plain");
-            File.FilePath = WeakThis->UploadPath;
+            FOpenPocketBaseFileInput File = FOpenPocketBaseFileInput::DynamicFromPath(
+                TEXT("attachments"),
+                WeakThis->UploadPath,
+                TEXT("packaged-proof.txt"),
+                TEXT("text/plain"));
             WeakThis->Request = WeakThis->Client->DynamicCollection(TEXT("sdk_tasks")).CreateWithFiles(
                 MoveTemp(Body),
                 {MoveTemp(File)},
@@ -323,7 +323,7 @@ void UOpenPocketBasePackageProbeGameInstance::DownloadTransferFile(
     Options.DestinationPath = DownloadPath;
     Options.MaxBytes = 1024 * 1024;
     const TWeakObjectPtr<UOpenPocketBasePackageProbeGameInstance> WeakThis(this);
-    Request = Client->Files().Download(
+    Request = Client->Files().DynamicDownload(
         TEXT("sdk_tasks"),
         TransferRecordId,
         TransferFileName,

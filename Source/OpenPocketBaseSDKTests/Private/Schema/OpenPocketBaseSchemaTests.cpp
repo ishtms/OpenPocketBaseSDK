@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "OpenPocketBaseRecord.h"
 #include "OpenPocketBaseSchema.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -74,6 +75,32 @@ bool FOpenPocketBaseSchemaReferencesTest::RunTest(const FString& Parameters)
     const FOpenPocketBaseSchemaField* RenamedField = nullptr;
     TestTrue(TEXT("Stable field IDs survive field renames"), Schema->ResolveField(DoneRef, RenamedField));
     TestEqual(TEXT("The current field name comes from the schema"), RenamedField->Name, FString(TEXT("completed")));
+
+    FOpenPocketBaseFieldRef CurrentDone;
+    TestTrue(TEXT("Field references resolve their current schema value"), DoneRef.ResolveCurrent(CurrentDone));
+    TestEqual(TEXT("Resolved references use the current wire name"), CurrentDone.Name, FString(TEXT("completed")));
+
+    FOpenPocketBaseRecordBody Body;
+    Body.SetBooleanField(TypedDoneRef, true);
+    TestTrue(
+        TEXT("Record bodies use the current wire name after a schema rename"),
+        Body.Data.JsonObject.IsValid() && Body.Data.JsonObject->HasField(TEXT("completed")));
+    TestFalse(
+        TEXT("Record bodies do not send the stale wire name"),
+        Body.Data.JsonObject.IsValid() && Body.Data.JsonObject->HasField(TEXT("done")));
+
+    TasksRef.Name = TEXT("old_tasks");
+    FOpenPocketBaseCollectionRef CurrentTasks;
+    TestTrue(TEXT("Collection references resolve their current schema value"), TasksRef.ResolveCurrent(CurrentTasks));
+    TestEqual(TEXT("Resolved collections use the current wire name"), CurrentTasks.Name, FString(TEXT("sdk_tasks")));
+
+    Schema->SchemaId = FGuid(5, 8, 13, 21);
+    FOpenPocketBaseCollectionRef RejectedCollection = TasksRef;
+    TestFalse(TEXT("Replaced schemas reject collection references"), TasksRef.ResolveCurrent(RejectedCollection));
+    TestFalse(TEXT("Rejected collection outputs are cleared"), RejectedCollection.IsSet());
+    FOpenPocketBaseFieldRef RejectedField = DoneRef;
+    TestFalse(TEXT("Replaced schemas reject field references"), DoneRef.ResolveCurrent(RejectedField));
+    TestFalse(TEXT("Rejected field outputs are cleared"), RejectedField.IsSet());
     return true;
 }
 

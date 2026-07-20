@@ -4,19 +4,31 @@
 
 bool FOpenPocketBaseCollection::IsValid() const
 {
-    return Client != nullptr && Client->IsReady() && !Reference.Name.IsEmpty();
+    if (Client == nullptr || !Client->IsReady())
+    {
+        return false;
+    }
+    if (!Reference.IsSet())
+    {
+        const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+            Client->GetNativeClient();
+        return NativeClient.IsValid() && NativeClient->DynamicCollection(Reference.Name).IsValid();
+    }
+
+    FOpenPocketBaseCollectionRef Current;
+    return Reference.ResolveCurrent(Current);
 }
 
 bool FOpenPocketBaseWritableCollection::IsValid() const
 {
-    return Client != nullptr && Client->IsReady() &&
-        FOpenPocketBaseWritableCollectionRef::Accepts(Reference);
+    FOpenPocketBaseWritableCollectionRef Current;
+    return Client != nullptr && Client->IsReady() && Reference.ResolveCurrentAs(Current);
 }
 
 bool FOpenPocketBaseAuthCollection::IsValid() const
 {
-    return Client != nullptr && Client->IsReady() &&
-        FOpenPocketBaseAuthCollectionRef::Accepts(Reference);
+    FOpenPocketBaseAuthCollectionRef Current;
+    return Client != nullptr && Client->IsReady() && Reference.ResolveCurrentAs(Current);
 }
 
 UOpenPocketBaseClient* UOpenPocketBaseClient::Create(
@@ -94,7 +106,7 @@ FOpenPocketBaseCollection UOpenPocketBaseClient::Collection(
 {
     FOpenPocketBaseCollection Collection;
     Collection.Client = this;
-    Collection.Reference = MoveTemp(Reference);
+    Reference.ResolveCurrent(Collection.Reference);
     return Collection;
 }
 
@@ -103,7 +115,7 @@ FOpenPocketBaseWritableCollection UOpenPocketBaseClient::WritableCollection(
 {
     FOpenPocketBaseWritableCollection Collection;
     Collection.Client = this;
-    Collection.Reference = MoveTemp(Reference);
+    Reference.ResolveCurrentAs(Collection.Reference);
     return Collection;
 }
 
@@ -112,7 +124,7 @@ FOpenPocketBaseAuthCollection UOpenPocketBaseClient::AuthCollection(
 {
     FOpenPocketBaseAuthCollection Collection;
     Collection.Client = this;
-    Collection.Reference = MoveTemp(Reference);
+    Reference.ResolveCurrentAs(Collection.Reference);
     return Collection;
 }
 

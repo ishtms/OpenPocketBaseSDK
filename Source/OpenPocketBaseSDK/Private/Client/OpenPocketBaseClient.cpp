@@ -12,6 +12,7 @@
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "HAL/PlatformProperties.h"
 #include "HAL/CriticalSection.h"
+#include "HAL/FileManager.h"
 #include "Math/RandomStream.h"
 #include "Misc/Base64.h"
 #include "Misc/Guid.h"
@@ -1127,6 +1128,13 @@ bool ValidateBatch(
     const FOpenPocketBaseBatchOptions& Options,
     FOpenPocketBaseError& OutError)
 {
+    if (!Batch.IsValid())
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *Batch.ErrorMessage);
+        return false;
+    }
     if (Options.MaxOperations < 1 || Options.MaxOperations > 50 || Batch.Entries.IsEmpty() ||
         Batch.Entries.Num() > Options.MaxOperations ||
         Options.MaxBodyBytes < 1024 || Options.MaxBodyBytes > 16 * 1024 * 1024 ||
@@ -1144,9 +1152,10 @@ bool ValidateBatch(
     for (const FOpenPocketBaseBatchEntry& Entry : Batch.Entries)
     {
         const bool bTypedCollection = Entry.Collection.IsSet();
+        FOpenPocketBaseWritableCollectionRef CurrentCollection;
         if ((bTypedCollection &&
-             (!FOpenPocketBaseWritableCollectionRef::Accepts(Entry.Collection) ||
-              !IsSafePathSegment(Entry.Collection.Name))) ||
+             (!Entry.Collection.ResolveCurrentAs(CurrentCollection) ||
+              !IsSafePathSegment(CurrentCollection.Name))) ||
             (!bTypedCollection && !IsSafePathSegment(Entry.DynamicCollection)))
         {
             OutError = MakeLocalError(
@@ -3523,7 +3532,8 @@ FOpenPocketBaseClient::CreateEphemeralAuthenticated(
     const FOpenPocketBaseRecord& AuthRecord,
     FOpenPocketBaseClientDependencies Dependencies)
 {
-    if (!FOpenPocketBaseAuthCollectionRef::Accepts(AuthCollection))
+    FOpenPocketBaseAuthCollectionRef Current;
+    if (!AuthCollection.ResolveCurrentAs(Current))
     {
         return FOpenPocketBaseClientResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
@@ -3532,7 +3542,7 @@ FOpenPocketBaseClient::CreateEphemeralAuthenticated(
     return CreateDynamicEphemeralAuthenticated(
         Config,
         MoveTemp(Token),
-        MoveTemp(AuthCollection.Name),
+        MoveTemp(Current.Name),
         AuthRecord,
         MoveTemp(Dependencies));
 }
@@ -3675,8 +3685,20 @@ FOpenPocketBaseWritableCollectionService FOpenPocketBaseClient::WritableCollecti
     return FOpenPocketBaseWritableCollectionService(AsShared(), MoveTemp(CollectionReference));
 }
 
+FOpenPocketBaseWritableCollectionService FOpenPocketBaseClient::WritableCollection(
+    FOpenPocketBaseCollectionRef CollectionReference)
+{
+    return FOpenPocketBaseWritableCollectionService(AsShared(), MoveTemp(CollectionReference));
+}
+
 FOpenPocketBaseAuthCollectionService FOpenPocketBaseClient::AuthCollection(
     FOpenPocketBaseAuthCollectionRef CollectionReference)
+{
+    return FOpenPocketBaseAuthCollectionService(AsShared(), MoveTemp(CollectionReference));
+}
+
+FOpenPocketBaseAuthCollectionService FOpenPocketBaseClient::AuthCollection(
+    FOpenPocketBaseCollectionRef CollectionReference)
 {
     return FOpenPocketBaseAuthCollectionService(AsShared(), MoveTemp(CollectionReference));
 }
@@ -4518,14 +4540,15 @@ FOpenPocketBaseFileUrlResult FOpenPocketBaseFileService::BuildUrl(
     FString FileName,
     FOpenPocketBaseFileUrlOptions Options) const
 {
-    if (!InCollection.IsSet())
+    FOpenPocketBaseCollectionRef Current;
+    if (!InCollection.ResolveCurrent(Current))
     {
         return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
             TEXT("A schema-backed collection is required.")));
     }
     return DynamicBuildUrl(
-        MoveTemp(InCollection.Name),
+        MoveTemp(Current.Name),
         MoveTemp(RecordId),
         MoveTemp(FileName),
         MoveTemp(Options));
@@ -4706,7 +4729,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
     FOpenPocketBaseFileToken Token,
     FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
-    if (!InCollection.IsSet())
+    FOpenPocketBaseCollectionRef Current;
+    if (!InCollection.ResolveCurrent(Current))
     {
         DispatchFailure<FOpenPocketBaseFileDownloadResult>(
             MoveTemp(OnComplete),
@@ -4716,7 +4740,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
         return {};
     }
     return DynamicDownload(
-        MoveTemp(InCollection.Name),
+        MoveTemp(Current.Name),
         MoveTemp(RecordId),
         MoveTemp(FileName),
         MoveTemp(Options),
@@ -4899,9 +4923,16 @@ FOpenPocketBaseCollectionService::FOpenPocketBaseCollectionService(
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
     FOpenPocketBaseCollectionRef InCollection)
     : Client(MoveTemp(InClient))
-    , Collection(InCollection.Name)
-    , Reference(MoveTemp(InCollection))
 {
+    if (InCollection.IsSet())
+    {
+        InCollection.ResolveCurrent(Reference);
+        Collection = Reference.Name;
+    }
+    else
+    {
+        Collection = MoveTemp(InCollection.Name);
+    }
 }
 
 FOpenPocketBaseWritableCollectionService::FOpenPocketBaseWritableCollectionService(
@@ -4928,6 +4959,13 @@ FOpenPocketBaseWritableCollectionService::FOpenPocketBaseWritableCollectionServi
 FOpenPocketBaseAuthCollectionService::FOpenPocketBaseAuthCollectionService(
     TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
     FOpenPocketBaseAuthCollectionRef InCollection)
+    : FOpenPocketBaseWritableCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
+{
+}
+
+FOpenPocketBaseAuthCollectionService::FOpenPocketBaseAuthCollectionService(
+    TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
+    FOpenPocketBaseCollectionRef InCollection)
     : FOpenPocketBaseWritableCollectionService(MoveTemp(InClient), MoveTemp(InCollection))
 {
 }
@@ -5041,6 +5079,7 @@ bool FOpenPocketBaseWritableCollectionService::ValidateFiles(
     const TArray<FOpenPocketBaseFileInput>& Files,
     FOpenPocketBaseError& OutError) const
 {
+    TMap<FString, int32> FieldCounts;
     for (const FOpenPocketBaseFileInput& File : Files)
     {
         if (!File.IsValid() || (Reference.IsSet() && !File.BelongsTo(Reference)))
@@ -5050,8 +5089,108 @@ bool FOpenPocketBaseWritableCollectionService::ValidateFiles(
                 TEXT("Every uploaded file requires a file field from the selected collection."));
             return false;
         }
+
+        FOpenPocketBaseFileFieldRef CurrentField;
+        if (!File.Field.ResolveCurrentAs(CurrentField))
+        {
+            continue;
+        }
+        const bool bMimeAllowed = CurrentField.MimeTypes.IsEmpty() ||
+            CurrentField.MimeTypes.Contains(File.ContentType) ||
+            CurrentField.MimeTypes.ContainsByPredicate(
+                [&File](const FString& Allowed)
+                {
+                    return Allowed.EndsWith(TEXT("/*")) &&
+                        File.ContentType.StartsWith(Allowed.LeftChop(1));
+                });
+        const int64 FileSize = File.bUseFilePath
+            ? IFileManager::Get().FileSize(*File.FilePath)
+            : File.Bytes.Num();
+        if (!bMimeAllowed ||
+            (CurrentField.MaxSizeBytes > 0 && FileSize >= 0 &&
+             FileSize > CurrentField.MaxSizeBytes) ||
+            (!CurrentField.bMultiple &&
+             File.Modifier != EOpenPocketBaseFieldModifier::Replace))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                *FString::Printf(
+                    TEXT("File '%s' does not satisfy field '%s'."),
+                    *File.FileName,
+                    *CurrentField.Name));
+            return false;
+        }
+        ++FieldCounts.FindOrAdd(CurrentField.FieldId);
+        if (CurrentField.MaxSelect > 0 &&
+            FieldCounts.FindRef(CurrentField.FieldId) > CurrentField.MaxSelect)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                *FString::Printf(
+                    TEXT("Field '%s' accepts at most %d files."),
+                    *CurrentField.Name,
+                    CurrentField.MaxSelect));
+            return false;
+        }
     }
     return true;
+}
+
+bool FOpenPocketBaseWritableCollectionService::ValidateCreateBody(
+    const FOpenPocketBaseRecordBody& Body,
+    const TArray<FOpenPocketBaseFileInput>* Files,
+    FOpenPocketBaseError& OutError) const
+{
+    if (Reference.Schema.IsNull())
+    {
+        return true;
+    }
+    UOpenPocketBaseSchema* Schema = Reference.Schema.LoadSynchronous();
+    const FOpenPocketBaseSchemaCollection* SchemaCollection = nullptr;
+    if (Schema == nullptr || !Schema->ResolveCollection(Reference, SchemaCollection) ||
+        SchemaCollection == nullptr)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The selected collection no longer exists in the imported schema."));
+        return false;
+    }
+
+    TArray<FString> Missing;
+    for (const FOpenPocketBaseSchemaField& Field : SchemaCollection->Fields)
+    {
+        if (!Field.bRequired || Field.bReadOnly ||
+            Field.Storage != EOpenPocketBaseFieldStorage::Data)
+        {
+            continue;
+        }
+
+        bool bPresent = Body.Data.JsonObject.IsValid() &&
+            Body.Data.JsonObject->HasField(Field.Name);
+        if (!bPresent && Field.Type == EOpenPocketBaseFieldType::File && Files != nullptr)
+        {
+            bPresent = Files->ContainsByPredicate(
+                [&Field](const FOpenPocketBaseFileInput& File)
+                {
+                    return File.GetFieldName() == Field.Name;
+                });
+        }
+        if (!bPresent)
+        {
+            Missing.Add(Field.Name);
+        }
+    }
+    if (Missing.IsEmpty())
+    {
+        return true;
+    }
+
+    OutError = MakeLocalError(
+        EOpenPocketBaseErrorKind::InvalidArgument,
+        *FString::Printf(
+            TEXT("Required fields are missing: %s."),
+            *FString::Join(Missing, TEXT(", "))));
+    return false;
 }
 
 FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
@@ -5276,6 +5415,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::Create(
 
     FOpenPocketBaseError OptionsError;
     if (!ValidateBody(Body, OptionsError) ||
+        !ValidateCreateBody(Body, nullptr, OptionsError) ||
         !ValidateRecordOptions(Options, OptionsError) ||
         !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
@@ -5344,6 +5484,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::CreateWit
     FOpenPocketBaseError OptionsError;
     if (!ValidateBody(Body, OptionsError) ||
         !ValidateFiles(Files, OptionsError) ||
+        !ValidateCreateBody(Body, &Files, OptionsError) ||
         !ValidateRecordOptions(Options, OptionsError) ||
         !ValidateRequestOptions(Options.RequestOptions, OptionsError))
     {
@@ -5729,7 +5870,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListAuthMetho
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection))
+    if (!PinnedClient.IsValid() || !IsValid())
     {
         DispatchFailure<FOpenPocketBaseAuthMethods>(
             MoveTemp(OnComplete),
@@ -5781,7 +5922,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestOtp(
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+    if (!PinnedClient.IsValid() || !IsValid() ||
         Email.IsEmpty() || Email.Len() > 320)
     {
         DispatchFailure<FOpenPocketBaseOtpRequest>(
@@ -5836,7 +5977,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithPassw
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+    if (!PinnedClient.IsValid() || !IsValid() ||
         Identity.IsEmpty() || Identity.Len() > 320 || Password.IsEmpty() || Password.Len() > 4096)
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
@@ -5919,7 +6060,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOtp(
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+    if (!PinnedClient.IsValid() || !IsValid() ||
         !IsBoundedTransientAuthId(OtpId) || Password.IsEmpty() || Password.Len() > 4096 ||
         (Mfa.IsSet() && !IsBoundedTransientAuthId(Mfa.Id)))
     {
@@ -6003,7 +6144,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::BeginOAuth2(
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
-        !IsSafePathSegment(Collection) || !IsSafeOAuthValue(Options.Provider, 128) ||
+        !IsValid() || !IsSafeOAuthValue(Options.Provider, 128) ||
         !IsSafeOAuthValue(Options.RedirectUrl, 8192))
     {
         DispatchFailure<FOpenPocketBaseOAuth2Authorization>(
@@ -6105,7 +6246,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::CompleteOAuth
         DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete), MakeCancelledError());
         return {};
     }
-    if (!IsSafePathSegment(Collection) ||
+    if (!IsValid() ||
         !IsBoundedTransientAuthId(Callback.TransactionId) ||
         Callback.CallbackUrl.IsEmpty() || Callback.CallbackUrl.Len() > 8192 ||
         (Callback.Mfa.IsSet() && !IsBoundedTransientAuthId(Callback.Mfa.Id)))
@@ -6237,7 +6378,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOAuth
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
     if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
-        !IsSafePathSegment(Collection) || !IsSafeOAuthValue(Options.Provider, 128) ||
+        !IsValid() || !IsSafeOAuthValue(Options.Provider, 128) ||
         (Options.Mfa.IsSet() && !IsBoundedTransientAuthId(Options.Mfa.Id)))
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
@@ -6318,7 +6459,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::SendAccountPo
     TUniqueFunction<bool(FOpenPocketBaseError&)> OnSucceeded) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection))
+    if (!PinnedClient.IsValid() || !IsValid())
     {
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
@@ -6580,7 +6721,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListExternalA
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+    if (!PinnedClient.IsValid() || !IsValid() ||
         !IsSafePathSegment(RecordId))
     {
         DispatchFailure<TArray<FOpenPocketBaseExternalAuth>>(
@@ -6649,7 +6790,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::UnlinkExterna
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsSafePathSegment(Collection) ||
+    if (!PinnedClient.IsValid() || !IsValid() ||
         !IsSafePathSegment(RecordId) || !IsSafeOAuthValue(Provider, 128))
     {
         DispatchFailure<bool>(

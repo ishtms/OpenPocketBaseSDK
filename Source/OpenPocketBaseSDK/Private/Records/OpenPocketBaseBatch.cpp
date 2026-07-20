@@ -1,5 +1,7 @@
 #include "OpenPocketBaseBatch.h"
 
+#include "OpenPocketBaseBlueprintClient.h"
+
 namespace
 {
 template <typename ValueType>
@@ -17,7 +19,8 @@ FString JoinQueryValues(const TArray<ValueType>& Values)
 
 FString FOpenPocketBaseBatchEntry::GetCollectionName() const
 {
-    return Collection.IsSet() ? Collection.Name : DynamicCollection;
+    FOpenPocketBaseWritableCollectionRef Current;
+    return Collection.ResolveCurrentAs(Current) ? Current.Name : DynamicCollection;
 }
 
 FString FOpenPocketBaseBatchEntry::GetExpandQuery() const
@@ -34,6 +37,44 @@ FString FOpenPocketBaseBatchEntry::GetFieldsQuery() const
         : FString::Join(DynamicFields, TEXT(","));
 }
 
+bool FOpenPocketBaseBatchRequest::IsValid() const
+{
+    return bValid;
+}
+
+UOpenPocketBaseClient* FOpenPocketBaseBatchRequest::GetClient() const
+{
+    return Client;
+}
+
+void FOpenPocketBaseBatchRequest::BindClient(UOpenPocketBaseClient* InClient)
+{
+    if (!bValid)
+    {
+        return;
+    }
+    if (InClient == nullptr)
+    {
+        Invalidate(TEXT("Every batch operation requires a PocketBase collection."));
+        return;
+    }
+    if (Client != nullptr && Client != InClient)
+    {
+        Invalidate(TEXT("Every batch operation must use the same PocketBase client."));
+        return;
+    }
+    Client = InClient;
+}
+
+void FOpenPocketBaseBatchRequest::Invalidate(FString Message)
+{
+    if (bValid)
+    {
+        bValid = false;
+        ErrorMessage = MoveTemp(Message);
+    }
+}
+
 FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddCreate(
     FOpenPocketBaseWritableCollectionRef Collection,
     FOpenPocketBaseRecordBody Body,
@@ -41,7 +82,7 @@ FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddCreate(
 {
     FOpenPocketBaseBatchEntry Entry;
     Entry.Operation = EOpenPocketBaseBatchOperation::Create;
-    Entry.Collection = MoveTemp(Collection);
+    Collection.ResolveCurrentAs(Entry.Collection);
     Entry.Body = MoveTemp(Body);
     Entry.ResponseOptions = MoveTemp(ResponseOptions);
     Entries.Add(MoveTemp(Entry));
@@ -56,7 +97,7 @@ FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddUpdate(
 {
     FOpenPocketBaseBatchEntry Entry;
     Entry.Operation = EOpenPocketBaseBatchOperation::Update;
-    Entry.Collection = MoveTemp(Collection);
+    Collection.ResolveCurrentAs(Entry.Collection);
     Entry.RecordId = MoveTemp(RecordId);
     Entry.Body = MoveTemp(Body);
     Entry.ResponseOptions = MoveTemp(ResponseOptions);
@@ -71,7 +112,7 @@ FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddUpsert(
 {
     FOpenPocketBaseBatchEntry Entry;
     Entry.Operation = EOpenPocketBaseBatchOperation::Upsert;
-    Entry.Collection = MoveTemp(Collection);
+    Collection.ResolveCurrentAs(Entry.Collection);
     Entry.Body = MoveTemp(Body);
     Entry.ResponseOptions = MoveTemp(ResponseOptions);
     Entries.Add(MoveTemp(Entry));
@@ -84,7 +125,7 @@ FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddDelete(
 {
     FOpenPocketBaseBatchEntry Entry;
     Entry.Operation = EOpenPocketBaseBatchOperation::Delete;
-    Entry.Collection = MoveTemp(Collection);
+    Collection.ResolveCurrentAs(Entry.Collection);
     Entry.RecordId = MoveTemp(RecordId);
     Entries.Add(MoveTemp(Entry));
     return *this;

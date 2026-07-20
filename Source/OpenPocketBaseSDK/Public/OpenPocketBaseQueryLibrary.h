@@ -35,7 +35,7 @@ public:
         meta = (DisplayName = "Then Expand Relation"))
     static FOpenPocketBaseExpand ThenExpandRelation(
         FOpenPocketBaseExpand Expand,
-        FOpenPocketBaseRelationFieldRef Relation);
+        UPARAM(meta = (OpenPocketBaseRelationTarget = "Expand")) FOpenPocketBaseRelationFieldRef Relation);
 
     UFUNCTION(
         BlueprintPure,
@@ -58,7 +58,7 @@ public:
         meta = (DisplayName = "Select Expanded Field", NativeMakeFunc))
     static FOpenPocketBaseFieldSelection SelectExpandedField(
         FOpenPocketBaseExpand Expand,
-        FOpenPocketBaseAnyFieldRef Field);
+        UPARAM(meta = (OpenPocketBaseRelationTarget = "Expand")) FOpenPocketBaseAnyFieldRef Field);
 
     UFUNCTION(
         BlueprintPure,
@@ -66,7 +66,7 @@ public:
         meta = (DisplayName = "Select Expanded Text Excerpt", NativeMakeFunc))
     static FOpenPocketBaseFieldSelection SelectExpandedTextExcerpt(
         FOpenPocketBaseExpand Expand,
-        FOpenPocketBaseStringFieldRef Field,
+        UPARAM(meta = (OpenPocketBaseRelationTarget = "Expand")) FOpenPocketBaseStringFieldRef Field,
         int32 MaxLength,
         bool bWithEllipsis = false);
 

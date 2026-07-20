@@ -94,6 +94,28 @@ bool FOpenPocketBaseSchemaCompilerValidationTest::RunTest(const FString& Paramet
         EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("Current schema references compile"), Blueprint->Status != BS_Error);
 
+    Schema->Collections[0].Fields[0].bReadOnly = true;
+    AddExpectedError(
+        TEXT("is read-only"),
+        EAutomationExpectedErrorFlags::Contains,
+        1);
+    FKismetEditorUtilities::CompileBlueprint(
+        Blueprint,
+        EBlueprintCompileOptions::SkipGarbageCollection);
+    TestEqual(TEXT("Fields that become read-only fail compilation"), Blueprint->Status, BS_Error);
+
+    Schema->Collections[0].Fields[0].bReadOnly = false;
+    Schema->Collections[0].Fields[0].Type = EOpenPocketBaseFieldType::Text;
+    AddExpectedError(
+        TEXT("no longer has the type required by this pin"),
+        EAutomationExpectedErrorFlags::Contains,
+        1);
+    FKismetEditorUtilities::CompileBlueprint(
+        Blueprint,
+        EBlueprintCompileOptions::SkipGarbageCollection);
+    TestEqual(TEXT("Fields that change type fail compilation"), Blueprint->Status, BS_Error);
+
+    Schema->Collections[0].Fields[0].Type = EOpenPocketBaseFieldType::Boolean;
     Schema->Collections[0].Fields.Reset();
     AddExpectedError(
         TEXT("no longer exists in the imported schema"),

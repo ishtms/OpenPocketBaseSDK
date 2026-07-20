@@ -14,5 +14,5 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Open PocketBase|Tests")
     static void UseSchemaReferences(
         FOpenPocketBaseCollectionRef Collection,
-        FOpenPocketBaseBooleanFieldRef Field);
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseBooleanFieldRef Field);
 };
