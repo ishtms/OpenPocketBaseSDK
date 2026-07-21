@@ -5,3 +5,9 @@ void UOpenPocketBaseSchemaTestLibrary::UseSchemaReferences(
     FOpenPocketBaseBooleanFieldRef Field)
 {
 }
+
+FOpenPocketBaseSingleSelectFieldRef UOpenPocketBaseSchemaTestLibrary::PassThroughSingleSelectField(
+    FOpenPocketBaseSingleSelectFieldRef Field)
+{
+    return Field;
+}

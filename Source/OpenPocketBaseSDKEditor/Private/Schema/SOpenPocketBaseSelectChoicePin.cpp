@@ -123,15 +123,10 @@ bool SOpenPocketBaseSelectChoicePin::ResolveField(FOpenPocketBaseFieldRef& OutFi
     const FString FieldPinName = Node->GetPinMetaData(
         GraphPinObj->PinName,
         TEXT("OpenPocketBaseSelectField"));
-    const UEdGraphPin* FieldPin = Node->FindPin(*FieldPinName);
-    const UScriptStruct* Struct = FieldPin != nullptr
-        ? Cast<UScriptStruct>(FieldPin->PinType.PinSubCategoryObject.Get())
-        : nullptr;
-    FOpenPocketBaseFieldRef Parsed;
-    return FieldPin != nullptr && FieldPin->LinkedTo.IsEmpty() &&
-        FOpenPocketBaseSchemaPickerModel::ParseFieldDefault(
-            Struct, FieldPin->GetDefaultAsString(), Parsed) &&
-        Parsed.ResolveCurrent(OutField);
+    return FOpenPocketBaseSchemaPickerModel::ResolveFieldFromPinContext(
+        *GraphPinObj,
+        FieldPinName,
+        OutField);
 }
 
 #undef LOCTEXT_NAMESPACE

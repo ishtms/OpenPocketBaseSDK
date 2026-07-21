@@ -47,6 +47,28 @@ UK2Node_AsyncAction* AddAsyncConsumerNode(
     Graph->AddNode(Node, true, false);
     return Node;
 }
+
+UK2Node_CallFunction* AddFunctionConsumerNode(
+    UEdGraph* Graph,
+    UClass* OwnerClass,
+    const FName FunctionName)
+{
+    UFunction* Function = OwnerClass != nullptr
+        ? OwnerClass->FindFunctionByName(FunctionName)
+        : nullptr;
+    if (Function == nullptr)
+    {
+        return nullptr;
+    }
+
+    UK2Node_CallFunction* Node = NewObject<UK2Node_CallFunction>(Graph);
+    Node->SetFromFunction(Function);
+    Node->CreateNewGuid();
+    Node->PostPlacedNewNode();
+    Node->AllocateDefaultPins();
+    Graph->AddNode(Node, true, false);
+    return Node;
+}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -1198,6 +1220,342 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseConnectedBlueprintFlowTest,
+    "OpenPocketBase.Blueprint.Consumer.CompilesConnectedSchemaFlow",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseConnectedBlueprintFlowTest::RunTest(const FString& Parameters)
+{
+    UOpenPocketBaseSchema* PocketBaseSchema = NewObject<UOpenPocketBaseSchema>(
+        GetTransientPackage(),
+        TEXT("OpenPocketBaseConnectedFlowSchema"));
+    PocketBaseSchema->SchemaId = FGuid(233, 377, 610, 987);
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("sdk_tasks");
+    Tasks.Type = EOpenPocketBaseCollectionType::Base;
+    FOpenPocketBaseSchemaField Title;
+    Title.Id = TEXT("title_id");
+    Title.Name = TEXT("title");
+    Title.Type = EOpenPocketBaseFieldType::Text;
+    FOpenPocketBaseSchemaField Done;
+    Done.Id = TEXT("done_id");
+    Done.Name = TEXT("done");
+    Done.Type = EOpenPocketBaseFieldType::Boolean;
+    FOpenPocketBaseSchemaField Score;
+    Score.Id = TEXT("score_id");
+    Score.Name = TEXT("score");
+    Score.Type = EOpenPocketBaseFieldType::Number;
+    FOpenPocketBaseSchemaField Status;
+    Status.Id = TEXT("status_id");
+    Status.Name = TEXT("status");
+    Status.Type = EOpenPocketBaseFieldType::Select;
+    Status.Choices = {TEXT("todo"), TEXT("doing"), TEXT("done")};
+    Tasks.Fields = {Title, Done, Score, Status};
+    PocketBaseSchema->Collections = {Tasks};
+
+    FOpenPocketBaseCollectionRef TasksRef;
+    FOpenPocketBaseTextFieldRef TitleRef;
+    FOpenPocketBaseBooleanFieldRef DoneRef;
+    FOpenPocketBaseAnyFieldRef TitleAnyRef;
+    FOpenPocketBaseAnyFieldRef ScoreAnyRef;
+    TestTrue(TEXT("The task collection resolves"), PocketBaseSchema->MakeCollectionRef(Tasks.Id, TasksRef));
+    TestTrue(TEXT("The title write field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Title.Id, TitleRef));
+    TestTrue(TEXT("The done filter field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Done.Id, DoneRef));
+    TestTrue(TEXT("The title projection field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Title.Id, TitleAnyRef));
+    TestTrue(TEXT("The score sort field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Score.Id, ScoreAnyRef));
+
+    UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprint(
+        UObject::StaticClass(),
+        GetTransientPackage(),
+        MakeUniqueObjectName(
+            GetTransientPackage(),
+            UBlueprint::StaticClass(),
+            TEXT("BP_OpenPocketBaseConnectedFlow")),
+        BPTYPE_Normal,
+        NAME_None);
+    UEdGraph* Graph = FBlueprintEditorUtils::CreateNewGraph(
+        Blueprint,
+        TEXT("PocketBaseFlow"),
+        UEdGraph::StaticClass(),
+        UEdGraphSchema_K2::StaticClass());
+    FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
+    const UEdGraphSchema_K2* GraphSchema = GetDefault<UEdGraphSchema_K2>();
+    const auto Connect = [this, GraphSchema](
+        const TCHAR* Description,
+        UEdGraphPin* Output,
+        UEdGraphPin* Input)
+    {
+        return TestTrue(Description, Output != nullptr && Input != nullptr &&
+            GraphSchema->TryCreateConnection(Output, Input));
+    };
+
+    UK2Node_CallFunction* GetClient = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseClientLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClientLibrary, GetPocketBaseClient));
+    UK2Node_CallFunction* UseCollection = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseClient::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, Collection));
+    TestNotNull(TEXT("Get PocketBase Client is added"), GetClient);
+    TestNotNull(TEXT("Use Collection is added"), UseCollection);
+    if (GetClient == nullptr || UseCollection == nullptr)
+    {
+        return false;
+    }
+    UseCollection->FindPinChecked(TEXT("Reference"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(TasksRef);
+    Connect(
+        TEXT("The client flows into Use Collection"),
+        GetClient->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        UseCollection->FindPin(UEdGraphSchema_K2::PN_Self, EGPD_Input));
+
+    UK2Node_CallFunction* NewBody = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, NewRecordBody));
+    UK2Node_CallFunction* WithTitle = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithStringField));
+    UK2Node_CallFunction* WithDone = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithBooleanField));
+    TestNotNull(TEXT("New Record Body is added"), NewBody);
+    TestNotNull(TEXT("With String Field is added"), WithTitle);
+    TestNotNull(TEXT("With Boolean Field is added"), WithDone);
+    if (NewBody == nullptr || WithTitle == nullptr || WithDone == nullptr)
+    {
+        return false;
+    }
+    WithTitle->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseTextFieldRef::StaticStruct(),
+            TitleRef);
+    WithTitle->FindPinChecked(TEXT("Value"))->DefaultValue = TEXT("Ship the SDK");
+    WithDone->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseBooleanFieldRef::StaticStruct(),
+            DoneRef);
+    Connect(
+        TEXT("The collection starts a typed record body"),
+        UseCollection->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        NewBody->FindPin(TEXT("Collection"), EGPD_Input));
+    Connect(
+        TEXT("The new body flows into the title setter"),
+        NewBody->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        WithTitle->FindPin(TEXT("Body"), EGPD_Input));
+    Connect(
+        TEXT("The title body flows into the done setter"),
+        WithTitle->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        WithDone->FindPin(TEXT("Body"), EGPD_Input));
+
+    UK2Node_AsyncAction* CreateRecord = AddAsyncConsumerNode(
+        Graph,
+        UOpenPocketBaseCreateRecordAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseCreateRecordAsyncAction, CreateRecord));
+    TestNotNull(TEXT("Create Record is added"), CreateRecord);
+    if (CreateRecord == nullptr)
+    {
+        return false;
+    }
+    Connect(
+        TEXT("The same collection flows into Create Record"),
+        UseCollection->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        CreateRecord->FindPin(TEXT("Collection"), EGPD_Input));
+    Connect(
+        TEXT("The completed body flows into Create Record"),
+        WithDone->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        CreateRecord->FindPin(TEXT("Body"), EGPD_Input));
+
+    UK2Node_CallFunction* Filter = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseFilterLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseFilterLibrary, BooleanFilter));
+    UK2Node_CallFunction* NewOptions = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, NewListOptions));
+    UK2Node_CallFunction* Where = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, ListOptionsWhere));
+    UK2Node_CallFunction* Sort = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseQueryLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseQueryLibrary, SortDescending));
+    UK2Node_CallFunction* ThenSort = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, ListOptionsThenSortBy));
+    UK2Node_CallFunction* Select = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseQueryLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseQueryLibrary, SelectField));
+    UK2Node_CallFunction* SelectOptions = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, ListOptionsSelectField));
+    if (!TestNotNull(TEXT("Boolean Filter is added"), Filter) ||
+        !TestNotNull(TEXT("List Options is added"), NewOptions) ||
+        !TestNotNull(TEXT("Where is added"), Where) ||
+        !TestNotNull(TEXT("Sort Descending is added"), Sort) ||
+        !TestNotNull(TEXT("Then Sort By is added"), ThenSort) ||
+        !TestNotNull(TEXT("Select Field is added"), Select) ||
+        !TestNotNull(TEXT("Options Select Field is added"), SelectOptions))
+    {
+        return false;
+    }
+    Filter->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseBooleanFieldRef::StaticStruct(),
+            DoneRef);
+    Sort->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseAnyFieldRef::StaticStruct(),
+            ScoreAnyRef);
+    Select->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseAnyFieldRef::StaticStruct(),
+            TitleAnyRef);
+    Connect(
+        TEXT("List Options flows into Where"),
+        NewOptions->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        Where->FindPin(TEXT("Options"), EGPD_Input));
+    Connect(
+        TEXT("The typed filter flows into Where"),
+        Filter->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        Where->FindPin(TEXT("Filter"), EGPD_Input));
+    Connect(
+        TEXT("Filtered options flow into sorting"),
+        Where->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        ThenSort->FindPin(TEXT("Options"), EGPD_Input));
+    Connect(
+        TEXT("The typed sort flows into options"),
+        Sort->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        ThenSort->FindPin(TEXT("Sort"), EGPD_Input));
+    Connect(
+        TEXT("Sorted options flow into projection"),
+        ThenSort->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        SelectOptions->FindPin(TEXT("Options"), EGPD_Input));
+    Connect(
+        TEXT("The typed projection flows into options"),
+        Select->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        SelectOptions->FindPin(TEXT("Field"), EGPD_Input));
+
+    UK2Node_AsyncAction* ListRecords = AddAsyncConsumerNode(
+        Graph,
+        UOpenPocketBaseListRecordsAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseListRecordsAsyncAction, ListRecords));
+    TestNotNull(TEXT("List Records is added"), ListRecords);
+    if (ListRecords == nullptr)
+    {
+        return false;
+    }
+    Connect(
+        TEXT("The same collection flows into List Records"),
+        UseCollection->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        ListRecords->FindPin(TEXT("Collection"), EGPD_Input));
+    Connect(
+        TEXT("The completed options flow into List Records"),
+        SelectOptions->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        ListRecords->FindPin(TEXT("Options"), EGPD_Input));
+
+    FKismetEditorUtilities::CompileBlueprint(
+        Blueprint,
+        EBlueprintCompileOptions::SkipGarbageCollection);
+    TestTrue(TEXT("The connected schema-driven Blueprint flow compiles"), Blueprint->Status != BS_Error);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBlueprintDiscoverabilityCoverageTest,
+    "OpenPocketBase.Blueprint.Nodes.ExplainPublicWorkflow",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBlueprintDiscoverabilityCoverageTest::RunTest(const FString& Parameters)
+{
+    const TSet<FString> ScriptPackages = {
+        TEXT("/Script/OpenPocketBaseSDK"),
+        TEXT("/Script/OpenPocketBaseSDKAdmin")};
+    const TSet<FName> ImportantParameters = {
+        TEXT("PocketBaseClient"),
+        TEXT("Collection"),
+        TEXT("Field"),
+        TEXT("Body"),
+        TEXT("Options"),
+        TEXT("Record"),
+        TEXT("RecordId"),
+        TEXT("OutError")};
+    int32 FunctionCount = 0;
+    int32 ParameterCount = 0;
+    for (TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
+    {
+        UClass* Class = *ClassIt;
+        if (Class == nullptr || !Class->HasAnyClassFlags(CLASS_Native) ||
+            !ScriptPackages.Contains(Class->GetOutermost()->GetName()))
+        {
+            continue;
+        }
+
+        for (TFieldIterator<UFunction> FunctionIt(
+                 Class,
+                 EFieldIteratorFlags::ExcludeSuper);
+             FunctionIt;
+             ++FunctionIt)
+        {
+            UFunction* Function = *FunctionIt;
+            if (Function == nullptr ||
+                !Function->HasAnyFunctionFlags(FUNC_BlueprintCallable) ||
+                Function->HasMetaData(TEXT("DeprecatedFunction")))
+            {
+                continue;
+            }
+
+            ++FunctionCount;
+            TestFalse(
+                *FString::Printf(
+                    TEXT("%s.%s has a useful tooltip"),
+                    *Class->GetName(),
+                    *Function->GetName()),
+                Function->GetMetaData(TEXT("ToolTip")).TrimStartAndEnd().IsEmpty());
+            TestFalse(
+                *FString::Printf(
+                    TEXT("%s.%s has search keywords"),
+                    *Class->GetName(),
+                    *Function->GetName()),
+                Function->GetMetaData(TEXT("Keywords")).TrimStartAndEnd().IsEmpty());
+
+            for (TFieldIterator<FProperty> PropertyIt(Function); PropertyIt; ++PropertyIt)
+            {
+                FProperty* Property = *PropertyIt;
+                if (Property == nullptr || !Property->HasAnyPropertyFlags(CPF_Parm) ||
+                    Property->HasAnyPropertyFlags(CPF_ReturnParm) ||
+                    !ImportantParameters.Contains(Property->GetFName()))
+                {
+                    continue;
+                }
+
+                ++ParameterCount;
+                TestFalse(
+                    *FString::Printf(
+                        TEXT("%s.%s parameter %s explains its role"),
+                        *Class->GetName(),
+                        *Function->GetName(),
+                        *Property->GetName()),
+                    Property->GetMetaData(TEXT("ToolTip")).TrimStartAndEnd().IsEmpty());
+            }
+        }
+    }
+
+    TestTrue(TEXT("The discoverability audit covers the public Blueprint API"), FunctionCount > 250);
+    TestTrue(TEXT("The discoverability audit covers important workflow pins"), ParameterCount > 100);
     return true;
 }
 

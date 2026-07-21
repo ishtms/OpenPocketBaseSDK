@@ -41,6 +41,43 @@ bool AddCandidate(
     return true;
 }
 
+bool AddFieldCandidate(
+    const FOpenPocketBaseFieldRef& Candidate,
+    TOptional<FOpenPocketBaseFieldRef>& Existing)
+{
+    FOpenPocketBaseFieldRef Current;
+    if (!Candidate.ResolveCurrent(Current))
+    {
+        return true;
+    }
+    if (Existing.IsSet() &&
+        (Existing->SchemaId != Current.SchemaId ||
+         Existing->CollectionId != Current.CollectionId ||
+         Existing->FieldId != Current.FieldId))
+    {
+        return false;
+    }
+    Existing = MoveTemp(Current);
+    return true;
+}
+
+bool ReadLiteralField(
+    const UEdGraphPin& Pin,
+    FOpenPocketBaseFieldRef& OutField)
+{
+    OutField = {};
+    const UScriptStruct* Struct =
+        Cast<UScriptStruct>(Pin.PinType.PinSubCategoryObject.Get());
+    FOpenPocketBaseFieldRef Parsed;
+    return Pin.LinkedTo.IsEmpty() &&
+        FOpenPocketBaseSchemaPickerModel::SupportsFieldStruct(Struct) &&
+        FOpenPocketBaseSchemaPickerModel::ParseFieldDefault(
+            Struct,
+            Pin.GetDefaultAsString(),
+            Parsed) &&
+        Parsed.ResolveCurrent(OutField);
+}
+
 bool FindRelationTarget(
     const UEdGraphPin& OriginPin,
     const FString& ContextPinName,
@@ -275,4 +312,87 @@ EOpenPocketBaseCollectionRequirement OpenPocketBase::Editor::FindCollectionRequi
         CurrentNodes = MoveTemp(NextNodes);
     }
     return Requirement;
+}
+
+bool FOpenPocketBaseSchemaPickerModel::ResolveFieldFromPinContext(
+    const UEdGraphPin& OriginPin,
+    const FString& ContextPinName,
+    FOpenPocketBaseFieldRef& OutField)
+{
+    OutField = {};
+    const UEdGraphNode* OriginNode = OriginPin.GetOwningNode();
+    const UEdGraphPin* ContextPin = OriginNode != nullptr
+        ? OriginNode->FindPin(*ContextPinName)
+        : nullptr;
+    if (ContextPin == nullptr)
+    {
+        return false;
+    }
+
+    if (ReadLiteralField(*ContextPin, OutField))
+    {
+        return true;
+    }
+
+    TArray<const UEdGraphPin*> CurrentPins{ContextPin};
+    TSet<const UEdGraphNode*> VisitedNodes;
+    TOptional<FOpenPocketBaseFieldRef> Candidate;
+    for (int32 Depth = 0; Depth < 12 && !CurrentPins.IsEmpty(); ++Depth)
+    {
+        TArray<const UEdGraphPin*> NextPins;
+        for (const UEdGraphPin* Pin : CurrentPins)
+        {
+            if (Pin == nullptr)
+            {
+                continue;
+            }
+
+            for (const UEdGraphPin* LinkedPin : Pin->LinkedTo)
+            {
+                const UEdGraphNode* LinkedNode =
+                    LinkedPin != nullptr ? LinkedPin->GetOwningNode() : nullptr;
+                if (LinkedNode == nullptr || VisitedNodes.Contains(LinkedNode))
+                {
+                    continue;
+                }
+                VisitedNodes.Add(LinkedNode);
+
+                for (const UEdGraphPin* CandidatePin : LinkedNode->Pins)
+                {
+                    if (CandidatePin == nullptr || CandidatePin->Direction != EGPD_Input)
+                    {
+                        continue;
+                    }
+                    const UScriptStruct* Struct = Cast<UScriptStruct>(
+                        CandidatePin->PinType.PinSubCategoryObject.Get());
+                    if (!SupportsFieldStruct(Struct))
+                    {
+                        continue;
+                    }
+
+                    if (CandidatePin->LinkedTo.IsEmpty())
+                    {
+                        FOpenPocketBaseFieldRef Literal;
+                        if (ReadLiteralField(*CandidatePin, Literal) &&
+                            !AddFieldCandidate(Literal, Candidate))
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        NextPins.Add(CandidatePin);
+                    }
+                }
+            }
+        }
+        CurrentPins = MoveTemp(NextPins);
+    }
+
+    if (!Candidate.IsSet())
+    {
+        return false;
+    }
+    OutField = Candidate.GetValue();
+    return true;
 }

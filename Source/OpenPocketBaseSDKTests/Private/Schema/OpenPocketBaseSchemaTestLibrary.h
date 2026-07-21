@@ -15,4 +15,8 @@ public:
     static void UseSchemaReferences(
         FOpenPocketBaseCollectionRef Collection,
         UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseBooleanFieldRef Field);
+
+    UFUNCTION(BlueprintPure, Category = "Open PocketBase|Tests")
+    static FOpenPocketBaseSingleSelectFieldRef PassThroughSingleSelectField(
+        FOpenPocketBaseSingleSelectFieldRef Field);
 };

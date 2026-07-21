@@ -4,6 +4,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
+#include "OpenPocketBaseBlueprintMetadata.h"
 #include "OpenPocketBaseEditorValidation.h"
 #include "OpenPocketBaseSchema.h"
 #include "PropertyEditorModule.h"
@@ -18,6 +19,12 @@ class FOpenPocketBaseSDKEditorModule final : public IModuleInterface
 public:
     virtual void StartupModule() override
     {
+        FOpenPocketBaseBlueprintMetadata::Apply(TEXT("/Script/OpenPocketBaseSDK"));
+        FOpenPocketBaseBlueprintMetadata::Apply(TEXT("/Script/OpenPocketBaseSDKAdmin"));
+        ModulesChangedHandle = FModuleManager::Get().OnModulesChanged().AddRaw(
+            this,
+            &FOpenPocketBaseSDKEditorModule::HandleModulesChanged);
+
         SchemaPinFactory = MakeShared<FOpenPocketBaseSchemaGraphPinFactory>();
         FEdGraphUtilities::RegisterVisualPinFactory(SchemaPinFactory);
         SchemaCompilerExtension = NewObject<UOpenPocketBaseSchemaCompilerExtension>();
@@ -52,6 +59,12 @@ public:
 
     virtual void ShutdownModule() override
     {
+        if (ModulesChangedHandle.IsValid())
+        {
+            FModuleManager::Get().OnModulesChanged().Remove(ModulesChangedHandle);
+            ModulesChangedHandle.Reset();
+        }
+
         if (FModuleManager::Get().IsModuleLoaded(TEXT("PropertyEditor")))
         {
             FPropertyEditorModule& PropertyEditor =
@@ -74,6 +87,17 @@ public:
     }
 
 private:
+    void HandleModulesChanged(
+        const FName ModuleName,
+        const EModuleChangeReason ChangeReason) const
+    {
+        if (ModuleName == TEXT("OpenPocketBaseSDKAdmin") &&
+            ChangeReason == EModuleChangeReason::ModuleLoaded)
+        {
+            FOpenPocketBaseBlueprintMetadata::Apply(TEXT("/Script/OpenPocketBaseSDKAdmin"));
+        }
+    }
+
     void ValidateProject() const
     {
         const FOpenPocketBaseEditorValidationReport Report =
@@ -96,6 +120,7 @@ private:
     }
 
     IConsoleObject* ValidationCommand = nullptr;
+    FDelegateHandle ModulesChangedHandle;
     TSharedPtr<FGraphPanelPinFactory> SchemaPinFactory;
     UOpenPocketBaseSchemaCompilerExtension* SchemaCompilerExtension = nullptr;
 };

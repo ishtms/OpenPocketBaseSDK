@@ -4,6 +4,7 @@
 #include "OpenPocketBaseSchema.h"
 
 class UScriptStruct;
+class UEdGraphPin;
 class UOpenPocketBaseProjectSettings;
 
 enum class EOpenPocketBaseSchemaReferenceStatus : uint8
@@ -92,4 +93,8 @@ public:
         const FOpenPocketBaseFieldRef& Ref,
         bool bWritableOnly,
         FText& OutMessage);
+    static bool ResolveFieldFromPinContext(
+        const UEdGraphPin& OriginPin,
+        const FString& ContextPinName,
+        FOpenPocketBaseFieldRef& OutField);
 };

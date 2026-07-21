@@ -1,9 +1,16 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
+#include "EdGraphSchema_K2.h"
+#include "Engine/Blueprint.h"
+#include "K2Node_CallFunction.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/AutomationTest.h"
 #include "OpenPocketBaseProjectSettings.h"
+#include "OpenPocketBaseRecordLibrary.h"
 #include "OpenPocketBaseSchema.h"
 #include "OpenPocketBaseSchemaPicker.h"
+#include "Schema/OpenPocketBaseSchemaTestLibrary.h"
 
 namespace
 {
@@ -245,6 +252,90 @@ bool FOpenPocketBaseSchemaPickerCurrentDefinitionTest::RunTest(const FString& Pa
             EOpenPocketBaseCollectionRequirement::Any,
             Message),
         EOpenPocketBaseSchemaReferenceStatus::WrongCollectionType);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseConnectedSelectPickerTest,
+    "OpenPocketBase.Schema.PickerResolvesConnectedSelectFields",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseConnectedSelectPickerTest::RunTest(const FString& Parameters)
+{
+    UOpenPocketBaseSchema* Schema = MakePickerSchema();
+    FOpenPocketBaseSchemaField Status;
+    Status.Id = TEXT("status_id");
+    Status.Name = TEXT("status");
+    Status.Type = EOpenPocketBaseFieldType::Select;
+    Status.Choices = {TEXT("todo"), TEXT("doing"), TEXT("done")};
+    Schema->Collections[0].Fields.Add(Status);
+
+    FOpenPocketBaseCollectionRef Collection;
+    FOpenPocketBaseSingleSelectFieldRef StatusRef;
+    TestTrue(TEXT("The fixture collection resolves"), Schema->MakeCollectionRef(TEXT("sdk_tasks"), Collection));
+    TestTrue(TEXT("The fixture select field resolves"), Schema->MakeTypedFieldRef(Collection, TEXT("status"), StatusRef));
+
+    UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprint(
+        UObject::StaticClass(),
+        GetTransientPackage(),
+        MakeUniqueObjectName(
+            GetTransientPackage(),
+            UBlueprint::StaticClass(),
+            TEXT("BP_OpenPocketBaseConnectedSelect")),
+        BPTYPE_Normal,
+        NAME_None);
+    UEdGraph* Graph = FBlueprintEditorUtils::CreateNewGraph(
+        Blueprint,
+        TEXT("ConnectedSelect"),
+        UEdGraph::StaticClass(),
+        UEdGraphSchema_K2::StaticClass());
+    FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
+
+    UK2Node_CallFunction* SourceNode = NewObject<UK2Node_CallFunction>(Graph);
+    SourceNode->SetFromFunction(
+        UOpenPocketBaseSchemaTestLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseSchemaTestLibrary,
+                PassThroughSingleSelectField)));
+    SourceNode->CreateNewGuid();
+    SourceNode->PostPlacedNewNode();
+    SourceNode->AllocateDefaultPins();
+    Graph->AddNode(SourceNode, true, false);
+    SourceNode->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseSingleSelectFieldRef::StaticStruct(),
+            StatusRef);
+
+    UK2Node_CallFunction* SelectNode = NewObject<UK2Node_CallFunction>(Graph);
+    SelectNode->SetFromFunction(
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(
+                UOpenPocketBaseRecordLibrary,
+                WithSingleSelectField)));
+    SelectNode->CreateNewGuid();
+    SelectNode->PostPlacedNewNode();
+    SelectNode->AllocateDefaultPins();
+    Graph->AddNode(SelectNode, true, false);
+
+    const UEdGraphSchema_K2* GraphSchema = GetDefault<UEdGraphSchema_K2>();
+    TestTrue(
+        TEXT("A select field can flow through a connected Blueprint value"),
+        GraphSchema->TryCreateConnection(
+            SourceNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+            SelectNode->FindPin(TEXT("Field"), EGPD_Input)));
+
+    UEdGraphPin* ValuePin = SelectNode->FindPin(TEXT("Value"), EGPD_Input);
+    TestNotNull(TEXT("The select value pin exists"), ValuePin);
+    FOpenPocketBaseFieldRef Resolved;
+    TestTrue(
+        TEXT("The select choice picker resolves its connected field"),
+        ValuePin != nullptr &&
+            FOpenPocketBaseSchemaPickerModel::ResolveFieldFromPinContext(
+                *ValuePin,
+                TEXT("Field"),
+                Resolved));
+    TestEqual(TEXT("Connected select choices come from the current schema"), Resolved.Choices.Num(), 3);
+    TestTrue(TEXT("Connected select choices include doing"), Resolved.Choices.Contains(TEXT("doing")));
     return true;
 }
 
