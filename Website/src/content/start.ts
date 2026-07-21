@@ -225,6 +225,11 @@ export const startPages: DocPage[] = [
             { title: "Click Refresh Schema", text: "The same source is already imported, so Unreal should report that the PocketBase schema is already current." },
             { title: "Save the asset", text: "Save it now. An unsaved schema works in the current editor session, then disappears on restart, which isn't the test we're trying to run." }
           ),
+          callout(
+            "note",
+            "The schema properties should appear once",
+            "Schema Id, version, source, fingerprint, collections, and fields belong in the custom schema section only. If the same block appears again under Open Pocket Base > Schema, your project loaded an older editor DLL. Close Unreal, replace the plugin, and reopen the project."
+          ),
           screenshot("[put a screenshot of the schema summary validation and refresh controls here]"),
         ],
       },

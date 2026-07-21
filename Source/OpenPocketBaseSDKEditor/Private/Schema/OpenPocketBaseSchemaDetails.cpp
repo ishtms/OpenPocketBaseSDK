@@ -139,6 +139,10 @@ void FOpenPocketBaseSchemaDetails::CustomizeDetails(IDetailLayoutBuilder& Detail
                 .IsEnabled_Lambda([this]() { return Schema.IsValid(); })
                 .OnClicked(this, &FOpenPocketBaseSchemaDetails::GenerateAccessors)
         ];
+
+    DetailBuilder.HideCategory(TEXT("Open PocketBase"));
+    DetailBuilder.HideCategory(TEXT("Schema"));
+    DetailBuilder.HideCategory(TEXT("C++"));
 }
 
 FReply FOpenPocketBaseSchemaDetails::PreviewChanges()
