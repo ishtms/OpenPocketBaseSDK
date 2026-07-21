@@ -493,6 +493,17 @@ void SOpenPocketBaseSchemaPin::LoadSchemas(
         return;
     }
 
+    const UOpenPocketBaseProjectSettings& Settings =
+        *GetDefault<UOpenPocketBaseProjectSettings>();
+    FOpenPocketBaseSchemaPickerModel::ChooseProfileSchemas(
+        Settings,
+        {},
+        OutSchemas);
+    if (!OutSchemas.IsEmpty())
+    {
+        return;
+    }
+
     FAssetRegistryModule& AssetRegistryModule =
         FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
     TArray<FAssetData> Assets;
@@ -510,7 +521,7 @@ void SOpenPocketBaseSchemaPin::LoadSchemas(
         }
     }
     FOpenPocketBaseSchemaPickerModel::ChooseProfileSchemas(
-        *GetDefault<UOpenPocketBaseProjectSettings>(),
+        Settings,
         AvailableSchemas,
         OutSchemas);
 }

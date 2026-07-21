@@ -1256,15 +1256,29 @@ bool FOpenPocketBaseConnectedBlueprintFlowTest::RunTest(const FString& Parameter
     Status.Type = EOpenPocketBaseFieldType::Select;
     Status.Choices = {TEXT("todo"), TEXT("doing"), TEXT("done")};
     Tasks.Fields = {Title, Done, Score, Status};
-    PocketBaseSchema->Collections = {Tasks};
+
+    FOpenPocketBaseSchemaCollection Users;
+    Users.Id = TEXT("users_id");
+    Users.Name = TEXT("sdk_users");
+    Users.Type = EOpenPocketBaseCollectionType::Auth;
+    FOpenPocketBaseSchemaField Email;
+    Email.Id = TEXT("email_id");
+    Email.Name = TEXT("email");
+    Email.Type = EOpenPocketBaseFieldType::Email;
+    Users.Fields = {Email};
+    PocketBaseSchema->Collections = {Tasks, Users};
 
     FOpenPocketBaseCollectionRef TasksRef;
+    FOpenPocketBaseCollectionRef UsersRef;
     FOpenPocketBaseTextFieldRef TitleRef;
+    FOpenPocketBaseTextFieldRef EmailRef;
     FOpenPocketBaseBooleanFieldRef DoneRef;
     FOpenPocketBaseAnyFieldRef TitleAnyRef;
     FOpenPocketBaseAnyFieldRef ScoreAnyRef;
     TestTrue(TEXT("The task collection resolves"), PocketBaseSchema->MakeCollectionRef(Tasks.Id, TasksRef));
+    TestTrue(TEXT("The auth collection resolves"), PocketBaseSchema->MakeCollectionRef(Users.Id, UsersRef));
     TestTrue(TEXT("The title write field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Title.Id, TitleRef));
+    TestTrue(TEXT("The email write field resolves"), PocketBaseSchema->MakeTypedFieldRef(UsersRef, Email.Id, EmailRef));
     TestTrue(TEXT("The done filter field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Done.Id, DoneRef));
     TestTrue(TEXT("The title projection field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Title.Id, TitleAnyRef));
     TestTrue(TEXT("The score sort field resolves"), PocketBaseSchema->MakeTypedFieldRef(TasksRef, Score.Id, ScoreAnyRef));
@@ -1466,6 +1480,59 @@ bool FOpenPocketBaseConnectedBlueprintFlowTest::RunTest(const FString& Parameter
         TEXT("The completed options flow into List Records"),
         SelectOptions->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
         ListRecords->FindPin(TEXT("Options"), EGPD_Input));
+
+    UK2Node_CallFunction* UseAuthCollection = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseClient::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, Collection));
+    UK2Node_CallFunction* NewUserBody = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, NewRecordBody));
+    UK2Node_CallFunction* WithEmail = AddFunctionConsumerNode(
+        Graph,
+        UOpenPocketBaseRecordLibrary::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRecordLibrary, WithStringField));
+    UK2Node_AsyncAction* RegisterUser = AddAsyncConsumerNode(
+        Graph,
+        UOpenPocketBaseRegisterUserAsyncAction::StaticClass(),
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseRegisterUserAsyncAction, RegisterUser));
+    if (!TestNotNull(TEXT("The auth collection node is added"), UseAuthCollection) ||
+        !TestNotNull(TEXT("The user body node is added"), NewUserBody) ||
+        !TestNotNull(TEXT("The email body node is added"), WithEmail) ||
+        !TestNotNull(TEXT("Register User is added"), RegisterUser))
+    {
+        return false;
+    }
+    UseAuthCollection->FindPinChecked(TEXT("Reference"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(UsersRef);
+    WithEmail->FindPinChecked(TEXT("Field"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(
+            FOpenPocketBaseTextFieldRef::StaticStruct(),
+            EmailRef);
+    WithEmail->FindPinChecked(TEXT("Value"))->DefaultValue = TEXT("player@example.com");
+    RegisterUser->FindPinChecked(TEXT("Password"))->DefaultValue = TEXT("secret123");
+    RegisterUser->FindPinChecked(TEXT("ConfirmPassword"))->DefaultValue = TEXT("secret123");
+    Connect(
+        TEXT("The client flows into the auth collection"),
+        GetClient->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        UseAuthCollection->FindPin(UEdGraphSchema_K2::PN_Self, EGPD_Input));
+    Connect(
+        TEXT("The auth collection starts the user body"),
+        UseAuthCollection->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        NewUserBody->FindPin(TEXT("Collection"), EGPD_Input));
+    Connect(
+        TEXT("The user body flows into the email setter"),
+        NewUserBody->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        WithEmail->FindPin(TEXT("Body"), EGPD_Input));
+    Connect(
+        TEXT("The same auth collection flows into Register User"),
+        UseAuthCollection->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        RegisterUser->FindPin(TEXT("AuthCollection"), EGPD_Input));
+    Connect(
+        TEXT("The completed user body flows into Register User"),
+        WithEmail->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+        RegisterUser->FindPin(TEXT("UserFields"), EGPD_Input));
 
     FKismetEditorUtilities::CompileBlueprint(
         Blueprint,

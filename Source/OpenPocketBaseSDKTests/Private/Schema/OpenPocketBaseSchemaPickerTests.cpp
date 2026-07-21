@@ -138,8 +138,6 @@ bool FOpenPocketBaseSchemaPickerChoicesTest::RunTest(const FString& Parameters)
             FString(TEXT("sdk_users")));
     }
 
-    UOpenPocketBaseSchema* OtherSchema = NewObject<UOpenPocketBaseSchema>();
-    OtherSchema->SchemaId = FGuid(2, 3, 5, 8);
     UOpenPocketBaseProjectSettings* Settings = NewObject<UOpenPocketBaseProjectSettings>();
     Settings->DefaultProfile = TEXT("Local");
     FOpenPocketBaseProjectProfile Profile;
@@ -149,9 +147,9 @@ bool FOpenPocketBaseSchemaPickerChoicesTest::RunTest(const FString& Parameters)
     TArray<UOpenPocketBaseSchema*> PreferredSchemas;
     FOpenPocketBaseSchemaPickerModel::ChooseProfileSchemas(
         *Settings,
-        {Schema, OtherSchema},
+        {},
         PreferredSchemas);
-    TestEqual(TEXT("The default profile scopes schema picker choices"), PreferredSchemas.Num(), 1);
+    TestEqual(TEXT("The default profile avoids scanning unrelated schemas"), PreferredSchemas.Num(), 1);
     if (PreferredSchemas.Num() == 1)
     {
         TestEqual(TEXT("The picker uses the profile schema"), PreferredSchemas[0], Schema);
