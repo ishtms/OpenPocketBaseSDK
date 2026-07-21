@@ -112,6 +112,33 @@ private:
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseRecordPageBreakNodeTest,
+    "OpenPocketBase.Blueprint.Records.RecordPageBreakShowsEveryOutput",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseRecordPageBreakNodeTest::RunTest(const FString& Parameters)
+{
+    TestEqual(
+        TEXT("Record pages use the SDK break function"),
+        FOpenPocketBaseRecordPage::StaticStruct()->GetMetaData(TEXT("HasNativeBreak")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.BreakRecordPage")));
+
+    const UFunction* BreakRecordPage = UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(
+        TEXT("BreakRecordPage"));
+    if (!TestNotNull(TEXT("The record-page break function exists"), BreakRecordPage))
+    {
+        return false;
+    }
+    TestTrue(
+        TEXT("The record-page function is a native Break Struct node"),
+        BreakRecordPage->HasMetaData(TEXT("NativeBreakFunc")));
+    TestFalse(
+        TEXT("Every record-page output stays visible"),
+        BreakRecordPage->HasMetaData(TEXT("AdvancedDisplay")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseRecordLibraryTest,
     "OpenPocketBase.Blueprint.Records.FieldStatesRemainDistinct",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

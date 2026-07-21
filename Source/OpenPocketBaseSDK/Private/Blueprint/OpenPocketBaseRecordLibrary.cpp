@@ -414,6 +414,25 @@ FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsIncludeExpan
     return Options;
 }
 
+void UOpenPocketBaseRecordLibrary::BreakRecordPage(
+    const FOpenPocketBaseRecordPage& RecordPage,
+    int32& Page,
+    int32& PerPage,
+    TArray<FOpenPocketBaseRecord>& Items,
+    bool& bHasTotalItems,
+    int64& TotalItems,
+    bool& bHasTotalPages,
+    int32& TotalPages)
+{
+    Page = RecordPage.Page;
+    PerPage = RecordPage.PerPage;
+    Items = RecordPage.Items;
+    bHasTotalItems = RecordPage.bHasTotalItems;
+    TotalItems = RecordPage.TotalItems;
+    bHasTotalPages = RecordPage.bHasTotalPages;
+    TotalPages = RecordPage.TotalPages;
+}
+
 bool UOpenPocketBaseRecordLibrary::HasField(
     const FOpenPocketBaseRecord& Record,
     const FOpenPocketBaseAnyFieldRef Field)

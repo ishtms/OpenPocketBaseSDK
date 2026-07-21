@@ -370,7 +370,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFullListOptions
     FOpenPocketBaseFullListOptions& LimitPages(int32 InMaxPages);
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeBreak = "/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.BreakRecordPage"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordPage
 {
     GENERATED_BODY()

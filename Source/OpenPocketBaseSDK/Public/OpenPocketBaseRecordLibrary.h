@@ -265,6 +265,20 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records",
+        meta = (NativeBreakFunc, DisplayName = "Break Open Pocket Base Record Page"))
+    static void BreakRecordPage(
+        const FOpenPocketBaseRecordPage& RecordPage,
+        int32& Page,
+        int32& PerPage,
+        TArray<FOpenPocketBaseRecord>& Items,
+        bool& bHasTotalItems,
+        int64& TotalItems,
+        bool& bHasTotalPages,
+        int32& TotalPages);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records",
         meta = (ReturnDisplayName = "Has Field"))
     static bool HasField(
         const FOpenPocketBaseRecord& Record,
