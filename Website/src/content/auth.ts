@@ -3,53 +3,272 @@ import { bullets, callout, code, paragraph, screenshot, steps, table, type DocPa
 export const authPages: DocPage[] = [
   {
     slug: "authentication/password-otp",
-    title: "Password, OTP, and MFA login",
-    eyebrow: "Authentication",
-    description: "Discover enabled methods, authenticate against an auth collection, and treat MFA as a continuation instead of an error.",
-    readTime: "10 min",
+    title: "Password login and session state",
+    eyebrow: "Authentication / Blueprint",
+    description: "Pick an auth collection from the imported schema, log in, inspect the current user and session, observe session changes, log out, then prove the wrong-password path.",
+    readTime: "18 min",
     sections: [
       {
-        id: "auth-collection",
-        title: "Authentication starts from a collection",
+        id: "before-you-start",
+        title: "Before you build the graph",
         blocks: [
           paragraph(
-            "PocketBase can have more than one auth collection. Start from Client.Collection(\"users\") or the matching Blueprint Collection value so the SDK knows which auth endpoints and session collection to use."
+            "This is Chunk 2 of the Blueprint test. Chunk 1 should already have imported PB_FixtureSchema, assigned it to the Local profile, and proved that http://127.0.0.1:18091 answers Check Health. Keep the fixture running for both login attempts."
           ),
-          screenshot("[put a screenshot of Collection(users) connected to List Authentication Methods here]"),
-          callout("note", "List methods when the UI is dynamic", "List Authentication Methods returns the server's enabled password, OTP, MFA, and OAuth2 configuration. Use it when sign-in choices should follow backend settings."),
+          steps(
+            { title: "Remove the Chunk 1 Actor from the level", text: "Don't let BP_PB_Chunk01 initialize the default client while the new Actor does the same work. Keep the Blueprint asset, remove only its placed level instance." },
+            { title: "Start PocketBase", text: "Run the fixture start script from the PB_Testing project folder and confirm it reports http://127.0.0.1:18091." },
+            { title: "Check the schema profile", text: "Local should still point to PB_FixtureSchema in Edit > Project Settings > Plugins > Open PocketBase SDK." },
+            { title: "Create the new Actor", text: "Create BP_PB_Chunk02_Auth and place exactly one instance in the level you're gonna Play." }
+          ),
+          code(
+            "powershell",
+            `& ".\\PocketBase\\Start-PocketBase.ps1"`,
+            "Start the fixture"
+          ),
+          callout(
+            "warning",
+            "The fixture password is temporary test data",
+            "This page types a local demo password into the node because we're testing one throwaway Blueprint. A real login screen passes the current text-box value at runtime. Don't ship or commit a real user's password inside a Blueprint asset."
+          ),
         ],
       },
       {
-        id: "password",
-        title: "Password authentication",
+        id: "place-nodes",
+        title: "Place the nodes before connecting anything",
+        blocks: [
+          steps(
+            { title: "Keep Event BeginPlay", text: "Open BP_PB_Chunk02_Auth's Event Graph and remove anything else Unreal added." },
+            { title: "Add Initialize PocketBase", text: "Set Base URL to http://127.0.0.1:18091. Its World Context stays automatic." },
+            { title: "Add Bind Event to Session Changed", text: "Drag from Initialize PocketBase's Client output and search for Bind Event to Session Changed." },
+            { title: "Create the session event", text: "Drag from the red Event pin on Bind Event to Session Changed and choose Add Custom Event. Name it OnPocketBaseSessionChanged." },
+            { title: "Add Use Collection", text: "Drag from the same Client output and add Use Collection. Leave Reference unselected for a moment." },
+            { title: "Add Log In with Password", text: "Place the async auth node. Options should be visible and can stay at its default value." },
+            { title: "Add Get Current Auth Record", text: "Drag from Client and choose the current non-legacy node. It has True and False exec outputs." },
+            { title: "Add two Get Current Session nodes", text: "Both must be the current non-legacy node with True and False exec outputs. One runs before logout and one runs after." },
+            { title: "Add Logout", text: "Drag from Client and choose Logout from Open PocketBase Session." },
+            { title: "Add Print String nodes", text: "You'll connect them while wiring each terminal path below. The SDK structs connect directly, so don't add Format Text or manually placed conversion nodes." }
+          ),
+          screenshot("[put a screenshot of the unconnected Chunk 2 authentication nodes here]"),
+        ],
+      },
+      {
+        id: "auth-picker",
+        title: "Select the auth collection without typing its name",
+        blocks: [
+          steps(
+            { title: "Connect Use Collection first", text: "Connect its Return Value to Log In with Password's Auth Collection input." },
+            { title: "Open the Reference picker", text: "The downstream auth pin gives the picker its context. sdk_users should be available and sdk_tasks should be rejected for this auth operation." },
+            { title: "Search for users", text: "Type users, choose sdk_users, then close the picker." },
+            { title: "Check the selected value", text: "The Use Collection pin should show sdk_users. Don't type sdk_users into a plain Name or String field anywhere." }
+          ),
+          screenshot("[put a screenshot of the auth-filtered collection picker showing sdk_users here]"),
+          callout(
+            "note",
+            "Why sdk_tasks doesn't belong here",
+            "PocketBase allows several auth collections, but a base collection can't issue a user session. The schema reference carries that collection type into the graph, so this mistake gets caught before the request only."
+          ),
+        ],
+      },
+      {
+        id: "exec-wires",
+        title: "Connect the execution wires in this order",
+        blocks: [
+          paragraph(
+            "Wire the white exec pins first. The indentation below tells you which output owns the next node. Don't add Branch nodes after Get Current Auth Record or Get Current Session, their Boolean return values already expanded into True and False execution paths."
+          ),
+          code(
+            "text",
+            `Event BeginPlay
+    -> Initialize PocketBase
+
+Initialize PocketBase True
+    -> Bind Event to Session Changed
+    -> Log In with Password
+
+Initialize PocketBase False
+    -> Print String for initialization error
+
+Log In with Password Success
+    -> Print String for auth result
+    -> Get Current Auth Record
+
+Log In with Password Mfa Required
+    -> Print String for MFA continuation
+
+Log In with Password Failed
+    -> Print String for login error
+
+Log In with Password Cancelled
+    -> Print String for cancellation error
+
+Get Current Auth Record True
+    -> Print String for auth record
+    -> Get Current Session before logout
+
+Get Current Auth Record False
+    -> Print String with ERROR - auth record missing
+
+Get Current Session before logout True
+    -> Print String for active session
+    -> Logout
+    -> Get Current Session after logout
+
+Get Current Session before logout False
+    -> Print String with ERROR - session missing
+
+Get Current Session after logout False
+    -> Print String for logged-out session
+
+Get Current Session after logout True
+    -> Print String with ERROR - still authenticated
+
+OnPocketBaseSessionChanged
+    -> Print String for session event`,
+            "Execution wires"
+          ),
+        ],
+      },
+      {
+        id: "data-wires",
+        title: "Connect the data pins after the exec flow",
         blocks: [
           code(
-            "cpp",
-            `Client->Collection(TEXT("users")).AuthWithPassword(
-    TEXT("player@example.com"),
-    MoveTemp(PasswordFromRuntimeInput),
-    [](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Result)
-    {
-        if (!Result.IsSuccess())
-        {
-            ShowLoginError(Result.GetError());
-            return;
-        }
+            "text",
+            `Initialize PocketBase Client
+    -> Bind Event to Session Changed Target
+    -> Use Collection Target
+    -> Get Current Auth Record Target
+    -> Get Current Session before logout Target
+    -> Logout Target
+    -> Get Current Session after logout Target
 
-        const FOpenPocketBaseAuthAttempt& Attempt = Result.GetValue();
-        if (Attempt.Status == EOpenPocketBaseAuthAttemptStatus::MfaRequired)
-        {
-            ShowMfaPrompt(Attempt.Mfa);
-            return;
-        }
+Use Collection Return Value
+    -> Log In with Password Auth Collection
 
-        EnterGame(Attempt.Authentication.Record);
-    });`
+Log In with Password Auth Result
+    -> success Print String In String
+
+Log In with Password MFA Continuation
+    -> MFA Print String In String
+
+Log In with Password Error
+    -> failed Print String In String
+    -> cancelled Print String In String
+
+Get Current Auth Record Out Record
+    -> auth-record Print String In String
+
+Get Current Session before logout Out Session
+    -> active-session Print String In String
+
+Get Current Session after logout Out Session
+    -> logged-out-session Print String In String
+
+OnPocketBaseSessionChanged Session
+    -> session-event Print String In String
+
+Initialize PocketBase Error
+    -> initialization-error Print String In String`,
+            "Data wires"
+          ),
+          table(
+            ["Log In with Password input", "Fixture value"],
+            [
+              ["Identity", "player@example.com"],
+              ["Password", "correct-horse-battery"],
+              ["Options", "Leave the visible default value"]
+            ]
           ),
           paragraph(
-            "Identity can be an email, username, or another field configured by the auth collection. On authenticated success the client stores the token internally and exposes the record. The token never appears in the Blueprint result."
+            "The Event pin on Bind Event to Session Changed connects to the red delegate input of OnPocketBaseSessionChanged. Its Session output then goes straight into Print String. This event path is separate from the BeginPlay chain and can run once for login and again for logout."
           ),
-          callout("danger", "Passwords are runtime-only values", "Read a password from a live input or secret provider and discard it after starting the request. Never make it a Blueprint default or save it for automatic login."),
+          screenshot("[put a screenshot of the complete Chunk 2 authentication graph here]"),
+        ],
+      },
+      {
+        id: "successful-run",
+        title: "Run the valid login",
+        blocks: [
+          steps(
+            { title: "Compile and save", text: "The graph should compile without a schema warning, Accessed None warning, or manually typed collection name." },
+            { title: "Press Play", text: "The fixture user is already seeded, so Log In with Password should fire Success." },
+            { title: "Read every printed SDK value", text: "Auth result, current auth record, active session, and logged-out session should all print through the automatic String conversion." },
+            { title: "Watch the session event", text: "OnPocketBaseSessionChanged should print a LoggedIn snapshot and a LoggedOut snapshot. They may appear between the direct prints because the client queues ordered session notifications." }
+          ),
+          table(
+            ["Check", "Expected fixture result"],
+            [
+              ["Auth record ID", "user00000000001"],
+              ["Auth collection", "sdk_users"],
+              ["Active session", "authenticated true with reason LoggedIn"],
+              ["After Logout", "Get Current Session uses False and prints authenticated false with reason LoggedOut"],
+              ["Session events", "One LoggedIn snapshot and one LoggedOut snapshot"],
+              ["MFA path", "Doesn't fire for this fixture user"]
+            ]
+          ),
+          callout(
+            "note",
+            "The token won't print",
+            "The client owns the auth token and applies it to later requests. Auth Result exposes the user record, while the token stays out of the Blueprint value and Print String output."
+          ),
+        ],
+      },
+      {
+        id: "wrong-password",
+        title: "Run the wrong-password case",
+        blocks: [
+          steps(
+            { title: "Change only Password", text: "Replace correct-horse-battery with wrong-password on the same Log In with Password node." },
+            { title: "Press Play again", text: "The node should fire Failed. Success, Mfa Required, and Cancelled should stay quiet." },
+            { title: "Inspect the error", text: "Print String should show kind PocketBase, HTTP status 400, server message Failed to authenticate., mayRetry false, and a request ID." },
+            { title: "Check session silence", text: "Get Current Auth Record, Get Current Session, Logout, and OnPocketBaseSessionChanged shouldn't run because the Success chain never started." },
+            { title: "Remove the password", text: "Clear the password pin after this test, or delete the temporary Actor once the page passes." }
+          ),
+          callout(
+            "warning",
+            "A rejected password isn't a transport failure",
+            "PocketBase answered the request and rejected the credentials, so the error kind is PocketBase with HTTP 400. Transport belongs to cases where the SDK couldn't get an HTTP response at all."
+          ),
+        ],
+      },
+      {
+        id: "pass-checklist",
+        title: "Call Chunk 2 passed after every item works",
+        blocks: [
+          bullets(
+            "The auth collection picker selects sdk_users from PB_FixtureSchema.",
+            "The correct fixture credentials fire Success and print the auth result.",
+            "Get Current Auth Record uses True and prints user00000000001.",
+            "Get Current Session uses True before logout and False after logout.",
+            "The session event reports LoggedIn and LoggedOut.",
+            "The wrong password fires Failed with a PocketBase HTTP 400 error.",
+            "The wrong-password run doesn't create a session or fire the Success chain.",
+            "Neither run produces Accessed None, an assertion, or an editor crash."
+          ),
+          paragraph(
+            "Send the Output Log and one graph screenshot if an item fails. We'll fix that exact path in the source plugin, rebuild after Unreal closes, and repeat only this chunk."
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    slug: "authentication/otp-mfa",
+    title: "OTP and MFA login",
+    eyebrow: "Authentication / Blueprint",
+    description: "Request a one-time password, complete the login, and handle an MFA continuation without treating it as a failed request.",
+    readTime: "8 min",
+    sections: [
+      {
+        id: "auth-collection",
+        title: "Start from an auth collection reference",
+        blocks: [
+          paragraph(
+            "Connect Use Collection to the auth action and pick the collection from your imported schema. An auth-filtered picker accepts sdk_users and keeps base collections out of this flow."
+          ),
+          screenshot("[put a screenshot of sdk_users connected to List Authentication Methods here]"),
+          callout("note", "List methods when the sign-in UI changes", "List Authentication Methods returns the password, OTP, MFA, and OAuth2 settings enabled by the server. Build the available sign-in buttons from that response when backend configuration can change."),
         ],
       },
       {
@@ -59,25 +278,25 @@ export const authPages: DocPage[] = [
           steps(
             { title: "Request the code", text: "Call Request One-Time Password with the user's email. Success returns OtpId." },
             { title: "Collect the code", text: "Ask the user for the code delivered by the configured PocketBase mail flow." },
-            { title: "Authenticate", text: "Call Log In with One-Time Password using OtpId and One-Time Password. Supply an MFA continuation only when this login is completing an MFA challenge." },
-            { title: "Handle the attempt", text: "Just like password login, the result can be authenticated or require another MFA continuation." }
+            { title: "Authenticate", text: "Call Log In with One-Time Password using OtpId and One-Time Password. Supply an MFA continuation only when this attempt completes an MFA challenge." },
+            { title: "Read the terminal path", text: "The result either authenticates, requests MFA, fails, or gets cancelled. Exactly one execution output fires." }
           ),
           screenshot("[put a screenshot of Request One-Time Password followed by Log In with One-Time Password here]"),
-          callout("warning", "Do not rename the secret in your UI", "The node says One-Time Password to distinguish the delivered login code from the OtpId request identifier."),
+          callout("warning", "Keep the two values separate", "OtpId identifies the server request. One-Time Password is the delivered login code. They aren't interchangeable."),
         ],
       },
       {
         id: "mfa",
-        title: "MFA is a valid request outcome",
+        title: "MFA continues the sign-in attempt",
         blocks: [
           paragraph(
-            "AuthWithPassword, AuthWithOtp, and OAuth2 return FOpenPocketBaseAuthAttempt. A successful HTTP request can report MfaRequired with an opaque continuation ID. That is not converted into a generic error because the next UI step is part of the normal sign-in flow."
+            "Password, OTP, and OAuth2 can fire Mfa Required after the server accepts the first credential. Keep the returned continuation for the short follow-up flow and pass it into the next supported auth action. The client isn't authenticated till that follow-up succeeds."
           ),
           bullets(
-            "Do not treat MfaRequired as an authenticated session.",
+            "Don't treat Mfa Required as an authenticated session.",
             "Keep the continuation only for the short-lived follow-up flow.",
-            "Do not persist the continuation in config, saves, or logs.",
-            "Pass it through the advanced Mfa input on the next supported auth action."
+            "Don't persist the continuation in config, saves, or logs.",
+            "Pass it through the Mfa input on the next supported auth action."
           ),
         ],
       },

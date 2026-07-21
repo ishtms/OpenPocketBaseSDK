@@ -50,7 +50,8 @@ export const navigation: NavGroup[] = [
   {
     title: "Authentication",
     items: [
-      { slug: "authentication/password-otp", title: "Password, OTP & MFA" },
+      { slug: "authentication/password-otp", title: "Password login and session" },
+      { slug: "authentication/otp-mfa", title: "OTP and MFA" },
       { slug: "authentication/oauth2", title: "OAuth2" },
       { slug: "authentication/account", title: "Account actions" },
       { slug: "authentication/session", title: "Session & refresh" },
