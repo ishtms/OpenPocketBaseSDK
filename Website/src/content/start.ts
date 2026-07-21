@@ -135,97 +135,329 @@ export const startPages: DocPage[] = [
   {
     slug: "start/quickstart",
     title: "Your first PocketBase request",
-    eyebrow: "Start here",
-    description: "Connect to PocketBase, sign in, fetch a page of records, and handle every terminal path.",
-    readTime: "8 min",
+    eyebrow: "Start here / Blueprint",
+    description: "Import your PocketBase schema, initialize the client, check server health, and prove the failure path without guessing any pins.",
+    readTime: "18 min",
     sections: [
       {
-        id: "before-you-start",
-        title: "Before you start",
+        id: "what-we-are-checking",
+        title: "What we're checking",
         blocks: [
-          paragraph(
-            "Run PocketBase v0.39.11 and create an auth collection named users plus a base collection named tasks. Give tasks a text field called title. Your API rules still decide who can read and write. The SDK does not bypass them."
+          lead(
+            "We're gonna start with the boring foundation because every later graph depends on it. You'll import a real schema, connect one client, pick a collection without typing its name, run Check Health, print the SDK values directly, then stop PocketBase and make sure the same graph reports a useful error. That itself is plenty for the first pass."
           ),
           bullets(
-            "PocketBase origin: http://127.0.0.1:8090 for this local example",
-            "Auth collection: users",
-            "Record collection: tasks",
-            "A real user record and password supplied from runtime input"
-          ),
-        ],
-      },
-      {
-        id: "blueprint-flow",
-        title: "Blueprint flow",
-        blocks: [
-          steps(
-            { title: "Initialize", text: "On Game Instance Init or another deterministic startup point, call Initialize PocketBase with the local origin. Save the Client output if this Blueprint owns the connection." },
-            { title: "Select users", text: "Drag from Client, call Collection, and set Name to users. A collection value is a lightweight client plus collection pair." },
-            { title: "Log in", text: "Connect that value to Log In with Password. Read Success.Auth Result.Record when Status is Authenticated. Route Failed.Error to UI and handle Cancelled separately." },
-            { title: "Select tasks", text: "Create another Collection value named tasks. Connect it to List Records and keep Per Page bounded." },
-            { title: "Read the page", text: "On Success, iterate Page.Items. Use typed field helpers for dynamic collection fields instead of assuming a JSON shape." }
-          ),
-          screenshot("[put a screenshot of BeginPlay -> Initialize PocketBase -> Collection(users) -> Log In with Password here]"),
-          screenshot("[put a screenshot of Collection(tasks) -> List Records -> For Each Page.Items here]"),
-        ],
-      },
-      {
-        id: "cpp-flow",
-        title: "The same flow in C++",
-        blocks: [
-          code(
-            "cpp",
-            `FOpenPocketBaseClientConfig Config;
-Config.BaseUrl = TEXT("http://127.0.0.1:8090");
-
-FOpenPocketBaseClientResult Created = FOpenPocketBaseClient::Create(Config);
-if (!Created.IsSuccess())
-{
-    HandlePocketBaseError(Created.GetError());
-    return;
-}
-
-FOpenPocketBaseClientRef Client = Created.TakeValue();
-Client->Collection(TEXT("users")).AuthWithPassword(
-    TEXT("player@example.com"),
-    MoveTemp(PasswordFromRuntimeInput),
-    [Client](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Login)
-    {
-        if (!Login.IsSuccess())
-        {
-            HandlePocketBaseError(Login.GetError());
-            return;
-        }
-
-        FOpenPocketBaseListOptions Options;
-        Options.PerPage = 30;
-        Client->Collection(TEXT("tasks")).GetList(
-            Options,
-            [](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Records)
-            {
-                if (Records.IsSuccess())
-                {
-                    ShowTasks(Records.GetValue().Items);
-                }
-            });
-    });`,
-            "PocketBaseGameInstance.cpp"
+            "The schema asset remembers stable PocketBase collection and field IDs.",
+            "The project profile tells editor pickers which schema to show when a graph has no collection context yet.",
+            "Initialize PocketBase creates the default Game Instance client.",
+            "Check Health proves the configured origin can answer a real request.",
+            "The failed run proves transport errors reach the Failed exec pin as an Open Pocket Base Error."
           ),
           callout(
             "note",
-            "Callbacks return on the game thread",
-            "You can update Unreal objects from public completion and progress callbacks, provided their lifetime is still valid. Use weak object pointers when work may outlive its owner."
+            "Use one local origin for the whole page",
+            "This walkthrough uses http://127.0.0.1:18091 because that's the repository fixture server. If your project uses another port, replace it everywhere on this page. Don't initialize one port and inspect another PocketBase process, that looks harmless only and wastes a lot of time."
+          ),
+        ],
+      },
+      {
+        id: "server-first",
+        title: "Start the fixture server first",
+        blocks: [
+          paragraph(
+            "Open PowerShell in your Unreal project folder and start the fixture. The script keeps its PID, log files, data folder, and migration folder together, so you don't have to keep a random terminal window around."
+          ),
+          code(
+            "powershell",
+            `& ".\\PocketBase\\Start-PocketBase.ps1"`,
+            "Start the local fixture"
+          ),
+          paragraph(
+            "A successful start prints the origin plus the seeded player email and password. Open http://127.0.0.1:18091/api/health in a browser if you want one check outside Unreal also. You should get a healthy response from PocketBase v0.39.11."
+          ),
+          callout(
+            "warning",
+            "Don't copy fixture credentials into assets",
+            "The seeded login belongs to local testing. Later auth pages pass passwords from live input. A Blueprint default gets serialized into the asset, so we're not gonna put a password there and pretend it's fine."
+          ),
+        ],
+      },
+      {
+        id: "import-schema",
+        title: "Import the PocketBase schema",
+        blocks: [
+          paragraph(
+            "Get the collection response from a trusted PocketBase admin flow and save it as JSON. The importer accepts a root collection array, an object with an items array, or an object with a collections array. For the repository fixture, keep the file at YourProject/PocketBase/openpocketbase_schema.json so Refresh Schema can find the same source later."
+          ),
+          steps(
+            { title: "Make a Content folder", text: "Create a PocketBase folder in the Content Browser. Keeping the schema easy to find helps once your project has more than one profile." },
+            { title: "Drag in the JSON file", text: "Drop openpocketbase_schema.json into that folder. When Unreal asks which importer to use, choose PocketBase Schema." },
+            { title: "Name the asset", text: "Call it PB_FixtureSchema for this walkthrough. The name is local to Unreal, PocketBase IDs stay inside the asset." },
+            { title: "Keep the source file", text: "Don't delete or move the JSON after import. Preview Changes and Refresh Schema read that path again." }
+          ),
+          screenshot("[put a screenshot of the JSON import menu with PocketBase Schema selected here]"),
+          callout(
+            "note",
+            "What the fixture import should show",
+            "The repository fixture has two collections, sdk_tasks is base and sdk_users is auth. Its current asset summary shows 17 fields, 9 writable fields, and 6 required fields. Your own schema will have different counts, no problem."
+          ),
+        ],
+      },
+      {
+        id: "inspect-schema",
+        title: "Check the imported asset before touching Blueprint",
+        blocks: [
+          paragraph(
+            "Double-click PB_FixtureSchema. Read the summary and validation text at the top of its Details panel before you trust any dropdown. For the fixture, you should see the values below."
+          ),
+          table(
+            ["Check", "Expected fixture value"],
+            [
+              ["Collections", "2 total, 1 base, 1 auth, 0 view"],
+              ["Fields", "17 total, 9 writable, 6 required"],
+              ["Source", "Ready"],
+              ["Fingerprint", "Ready"],
+              ["Validation", "Schema validation passed."]
+            ]
+          ),
+          steps(
+            { title: "Click Preview Changes", text: "The source hasn't changed yet, so the dialog should say No schema changes. The asset stays untouched." },
+            { title: "Click Refresh Schema", text: "The same source is already imported, so Unreal should report that the PocketBase schema is already current." },
+            { title: "Save the asset", text: "Save it now. An unsaved schema works in the current editor session, then disappears on restart, which isn't the test we're trying to run." }
+          ),
+          screenshot("[put a screenshot of the schema summary validation and refresh controls here]"),
+        ],
+      },
+      {
+        id: "profile",
+        title: "Assign the schema to a project profile",
+        blocks: [
+          paragraph(
+            "Open Edit > Project Settings > Plugins > Open PocketBase SDK. Add one Profiles entry and fill it in exactly as shown below. Set Default Profile after the entry exists, otherwise Unreal can leave you with a name that doesn't resolve to anything."
+          ),
+          table(
+            ["Setting", "Fixture value"],
+            [
+              ["Default Profile", "Local"],
+              ["Profiles entry Name", "Local"],
+              ["Base URL", "http://127.0.0.1:18091"],
+              ["Schema", "PB_FixtureSchema"],
+              ["Session Persistence", "Memory Only"]
+            ]
+          ),
+          paragraph(
+            "The profile scopes editor pickers when the graph doesn't already carry a collection. Initialize PocketBase still takes its Base URL input on this page. Yes, those are separate jobs, and I'm saying it directly because hiding that detail would make the first graph confusing."
+          ),
+          screenshot("[put a screenshot of the Local Open PocketBase project profile with its schema assigned here]"),
+        ],
+      },
+      {
+        id: "make-blueprint",
+        title: "Create a clean Blueprint for the check",
+        blocks: [
+          steps(
+            { title: "Create an Actor Blueprint", text: "Name it BP_PB_Chunk01. An Actor gives this page a simple BeginPlay owner without changing your Game Instance yet." },
+            { title: "Place one instance", text: "Drag BP_PB_Chunk01 into the level you're gonna Play. Creating the asset itself won't run BeginPlay." },
+            { title: "Open Event Graph", text: "Delete any nodes you don't need, then keep Event BeginPlay." },
+            { title: "Add Initialize PocketBase", text: "Set Base URL to http://127.0.0.1:18091. Its World Context is resolved automatically and that pin stays hidden." },
+            { title: "Add Check Health", text: "This async node has Pocket Base Client and Options inputs. Options stays visible, leave its default value for now." },
+            { title: "Add Use Collection", text: "Drag from Initialize PocketBase's blue Client output and search for Use Collection. It's a pure node, so it won't have exec pins." },
+            { title: "Add five Print String nodes", text: "Two belong to the successful health path. The other three show health failure, cancellation, and initialization failure." }
+          ),
+          callout(
+            "warning",
+            "Don't add a subsystem node here",
+            "This flow doesn't use Get Game Instance Subsystem. Initialize PocketBase returns the client directly, and Get PocketBase Client is available in other Blueprints after initialization."
+          ),
+          screenshot("[put a screenshot of the seven Chunk 1 Blueprint nodes before wiring here]"),
+        ],
+      },
+      {
+        id: "collection-picker",
+        title: "Test the collection picker before wiring requests",
+        blocks: [
+          paragraph(
+            "Click the Reference input on Use Collection. The picker should show sdk_tasks and sdk_users from PB_FixtureSchema. We haven't connected an operation yet, so both readable collection types can appear."
+          ),
+          steps(
+            { title: "Search for tasks", text: "Type tasks in the picker search. Only sdk_tasks should remain." },
+            { title: "Select sdk_tasks", text: "The pin label should change from Choose collection to sdk_tasks." },
+            { title: "Clear it once", text: "Open the picker again and click Clear selection. The pin should return to Choose collection without editing any struct text." },
+            { title: "Select sdk_tasks again", text: "We need the collection set for the Print String check below." }
+          ),
+          paragraph(
+            "If the picker is empty, stop there. Check that the schema asset was saved and assigned to Local. Typing sdk_tasks into a plain string pin would avoid the feature we're trying to verify, so we're not gonna do that."
+          ),
+          screenshot("[put a screenshot of the searchable collection picker showing sdk_tasks and sdk_users here]"),
+        ],
+      },
+      {
+        id: "wire-exec",
+        title: "Wire the execution flow in this order",
+        blocks: [
+          paragraph(
+            "Start with the white exec wires only. Data pins come immediately after, once the request order is visible."
+          ),
+          code(
+            "text",
+            `Event BeginPlay
+    -> Initialize PocketBase
+
+Initialize PocketBase True
+    -> Check Health
+
+Check Health Success
+    -> Print String 1
+    -> Print String 2
+
+Check Health Failed
+    -> Print String 3
+
+Check Health Cancelled
+    -> Print String 4
+
+Initialize PocketBase False
+    -> Print String 5`,
+            "Execution wires"
+          ),
+          paragraph(
+            "Initialize PocketBase uses True and False exec outputs because its Boolean result expands into execution pins. Check Health uses Success, Failed, and Cancelled because it's an async request. Don't add a Branch between either of them."
+          ),
+        ],
+      },
+      {
+        id: "wire-data",
+        title: "Connect the data pins after the exec flow",
+        blocks: [
+          code(
+            "text",
+            `Initialize PocketBase Client
+    -> Check Health Pocket Base Client
+
+Check Health Health Result
+    -> Print String 1 In String
+
+Use Collection Return Value
+    -> Print String 2 In String
+
+Check Health Error
+    -> Print String 3 In String
+
+Check Health Error
+    -> Print String 4 In String
+
+Initialize PocketBase Error
+    -> Print String 5 In String`,
+            "Data wires"
+          ),
+          paragraph(
+            "Connect the SDK structs straight into Print String. Unreal inserts the OpenPocketBase conversion node automatically and prints readable JSON. Don't split Health Result into five fields and don't rebuild it with Format Text, we've already got a formatter for that stuff."
+          ),
+          callout(
+            "note",
+            "One Error pin can feed both terminal prints",
+            "Failed and Cancelled share the Check Health Error output. Each exec path reads the value produced for that terminal result. The cancellation wire is present now, but we'll trigger cancellation in its own page later."
+          ),
+          screenshot("[put a screenshot of the complete Chunk 1 Blueprint graph with exec and data wires here]"),
+        ],
+      },
+      {
+        id: "successful-run",
+        title: "Run the healthy server case",
+        blocks: [
+          steps(
+            { title: "Compile and save", text: "Fix any red Blueprint pin before Play. A successful compile also proves the imported references are current." },
+            { title: "Press Play", text: "The fixture is already running, so Check Health should finish on Success." },
+            { title: "Read Output Log", text: "Print String 1 shows Open Pocket Base Health Result. Print String 2 shows the selected sdk_tasks collection value." }
+          ),
+          table(
+            ["Health field", "Expected value"],
+            [
+              ["healthy", "true"],
+              ["httpStatus", "200"],
+              ["code", "200"],
+              ["message", "API is healthy."],
+              ["durationSeconds", "A small non-negative value"]
+            ]
+          ),
+          paragraph(
+            "The collection print should include sdk_tasks plus pbc_4257125328 when you're using the repository fixture. Seeing the collection after the health print proves the pure Use Collection value can flow into ordinary Blueprint debugging also."
+          ),
+        ],
+      },
+      {
+        id: "failed-run",
+        title: "Run the server-down case",
+        blocks: [
+          paragraph(
+            "What happens when PocketBase is down? Initialize PocketBase can still take its True path because it validates and creates the client locally. Check Health performs the network request, waits through its configured retry policy, then fires Failed."
+          ),
+          code(
+            "powershell",
+            `& ".\\PocketBase\\Stop-PocketBase.ps1"`,
+            "Stop the fixture"
+          ),
+          steps(
+            { title: "Play again", text: "Wait a few seconds if the default retry policy is active. Print String 3 should fire when the request finishes failing." },
+            { title: "Read the error", text: "The result should be an Open Pocket Base Error with kind Transport, HTTP status 0, a request ID, and mayRetry set to true." },
+            { title: "Check the graph stayed alive", text: "There should be no Accessed None warning, assertion, or editor crash. A dead local server is an ordinary request failure." }
+          ),
+          code(
+            "powershell",
+            `& ".\\PocketBase\\Start-PocketBase.ps1"`,
+            "Start the fixture again"
+          ),
+          paragraph(
+            "Start the fixture again before moving on. Later record and auth pages assume 18091 is answering, and leaving it stopped creates unrelated failures all over the place."
+          ),
+        ],
+      },
+      {
+        id: "troubleshooting",
+        title: "If your result doesn't match",
+        blocks: [
+          table(
+            ["What you see", "What to check"],
+            [
+              ["PocketBase Schema isn't offered during JSON import", "Confirm the editor module loaded, the plugin is enabled, and the JSON contains a collection array with id, name, type, and fields."],
+              ["Schema Source says Missing", "Put the JSON back at the source path or reimport from its new path."],
+              ["Collection picker is empty", "Save the schema asset, assign it to the Local profile, and reopen the Blueprint pin menu."],
+              ["Use Collection has a text Name pin", "You've placed an old or dynamic node. Remove it and add Use Collection from the Client output."],
+              ["Check Health asks for World Context Object", "The copied plugin is stale. The current node takes Pocket Base Client and Options only."],
+              ["Accessed None appears", "Use the Client output from the same Initialize PocketBase node. Don't fetch a named client that was never created."],
+              ["Health reaches port 8090", "Replace the Base URL with http://127.0.0.1:18091 for the repository fixture."],
+              ["Print String won't accept the struct", "Remove any manually placed conversion, drag the SDK struct pin directly into In String, and let Blueprint add the autocast."]
+            ]
+          ),
+        ],
+      },
+      {
+        id: "pass-checklist",
+        title: "Call this page passed only after all of these work",
+        blocks: [
+          bullets(
+            "The JSON imports through PocketBase Schema and the asset validation passes.",
+            "Preview Changes reports no changes and Refresh Schema reports that the asset is current.",
+            "The Local profile retains PB_FixtureSchema after closing Project Settings.",
+            "The collection picker searches, clears, and selects sdk_tasks without typed collection names.",
+            "Initialize PocketBase reaches True and Check Health reaches Success while the fixture is running.",
+            "Health Result and Use Collection connect directly to Print String.",
+            "Check Health reaches Failed with a Transport error while the fixture is stopped.",
+            "Neither run produces an Accessed None warning, assertion, or editor crash."
+          ),
+          paragraph(
+            "If one item fails, send the Output Log plus a screenshot of that node. Don't rebuild the whole graph yet. We'll fix the actual failing part, copy the plugin again after Unreal closes, then repeat only this page."
           ),
         ],
       },
       {
         id: "next",
-        title: "What to learn next",
+        title: "Continue after this page passes",
         blocks: [
           cards(
-            { title: "Understand request handles", text: "Cancellation, timeouts, retries, and exact terminal behavior.", link: "core/requests-errors" },
-            { title: "Model record data", text: "Bodies, immutable responses, projections, and typed field access.", link: "records/crud" },
-            { title: "Own the session", text: "Refresh coordination, ordered events, logout, and secure restore.", link: "authentication/session" }
+            { title: "Authentication", text: "Use sdk_users, log in, inspect the auth result, read session state, then log out cleanly.", link: "authentication/password-otp" },
+            { title: "Record operations", text: "Use sdk_tasks for typed create, read, update, delete, filters, sorting, and projections.", link: "records/crud" },
+            { title: "Request behavior", text: "Trigger cancellation, timeouts, retry decisions, and one-terminal-result handling.", link: "core/requests-errors" }
           ),
         ],
       },
@@ -246,12 +478,12 @@ Client->Collection(TEXT("users")).AuthWithPassword(
             ["Value", "Owns", "Use it for"],
             [
               ["Open Pocket Base Client", "Connection policy, auth state, active requests, realtime manager", "Health, session, files, custom routes, and creating collection values"],
-              ["Open Pocket Base Collection", "A retained client plus one validated collection name", "Record and auth actions"],
+              ["Open Pocket Base Collection", "A retained client plus one schema collection reference", "Record and auth actions"],
               ["Open Pocket Base Subscription", "One realtime registration and its delegates", "Listening, observing state, and unsubscribing"]
             ]
           ),
           paragraph(
-            "Collection is a pure node. It does not send a request, copy the client, or load schema. Pass its output directly into record and auth actions. This keeps graphs readable and prevents a client pin plus collection-name pin from being repeated on every node."
+            "Use Collection is a pure node. Pick the collection from your imported schema and pass its output directly into record and auth actions. It doesn't send a request or copy the client. The stored collection ID also survives a rename, so you don't have to chase typed names through every Blueprint later."
           ),
           screenshot("[put a screenshot of Client, Collection, and Subscription Blueprint values compared side by side here]"),
         ],
@@ -277,7 +509,7 @@ Client->Collection(TEXT("users")).AuthWithPassword(
         title: "Pure builders return new values",
         blocks: [
           paragraph(
-            "New Record Body, With String Field, filter nodes, New Batch, and With Create are value builders. Each step returns a new struct. The earlier value is unchanged, so the graph has no hidden mutation order and no setup execution wires."
+            "New Record Body starts from the selected writable collection. With String Field and the other typed field nodes then show fields from that same schema context. Filter nodes, New Batch, and With Create follow the same value-builder flow. Each step returns a new struct, so the graph doesn't depend on some hidden mutation order."
           ),
           screenshot("[put a screenshot of New Record Body chained through three With Field nodes into Create Record here]"),
           callout("note", "Advanced pins stay out of the way", "Expand advanced pins when you need projections, request policy, bounds, upload limits, or retries. Defaults are designed for the ordinary path."),

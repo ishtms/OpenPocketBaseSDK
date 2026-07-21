@@ -23,7 +23,7 @@ export const navigation: NavGroup[] = [
     items: [
       { slug: "overview", title: "Overview" },
       { slug: "start/installation", title: "Installation" },
-      { slug: "start/quickstart", title: "Quickstart" },
+      { slug: "start/quickstart", title: "Blueprint setup and health" },
       { slug: "start/blueprint-basics", title: "Blueprint mental model" },
       { slug: "start/cpp-basics", title: "C++ mental model" },
     ],
