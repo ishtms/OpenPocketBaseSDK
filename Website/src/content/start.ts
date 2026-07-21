@@ -191,11 +191,11 @@ export const startPages: DocPage[] = [
           ),
           steps(
             { title: "Make a Content folder", text: "Create a PocketBase folder in the Content Browser. Keeping the schema easy to find helps once your project has more than one profile." },
-            { title: "Drag in the JSON file", text: "Drop openpocketbase_schema.json into that folder. When Unreal asks which importer to use, choose PocketBase Schema." },
-            { title: "Name the asset", text: "Call it PB_FixtureSchema for this walkthrough. The name is local to Unreal, PocketBase IDs stay inside the asset." },
+            { title: "Drag in the JSON file", text: "Drop openpocketbase_schema.json into that folder. A valid PocketBase response imports directly as a PocketBase Schema asset. The DataTable Options window shouldn't appear." },
+            { title: "Rename the asset", text: "Rename the imported asset to PB_FixtureSchema for this walkthrough. The name is local to Unreal, PocketBase IDs stay inside the asset." },
             { title: "Keep the source file", text: "Don't delete or move the JSON after import. Preview Changes and Refresh Schema read that path again." }
           ),
-          screenshot("[put a screenshot of the JSON import menu with PocketBase Schema selected here]"),
+          screenshot("[put a screenshot of the imported PB_FixtureSchema asset in the Content Browser here]"),
           callout(
             "note",
             "What the fixture import should show",
@@ -419,7 +419,7 @@ Initialize PocketBase Error
           table(
             ["What you see", "What to check"],
             [
-              ["PocketBase Schema isn't offered during JSON import", "Confirm the editor module loaded, the plugin is enabled, and the JSON contains a collection array with id, name, type, and fields."],
+              ["DataTable Options opens", "The generic JSON importer won. Confirm you're using the current plugin build, then check that the JSON contains a collection array with id, name, type, and fields."],
               ["Schema Source says Missing", "Put the JSON back at the source path or reimport from its new path."],
               ["Collection picker is empty", "Save the schema asset, assign it to the Local profile, and reopen the Blueprint pin menu."],
               ["Use Collection has a text Name pin", "You've placed an old or dynamic node. Remove it and add Use Collection from the Client output."],

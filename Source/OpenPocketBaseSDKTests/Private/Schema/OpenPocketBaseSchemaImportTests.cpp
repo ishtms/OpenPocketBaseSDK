@@ -1,12 +1,29 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "EditorReimportHandler.h"
+#include "Factories/ReimportDataTableFactory.h"
 #include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "OpenPocketBaseSchema.h"
 #include "OpenPocketBaseSchemaDiagnostics.h"
 #include "OpenPocketBaseSchemaImporter.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseSchemaFactoryPriorityTest,
+    "OpenPocketBase.Schema.OutranksGenericJsonImporter",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseSchemaFactoryPriorityTest::RunTest(const FString& Parameters)
+{
+    const UOpenPocketBaseSchemaFactory* SchemaFactory = GetDefault<UOpenPocketBaseSchemaFactory>();
+    const UReimportDataTableFactory* DataTableFactory = GetDefault<UReimportDataTableFactory>();
+
+    TestTrue(
+        TEXT("Valid PocketBase JSON is offered before the generic DataTable importer"),
+        SchemaFactory->GetPriority() > DataTableFactory->GetPriority());
+    return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseSchemaImportTest,

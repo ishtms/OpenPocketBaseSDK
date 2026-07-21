@@ -486,7 +486,8 @@ UOpenPocketBaseSchemaFactory::UOpenPocketBaseSchemaFactory()
     bEditAfterNew = true;
     bEditorImport = true;
     bText = true;
-    ImportPriority = DefaultImportPriority - 10;
+    // Valid PocketBase JSON has to win before Unreal opens its generic DataTable options dialog.
+    ImportPriority = DefaultImportPriority + 10;
 }
 
 bool UOpenPocketBaseSchemaFactory::FactoryCanImport(const FString& Filename)
