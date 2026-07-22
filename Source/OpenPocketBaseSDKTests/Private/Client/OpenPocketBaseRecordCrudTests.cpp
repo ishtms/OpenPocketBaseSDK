@@ -44,6 +44,7 @@ public:
     {
         const bool bIsDelete = Request.Method == TEXT("DELETE");
         const bool bIsFirst = Request.Method == TEXT("GET") && Request.Url.Contains(TEXT("perPage=1"));
+        const bool bIsList = Request.Method == TEXT("GET") && Request.Url.Contains(TEXT("/records?"));
         Requests.Add(Request);
 
         FOpenPocketBaseHttpResponse Response;
@@ -65,6 +66,14 @@ public:
             Response.Body = ToUtf8(
                 TEXT("{\"page\":1,\"perPage\":1,\"totalItems\":-1,\"totalPages\":-1,\"items\":[{")
                 TEXT("\"id\":\"first123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\",\"title\":\"First\"}]}"));
+        }
+        else if (bIsList)
+        {
+            Response.Body = ToUtf8(
+                TEXT("{\"page\":1,\"perPage\":5,\"totalItems\":1,\"totalPages\":1,\"items\":[{")
+                TEXT("\"id\":\"list123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"renamed_tasks\",")
+                TEXT("\"created\":\"2026-08-23 16:00:56.310Z\",\"updated\":\"2026-08-23 16:00:56.310Z\",")
+                TEXT("\"renamed_title\":\"Projected\"}]}"));
         }
         else if (!bIsDelete)
         {
@@ -89,6 +98,8 @@ struct FCrudTestState
     bool bUpdateSucceeded = false;
     bool bDeleteSucceeded = false;
     bool bFirstSucceeded = false;
+    bool bProjectedListSucceeded = false;
+    bool bProjectedListDataClean = false;
     bool bUnknownFieldRetained = false;
     bool bRecordDataClean = false;
     bool bNestedExpansionRetained = false;
@@ -109,7 +120,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CompletionCount < 4)
+        if (State->CompletionCount < 5)
         {
             return false;
         }
@@ -118,13 +129,15 @@ public:
         Test->TestTrue(TEXT("Update succeeds"), State->bUpdateSucceeded);
         Test->TestTrue(TEXT("An empty 204 delete succeeds"), State->bDeleteSucceeded);
         Test->TestTrue(TEXT("First matching record succeeds"), State->bFirstSucceeded);
+        Test->TestTrue(TEXT("A projected record list succeeds"), State->bProjectedListSucceeded);
+        Test->TestTrue(TEXT("Projected record data contains only selected data fields"), State->bProjectedListDataClean);
         Test->TestTrue(TEXT("Unknown response fields are retained"), State->bUnknownFieldRetained);
         Test->TestTrue(TEXT("Record data excludes typed system fields"), State->bRecordDataClean);
         Test->TestTrue(TEXT("Nested expansions are retained"), State->bNestedExpansionRetained);
         Test->TestTrue(TEXT("Back-relation expansions are retained"), State->bBackRelationRetained);
         Test->TestEqual(TEXT("First matching record is returned"), State->FirstId, FString(TEXT("first123")));
-        Test->TestEqual(TEXT("Four requests reach the shared transport"), State->Transport->Requests.Num(), 4);
-        if (State->Transport->Requests.Num() != 4)
+        Test->TestEqual(TEXT("Five requests reach the shared transport"), State->Transport->Requests.Num(), 5);
+        if (State->Transport->Requests.Num() != 5)
         {
             State->Client->Shutdown();
             return true;
@@ -136,7 +149,8 @@ public:
             TEXT("Create uses current schema names in record projections"),
             CreateRequest.Url.Contains(TEXT("/api/collections/tasks/records?")) &&
                 CreateRequest.Url.Contains(TEXT("expand=renamed_owner.team")) &&
-                CreateRequest.Url.Contains(TEXT("fields=")) &&
+                CreateRequest.Url.Contains(
+                    TEXT("fields=id%2CcollectionId%2CcollectionName%2Ccreated%2Cupdated%2C")) &&
                 CreateRequest.Url.Contains(TEXT("renamed_title")));
 
         TSharedPtr<FJsonObject> BodyObject;
@@ -168,6 +182,12 @@ public:
         Test->TestTrue(TEXT("First matching record requests one item"), FirstRequest.Url.Contains(TEXT("page=1&perPage=1")));
         Test->TestTrue(TEXT("First matching record skips totals"), FirstRequest.Url.Contains(TEXT("skipTotal=true")));
         Test->TestTrue(TEXT("First matching record sends the filter"), FirstRequest.Url.Contains(TEXT("filter=")));
+
+        const FOpenPocketBaseHttpRequest& ListRequest = State->Transport->Requests[4];
+        Test->TestTrue(
+            TEXT("Projected lists retain the record metadata required by the SDK"),
+            ListRequest.Url.Contains(
+                TEXT("fields=id%2CcollectionId%2CcollectionName%2Ccreated%2Cupdated%2Crenamed_title")));
 
         State->Client->Shutdown();
         return true;
@@ -326,6 +346,25 @@ bool FOpenPocketBaseRecordCrudContractTest::RunTest(const FString& Parameters)
             ++State->CompletionCount;
         },
         RecordOptions);
+
+    FOpenPocketBaseListOptions ListOptions;
+    ListOptions.Page = 1;
+    ListOptions.PerPage = 5;
+    ListOptions.Selecting(OpenPocketBase::Query::Select(TitleRef));
+    State->Client->Collection(TasksRef).GetList(
+        ListOptions,
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
+        {
+            State->bProjectedListSucceeded = Result.IsSuccess();
+            if (Result.IsSuccess() && Result.GetValue().Items.Num() == 1)
+            {
+                const FOpenPocketBaseRecord& Record = Result.GetValue().Items[0];
+                State->bProjectedListDataClean = Record.Data.JsonObject.IsValid() &&
+                    Record.Data.JsonObject->HasField(TEXT("renamed_title")) &&
+                    Record.Data.JsonObject->Values.Num() == 1;
+            }
+            ++State->CompletionCount;
+        });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyCrudContract(State, this));
     return true;

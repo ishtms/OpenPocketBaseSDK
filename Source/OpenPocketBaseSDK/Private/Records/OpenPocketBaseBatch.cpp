@@ -1,6 +1,7 @@
 #include "OpenPocketBaseBatch.h"
 
 #include "OpenPocketBaseBlueprintClient.h"
+#include "Query/OpenPocketBaseRecordQuery.h"
 
 namespace
 {
@@ -33,8 +34,8 @@ FString FOpenPocketBaseBatchEntry::GetExpandQuery() const
 FString FOpenPocketBaseBatchEntry::GetFieldsQuery() const
 {
     return Collection.IsSet()
-        ? JoinQueryValues(ResponseOptions.Fields)
-        : FString::Join(DynamicFields, TEXT(","));
+        ? OpenPocketBase::Internal::MakeRecordFieldsQuery(ResponseOptions.Fields)
+        : OpenPocketBase::Internal::MakeRecordFieldsQuery(DynamicFields);
 }
 
 bool FOpenPocketBaseBatchRequest::IsValid() const

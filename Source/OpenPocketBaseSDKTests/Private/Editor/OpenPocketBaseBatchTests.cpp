@@ -84,6 +84,10 @@ public:
         if (Requests != nullptr && Requests->Num() == 4)
         {
             Test->TestEqual(TEXT("Create wire method"), (*Requests)[0]->AsObject()->GetStringField(TEXT("method")), FString(TEXT("POST")));
+            Test->TestTrue(
+                TEXT("Projected batch records retain the metadata required by the SDK"),
+                (*Requests)[0]->AsObject()->GetStringField(TEXT("url")).Contains(
+                    TEXT("fields=id%2CcollectionId%2CcollectionName%2Ccreated%2Cupdated%2Ctitle")));
             Test->TestEqual(TEXT("Update wire method"), (*Requests)[1]->AsObject()->GetStringField(TEXT("method")), FString(TEXT("PATCH")));
             Test->TestEqual(TEXT("Upsert wire method"), (*Requests)[2]->AsObject()->GetStringField(TEXT("method")), FString(TEXT("PUT")));
             Test->TestEqual(TEXT("Delete wire method"), (*Requests)[3]->AsObject()->GetStringField(TEXT("method")), FString(TEXT("DELETE")));
@@ -195,7 +199,7 @@ FOpenPocketBaseBatchRequest MakeCompleteBatch()
 
     FOpenPocketBaseBatchRequest Batch;
     Batch
-        .AddDynamicCreate(TEXT("tasks"), MoveTemp(CreateBody))
+        .AddDynamicCreate(TEXT("tasks"), MoveTemp(CreateBody), {}, {TEXT("title")})
         .AddDynamicUpdate(TEXT("tasks"), TEXT("task00000000001"), MoveTemp(UpdateBody))
         .AddDynamicUpsert(TEXT("tasks"), MoveTemp(UpsertBody))
         .AddDynamicDelete(TEXT("tasks"), TEXT("task00000000002"));

@@ -18,6 +18,7 @@
 #include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/SecureHash.h"
+#include "Query/OpenPocketBaseRecordQuery.h"
 #include "Request/OpenPocketBaseRequestState.h"
 #include "Realtime/OpenPocketBaseRealtimeManager.h"
 #include "Serialization/OpenPocketBaseJson.h"
@@ -1064,7 +1065,10 @@ FString MakeListQuery(const FOpenPocketBaseListOptions& Options)
     AddQueryValue(Parts, TEXT("filter"), Options.Filter.ToString());
     AddQueryValue(Parts, TEXT("sort"), JoinQueryValues(Options.Sort));
     AddQueryValue(Parts, TEXT("expand"), JoinQueryValues(Options.Expand));
-    AddQueryValue(Parts, TEXT("fields"), JoinQueryValues(Options.Fields));
+    AddQueryValue(
+        Parts,
+        TEXT("fields"),
+        OpenPocketBase::Internal::MakeRecordFieldsQuery(Options.Fields));
     if (Options.bSkipTotal)
     {
         Parts.Add(TEXT("skipTotal=true"));
@@ -1076,7 +1080,10 @@ FString MakeRecordQuery(const FOpenPocketBaseRecordOptions& Options)
 {
     TArray<FString> Parts;
     AddQueryValue(Parts, TEXT("expand"), JoinQueryValues(Options.Expand));
-    AddQueryValue(Parts, TEXT("fields"), JoinQueryValues(Options.Fields));
+    AddQueryValue(
+        Parts,
+        TEXT("fields"),
+        OpenPocketBase::Internal::MakeRecordFieldsQuery(Options.Fields));
     return FString::Join(Parts, TEXT("&"));
 }
 
