@@ -18,7 +18,7 @@ void UOpenPocketBaseSendBatchAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!Batch.IsValid() || !NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;

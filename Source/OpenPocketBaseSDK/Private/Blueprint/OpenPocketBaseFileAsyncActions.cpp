@@ -19,7 +19,7 @@ void UOpenPocketBaseGetFileTokenAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -90,7 +90,7 @@ void UOpenPocketBaseDownloadFileAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;

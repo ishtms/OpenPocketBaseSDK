@@ -77,7 +77,7 @@ void UOpenPocketBaseAuthenticateSuperuserAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             Failed.Broadcast(FOpenPocketBaseAdminIdentity(), MakeAdminClientNotReadyError());
         }
@@ -171,7 +171,7 @@ void UOpenPocketBaseAdminPageAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(FOpenPocketBaseAdminPage(), MakeAdminClientNotReadyError());
         Finish();
         return;
@@ -346,7 +346,7 @@ void UOpenPocketBaseAdminDocumentAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(FOpenPocketBaseAdminDocument(), MakeAdminClientNotReadyError());
         Finish();
         return;
@@ -585,7 +585,7 @@ void UOpenPocketBaseAdminCommandAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(MakeAdminClientNotReadyError());
         Finish();
         return;
@@ -673,7 +673,7 @@ void UOpenPocketBaseAdminBackupListAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(FOpenPocketBaseAdminBackupList(), MakeAdminClientNotReadyError());
         Finish();
         return;
@@ -722,7 +722,7 @@ void UOpenPocketBaseAdminBackupDownloadAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(FOpenPocketBaseAdminBackupDownload(), MakeAdminClientNotReadyError());
         Finish();
         return;
@@ -770,7 +770,7 @@ void UOpenPocketBaseAdminDocumentListAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(FOpenPocketBaseAdminDocumentList(), MakeAdminClientNotReadyError());
         Finish();
         return;
@@ -818,7 +818,7 @@ void UOpenPocketBaseAdminSqlAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(FOpenPocketBaseAdminSqlResult(), MakeAdminClientNotReadyError());
         Finish();
         return;
@@ -892,7 +892,7 @@ void UOpenPocketBaseAdminImpersonateAsyncAction::Activate()
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Native;
     if (!TryGetNativeClient(Native))
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
             Failed.Broadcast(
                 nullptr,
                 FOpenPocketBaseRecord(),

@@ -2,10 +2,12 @@
 
 #include "EdGraphSchema_K2.h"
 #include "Engine/Blueprint.h"
+#include "K2Node_AsyncAction.h"
 #include "K2Node_CallFunction.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/AutomationTest.h"
+#include "AsyncActions/OpenPocketBaseRecordAsyncActions.h"
 #include "OpenPocketBaseSchema.h"
 #include "OpenPocketBaseSchemaPicker.h"
 #include "Schema/OpenPocketBaseSchemaTestLibrary.h"
@@ -125,6 +127,57 @@ bool FOpenPocketBaseSchemaCompilerValidationTest::RunTest(const FString& Paramet
         Blueprint,
         EBlueprintCompileOptions::SkipGarbageCollection);
     TestEqual(TEXT("Stale field references fail compilation"), Blueprint->Status, BS_Error);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseRequiredCollectionHandleTest,
+    "OpenPocketBase.Schema.CompilerRejectsUnconnectedCollectionHandles",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseRequiredCollectionHandleTest::RunTest(const FString& Parameters)
+{
+    UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprint(
+        UObject::StaticClass(),
+        GetTransientPackage(),
+        MakeUniqueObjectName(
+            GetTransientPackage(),
+            UBlueprint::StaticClass(),
+            TEXT("BP_OpenPocketBaseRequiredCollection")),
+        BPTYPE_Normal,
+        NAME_None);
+    UEdGraph* Graph = FBlueprintEditorUtils::CreateNewGraph(
+        Blueprint,
+        TEXT("TestRequiredCollection"),
+        UEdGraph::StaticClass(),
+        UEdGraphSchema_K2::StaticClass());
+    FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
+
+    const UFunction* Factory =
+        UOpenPocketBaseGetRecordAsyncAction::StaticClass()->FindFunctionByName(
+            GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseGetRecordAsyncAction, GetRecord));
+    UK2Node_AsyncAction* Node = NewObject<UK2Node_AsyncAction>(Graph);
+    Node->InitializeProxyFromFunction(Factory);
+    Node->CreateNewGuid();
+    Node->PostPlacedNewNode();
+    Node->AllocateDefaultPins();
+    Graph->AddNode(Node, true, false);
+
+    UEdGraphPin* CollectionPin = Node->FindPin(TEXT("Collection"), EGPD_Input);
+    if (!TestNotNull(TEXT("Get Record exposes its collection input"), CollectionPin))
+    {
+        return false;
+    }
+    TestTrue(TEXT("The test collection input is unconnected"), CollectionPin->LinkedTo.IsEmpty());
+
+    AddExpectedError(
+        TEXT("requires PocketBase collection pin 'Collection' to be connected"),
+        EAutomationExpectedErrorFlags::Contains,
+        1);
+    FKismetEditorUtilities::CompileBlueprint(
+        Blueprint,
+        EBlueprintCompileOptions::SkipGarbageCollection);
+    TestEqual(TEXT("An unconnected collection handle fails compilation"), Blueprint->Status, BS_Error);
     return true;
 }
 

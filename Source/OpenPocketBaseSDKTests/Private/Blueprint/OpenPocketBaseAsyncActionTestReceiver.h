@@ -1,0 +1,19 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "OpenPocketBaseRecord.h"
+
+#include "OpenPocketBaseAsyncActionTestReceiver.generated.h"
+
+UCLASS()
+class UOpenPocketBaseAsyncActionTestReceiver final : public UObject
+{
+    GENERATED_BODY()
+
+public:
+    bool bFailed = false;
+    FOpenPocketBaseError Error;
+
+    UFUNCTION()
+    void HandleRecordFailure(FOpenPocketBaseRecord Record, FOpenPocketBaseError InError);
+};

@@ -56,7 +56,7 @@ void UOpenPocketBaseHealthAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -120,7 +120,7 @@ void UOpenPocketBaseCustomRouteAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -185,7 +185,7 @@ void UOpenPocketBaseGetRecordAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -252,7 +252,7 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -319,7 +319,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -395,7 +395,7 @@ void UOpenPocketBaseRegisterUserAsyncAction::Activate()
         !UserFields.IsValid() || !UserFields.BelongsTo(CurrentCollection) ||
         Password.IsEmpty() || Password != ConfirmPassword)
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -472,7 +472,7 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -569,7 +569,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -645,7 +645,7 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -741,7 +741,7 @@ void UOpenPocketBaseDeleteRecordAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -806,7 +806,7 @@ void UOpenPocketBaseListRecordsAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -870,7 +870,7 @@ void UOpenPocketBaseGetFullListAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -933,7 +933,7 @@ void UOpenPocketBaseRefreshAuthAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -999,7 +999,7 @@ void UOpenPocketBaseRestoreSessionAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1066,7 +1066,7 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1131,7 +1131,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1201,7 +1201,7 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1291,7 +1291,7 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1356,7 +1356,7 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1444,7 +1444,7 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1641,7 +1641,7 @@ void UOpenPocketBaseAccountAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1750,7 +1750,7 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
@@ -1820,7 +1820,7 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
-        if (TryBeginTerminal() && ShouldBroadcastDelegates())
+        if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;

@@ -4,6 +4,7 @@
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
 #include "KismetCompiler.h"
+#include "OpenPocketBaseBlueprintClient.h"
 #include "OpenPocketBaseSchemaPicker.h"
 #include "Schema/OpenPocketBaseSchemaGraphContext.h"
 
@@ -14,6 +15,13 @@ bool IsOptionalReference(const UEdGraphPin& Pin)
     return Pin.GetOwningNode()->GetPinMetaData(
         Pin.PinName,
         TEXT("OpenPocketBaseOptionalSchemaRef")) == TEXT("true");
+}
+
+bool IsCollectionHandle(const UScriptStruct* Struct)
+{
+    return Struct == FOpenPocketBaseCollection::StaticStruct() ||
+        Struct == FOpenPocketBaseWritableCollection::StaticStruct() ||
+        Struct == FOpenPocketBaseAuthCollection::StaticStruct();
 }
 
 void ReportInvalidReference(
@@ -67,6 +75,19 @@ void UOpenPocketBaseSchemaCompilerExtension::ProcessBlueprintCompiled(
 
                 const UScriptStruct* ReferenceStruct =
                     Cast<UScriptStruct>(Pin->PinType.PinSubCategoryObject.Get());
+                if (IsCollectionHandle(ReferenceStruct))
+                {
+                    if (!IsOptionalReference(*Pin))
+                    {
+                        CompilationContext.MessageLog.Error(
+                            *FString::Printf(
+                                TEXT("@@ requires PocketBase collection pin '%s' to be connected."),
+                                *Pin->GetDisplayName().ToString()),
+                            Node);
+                    }
+                    continue;
+                }
+
                 FText Message;
                 EOpenPocketBaseSchemaReferenceStatus Status;
                 if (FOpenPocketBaseSchemaPickerModel::SupportsCollectionStruct(ReferenceStruct))
