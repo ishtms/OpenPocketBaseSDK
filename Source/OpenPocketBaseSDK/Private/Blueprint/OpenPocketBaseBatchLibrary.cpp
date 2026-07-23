@@ -54,6 +54,24 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::NewBatch()
     return {};
 }
 
+FOpenPocketBaseBatchOptions UOpenPocketBaseBatchLibrary::NewBatchOptions(
+    const int32 MaxOperations,
+    const int64 MaxBodyBytes)
+{
+    FOpenPocketBaseBatchOptions Options;
+    Options.MaxOperations = MaxOperations;
+    Options.MaxBodyBytes = MaxBodyBytes;
+    return Options;
+}
+
+FOpenPocketBaseBatchOptions UOpenPocketBaseBatchLibrary::BatchOptionsWithRequestOptions(
+    FOpenPocketBaseBatchOptions Options,
+    FOpenPocketBaseRequestOptions RequestOptions)
+{
+    Options.RequestOptions = MoveTemp(RequestOptions);
+    return Options;
+}
+
 FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithCreate(
     FOpenPocketBaseBatchRequest Batch,
     FOpenPocketBaseCollection Collection,
@@ -109,6 +127,7 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpdate(
 FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpsert(
     FOpenPocketBaseBatchRequest Batch,
     FOpenPocketBaseCollection Collection,
+    const FString& RecordId,
     FOpenPocketBaseRecordBody Body,
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
@@ -116,17 +135,38 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpsert(
     const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
     if (Resolved == EResolvedBatchCollection::Typed)
     {
-        Batch.AddUpsert(MoveTemp(Current), MoveTemp(Body), MoveTemp(ResponseOptions));
+        Batch.AddUpsert(MoveTemp(Current), RecordId, MoveTemp(Body), MoveTemp(ResponseOptions));
     }
     else if (Resolved == EResolvedBatchCollection::Dynamic)
     {
         Batch.AddDynamicUpsert(
             Collection.Reference.Name,
+            RecordId,
             MoveTemp(Body),
             ToDynamicQueryValues(ResponseOptions.Expand),
             ToDynamicQueryValues(ResponseOptions.Fields));
     }
     return Batch;
+}
+
+void UOpenPocketBaseBatchLibrary::BreakBatchResult(
+    const FOpenPocketBaseBatchResult& Result,
+    TArray<FOpenPocketBaseBatchOperationResult>& Results)
+{
+    Results = Result.Results;
+}
+
+void UOpenPocketBaseBatchLibrary::BreakBatchOperationResult(
+    const FOpenPocketBaseBatchOperationResult& Result,
+    EOpenPocketBaseBatchOperation& Operation,
+    int32& HttpStatus,
+    bool& bHasRecord,
+    FOpenPocketBaseRecord& Record)
+{
+    Operation = Result.Operation;
+    HttpStatus = Result.HttpStatus;
+    bHasRecord = Result.bHasRecord;
+    Record = Result.Record;
 }
 
 FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithDelete(

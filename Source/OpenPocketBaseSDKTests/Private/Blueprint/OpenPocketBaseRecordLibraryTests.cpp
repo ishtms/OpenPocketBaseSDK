@@ -139,6 +139,47 @@ bool FOpenPocketBaseRecordPageBreakNodeTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseOptionsBlueprintSurfaceTest,
+    "OpenPocketBase.Blueprint.Records.OptionsUseGuidedBuilders",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseOptionsBlueprintSurfaceTest::RunTest(const FString& Parameters)
+{
+    TestEqual(
+        TEXT("Record options use the guided builder"),
+        FOpenPocketBaseRecordOptions::StaticStruct()->GetMetaData(TEXT("HasNativeMake")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.NewRecordOptions")));
+    TestEqual(
+        TEXT("List options use the guided builder"),
+        FOpenPocketBaseListOptions::StaticStruct()->GetMetaData(TEXT("HasNativeMake")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.NewListOptions")));
+    TestEqual(
+        TEXT("Full-list options use the dedicated builder"),
+        FOpenPocketBaseFullListOptions::StaticStruct()->GetMetaData(TEXT("HasNativeMake")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.NewFullListOptions")));
+
+    const FRecordFieldFixture Fields;
+    const FOpenPocketBaseFilter Filter = FOpenPocketBaseFilter::Boolean(
+        Fields.Done,
+        EOpenPocketBaseBooleanComparison::Equals,
+        true);
+    const FOpenPocketBaseFullListOptions Base =
+        UOpenPocketBaseRecordLibrary::NewFullListOptions(5, 12, 10);
+    const FOpenPocketBaseFullListOptions Filtered =
+        UOpenPocketBaseRecordLibrary::FullListOptionsWhere(Base, Filter);
+
+    TestEqual(TEXT("Full-list traversal always starts at page one"), Filtered.ListOptions.Page, 1);
+    TestEqual(TEXT("Full-list page size is explicit"), Filtered.ListOptions.PerPage, 5);
+    TestEqual(TEXT("Full-list item limit is explicit"), Filtered.MaxItems, 12);
+    TestEqual(TEXT("Full-list page limit is explicit"), Filtered.MaxPages, 10);
+    TestEqual(
+        TEXT("Full-list filters use the same typed filter value"),
+        Filtered.ListOptions.Filter.ToString(),
+        FString(TEXT("done = true")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseRecordLibraryTest,
     "OpenPocketBase.Blueprint.Records.FieldStatesRemainDistinct",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

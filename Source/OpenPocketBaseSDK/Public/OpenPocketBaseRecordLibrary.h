@@ -227,6 +227,14 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "With Request Options"))
+    static FOpenPocketBaseRecordOptions RecordOptionsWithRequestOptions(
+        FOpenPocketBaseRecordOptions Options,
+        FOpenPocketBaseRequestOptions RequestOptions);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
         meta = (DisplayName = "List Options", NativeMakeFunc))
     static FOpenPocketBaseListOptions NewListOptions(int32 Page = 1, int32 PerPage = 30);
 
@@ -261,6 +269,77 @@ public:
     static FOpenPocketBaseListOptions ListOptionsIncludeExpansion(
         FOpenPocketBaseListOptions Options,
         FOpenPocketBaseExpand Expand);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Without Totals"))
+    static FOpenPocketBaseListOptions ListOptionsWithoutTotals(
+        FOpenPocketBaseListOptions Options);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "With Request Options"))
+    static FOpenPocketBaseListOptions ListOptionsWithRequestOptions(
+        FOpenPocketBaseListOptions Options,
+        FOpenPocketBaseRequestOptions RequestOptions);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (DisplayName = "Full List Options", NativeMakeFunc))
+    static FOpenPocketBaseFullListOptions NewFullListOptions(
+        int32 PerPage = 30,
+        int32 MaxItems = 0,
+        int32 MaxPages = 0);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options|Full List",
+        meta = (DisplayName = "Where"))
+    static FOpenPocketBaseFullListOptions FullListOptionsWhere(
+        FOpenPocketBaseFullListOptions Options,
+        FOpenPocketBaseFilter Filter);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options|Full List",
+        meta = (DisplayName = "Then Sort By"))
+    static FOpenPocketBaseFullListOptions FullListOptionsThenSortBy(
+        FOpenPocketBaseFullListOptions Options,
+        FOpenPocketBaseSort Sort);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options|Full List",
+        meta = (DisplayName = "Select Field"))
+    static FOpenPocketBaseFullListOptions FullListOptionsSelectField(
+        FOpenPocketBaseFullListOptions Options,
+        FOpenPocketBaseFieldSelection Field);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options|Full List",
+        meta = (DisplayName = "Include Expansion"))
+    static FOpenPocketBaseFullListOptions FullListOptionsIncludeExpansion(
+        FOpenPocketBaseFullListOptions Options,
+        FOpenPocketBaseExpand Expand);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options|Full List",
+        meta = (DisplayName = "Without Totals"))
+    static FOpenPocketBaseFullListOptions FullListOptionsWithoutTotals(
+        FOpenPocketBaseFullListOptions Options);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options|Full List",
+        meta = (DisplayName = "With Request Options"))
+    static FOpenPocketBaseFullListOptions FullListOptionsWithRequestOptions(
+        FOpenPocketBaseFullListOptions Options,
+        FOpenPocketBaseRequestOptions RequestOptions);
 
     UFUNCTION(
         BlueprintPure,

@@ -108,12 +108,18 @@ FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddUpdate(
 
 FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddUpsert(
     FOpenPocketBaseWritableCollectionRef Collection,
+    FString RecordId,
     FOpenPocketBaseRecordBody Body,
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
     FOpenPocketBaseBatchEntry Entry;
     Entry.Operation = EOpenPocketBaseBatchOperation::Upsert;
     Collection.ResolveCurrentAs(Entry.Collection);
+    Entry.RecordId = MoveTemp(RecordId);
+    if (Body.Data.JsonObject.IsValid())
+    {
+        Body.Data.JsonObject->SetStringField(TEXT("id"), Entry.RecordId);
+    }
     Entry.Body = MoveTemp(Body);
     Entry.ResponseOptions = MoveTemp(ResponseOptions);
     Entries.Add(MoveTemp(Entry));
@@ -168,6 +174,7 @@ FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddDynamicUpdate(
 
 FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddDynamicUpsert(
     FString Collection,
+    FString RecordId,
     FOpenPocketBaseRecordBody Body,
     TArray<FString> Expand,
     TArray<FString> Fields)
@@ -175,6 +182,11 @@ FOpenPocketBaseBatchRequest& FOpenPocketBaseBatchRequest::AddDynamicUpsert(
     FOpenPocketBaseBatchEntry Entry;
     Entry.Operation = EOpenPocketBaseBatchOperation::Upsert;
     Entry.DynamicCollection = MoveTemp(Collection);
+    Entry.RecordId = MoveTemp(RecordId);
+    if (Body.Data.JsonObject.IsValid())
+    {
+        Body.Data.JsonObject->SetStringField(TEXT("id"), Entry.RecordId);
+    }
     Entry.Body = MoveTemp(Body);
     Entry.DynamicExpand = MoveTemp(Expand);
     Entry.DynamicFields = MoveTemp(Fields);

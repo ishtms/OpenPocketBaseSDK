@@ -293,13 +293,12 @@ void RunSuccessfulIntegrationBatch(
     FOpenPocketBaseRecordBody UpdateBody;
     UpdateBody.SetDynamicStringField(TEXT("title"), TEXT("Batch update"));
     FOpenPocketBaseRecordBody UpsertBody;
-    UpsertBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000004"));
     UpsertBody.SetDynamicStringField(TEXT("title"), TEXT("Batch upsert"));
 
     FOpenPocketBaseBatchRequest Batch;
     Batch.AddDynamicCreate(TEXT("sdk_tasks"), MoveTemp(CreateBody));
     Batch.AddDynamicUpdate(TEXT("sdk_tasks"), TEXT("task00000000003"), MoveTemp(UpdateBody));
-    Batch.AddDynamicUpsert(TEXT("sdk_tasks"), MoveTemp(UpsertBody));
+    Batch.AddDynamicUpsert(TEXT("sdk_tasks"), TEXT("task00000000004"), MoveTemp(UpsertBody));
     Batch.AddDynamicDelete(TEXT("sdk_tasks"), TEXT("task00000000004"));
     Batch.AddDynamicDelete(TEXT("sdk_tasks"), TEXT("task00000000003"));
     State->Client->SendBatch(

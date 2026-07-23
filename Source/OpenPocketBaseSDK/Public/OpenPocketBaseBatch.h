@@ -50,7 +50,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchEntry
     FString GetFieldsQuery() const;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeMake = "/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.NewBatch"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchRequest
 {
     GENERATED_BODY()
@@ -85,6 +87,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchRequest
 
     FOpenPocketBaseBatchRequest& AddUpsert(
         FOpenPocketBaseWritableCollectionRef Collection,
+        FString RecordId,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions ResponseOptions = {});
 
@@ -105,13 +108,16 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchRequest
         TArray<FString> Fields = {});
     FOpenPocketBaseBatchRequest& AddDynamicUpsert(
         FString Collection,
+        FString RecordId,
         FOpenPocketBaseRecordBody Body,
         TArray<FString> Expand = {},
         TArray<FString> Fields = {});
     FOpenPocketBaseBatchRequest& AddDynamicDelete(FString Collection, FString RecordId);
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeBreak = "/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.BreakBatchOperationResult"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchOperationResult
 {
     GENERATED_BODY()
@@ -129,7 +135,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchOperationResult
     FOpenPocketBaseRecord Record;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeBreak = "/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.BreakBatchResult"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchResult
 {
     GENERATED_BODY()
@@ -138,7 +146,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchResult
     TArray<FOpenPocketBaseBatchOperationResult> Results;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeMake = "/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.NewBatchOptions"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchOptions
 {
     GENERATED_BODY()

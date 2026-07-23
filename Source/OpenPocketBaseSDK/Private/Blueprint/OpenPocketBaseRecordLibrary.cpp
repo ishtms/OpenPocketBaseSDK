@@ -373,6 +373,14 @@ FOpenPocketBaseRecordOptions UOpenPocketBaseRecordLibrary::RecordOptionsIncludeE
     return Options;
 }
 
+FOpenPocketBaseRecordOptions UOpenPocketBaseRecordLibrary::RecordOptionsWithRequestOptions(
+    FOpenPocketBaseRecordOptions Options,
+    FOpenPocketBaseRequestOptions RequestOptions)
+{
+    Options.WithRequestOptions(MoveTemp(RequestOptions));
+    return Options;
+}
+
 FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::NewListOptions(
     const int32 Page,
     const int32 PerPage)
@@ -411,6 +419,79 @@ FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsIncludeExpan
     FOpenPocketBaseExpand Expand)
 {
     Options.Including(MoveTemp(Expand));
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsWithoutTotals(
+    FOpenPocketBaseListOptions Options)
+{
+    Options.SkipTotals();
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::ListOptionsWithRequestOptions(
+    FOpenPocketBaseListOptions Options,
+    FOpenPocketBaseRequestOptions RequestOptions)
+{
+    Options.WithRequestOptions(MoveTemp(RequestOptions));
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::NewFullListOptions(
+    const int32 PerPage,
+    const int32 MaxItems,
+    const int32 MaxPages)
+{
+    FOpenPocketBaseFullListOptions Options;
+    Options.ListOptions.AtPage(1).PageSize(PerPage);
+    Options.LimitItems(MaxItems).LimitPages(MaxPages);
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::FullListOptionsWhere(
+    FOpenPocketBaseFullListOptions Options,
+    FOpenPocketBaseFilter Filter)
+{
+    Options.ListOptions.Where(MoveTemp(Filter));
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::FullListOptionsThenSortBy(
+    FOpenPocketBaseFullListOptions Options,
+    FOpenPocketBaseSort Sort)
+{
+    Options.ListOptions.OrderedBy(MoveTemp(Sort));
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::FullListOptionsSelectField(
+    FOpenPocketBaseFullListOptions Options,
+    FOpenPocketBaseFieldSelection Field)
+{
+    Options.ListOptions.Selecting(MoveTemp(Field));
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::FullListOptionsIncludeExpansion(
+    FOpenPocketBaseFullListOptions Options,
+    FOpenPocketBaseExpand Expand)
+{
+    Options.ListOptions.Including(MoveTemp(Expand));
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::FullListOptionsWithoutTotals(
+    FOpenPocketBaseFullListOptions Options)
+{
+    Options.ListOptions.SkipTotals();
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::FullListOptionsWithRequestOptions(
+    FOpenPocketBaseFullListOptions Options,
+    FOpenPocketBaseRequestOptions RequestOptions)
+{
+    Options.ListOptions.WithRequestOptions(MoveTemp(RequestOptions));
     return Options;
 }
 

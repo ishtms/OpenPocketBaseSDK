@@ -22,6 +22,22 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "Batch Options", NativeMakeFunc))
+    static FOpenPocketBaseBatchOptions NewBatchOptions(
+        int32 MaxOperations = 50,
+        int64 MaxBodyBytes = 8388608);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "With Request Options"))
+    static FOpenPocketBaseBatchOptions BatchOptionsWithRequestOptions(
+        FOpenPocketBaseBatchOptions Options,
+        FOpenPocketBaseRequestOptions RequestOptions);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
         meta = (DisplayName = "With Create", ToolTip = "Returns a copy of the batch with one create-record operation added.", Keywords = "pocketbase batch add create record"))
     static FOpenPocketBaseBatchRequest WithCreate(
         FOpenPocketBaseBatchRequest Batch,
@@ -47,6 +63,7 @@ public:
     static FOpenPocketBaseBatchRequest WithUpsert(
         FOpenPocketBaseBatchRequest Batch,
         UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
+        const FString& RecordId,
         FOpenPocketBaseRecordBody Body,
         FOpenPocketBaseRecordOptions ResponseOptions);
 
@@ -58,4 +75,23 @@ public:
         FOpenPocketBaseBatchRequest Batch,
         UPARAM(meta = (OpenPocketBaseCollectionAccess = "Write")) FOpenPocketBaseCollection Collection,
         const FString& RecordId);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "Break Open Pocket Base Batch Result", NativeBreakFunc))
+    static void BreakBatchResult(
+        const FOpenPocketBaseBatchResult& Result,
+        TArray<FOpenPocketBaseBatchOperationResult>& Results);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
+        meta = (DisplayName = "Break Open Pocket Base Batch Operation Result", NativeBreakFunc))
+    static void BreakBatchOperationResult(
+        const FOpenPocketBaseBatchOperationResult& Result,
+        EOpenPocketBaseBatchOperation& Operation,
+        int32& HttpStatus,
+        bool& bHasRecord,
+        FOpenPocketBaseRecord& Record);
 };

@@ -54,6 +54,7 @@ struct FFullListTestState
     bool bHasTotalItems = true;
     bool bHasTotalPages = true;
     EOpenPocketBaseErrorKind ErrorKind = EOpenPocketBaseErrorKind::None;
+    FString ErrorMessage;
     FOpenPocketBaseFullListResult FullList;
 };
 
@@ -161,6 +162,10 @@ public:
             return false;
         }
         Test->TestEqual(TEXT("An unbounded full list is rejected"), State->ErrorKind, EOpenPocketBaseErrorKind::InvalidArgument);
+        Test->TestEqual(
+            TEXT("The missing bound is explained directly"),
+            State->ErrorMessage,
+            FString(TEXT("Set Max Items or Max Pages before starting full-list traversal.")));
         Test->TestEqual(TEXT("Invalid traversal never reaches transport"), State->Transport->GetRequestCount(), 0);
         State->Client->Shutdown();
         return true;
@@ -368,6 +373,7 @@ bool FOpenPocketBaseRejectUnboundedFullListTest::RunTest(const FString& Paramete
             if (!Result.IsSuccess())
             {
                 State->ErrorKind = Result.GetError().Kind;
+                State->ErrorMessage = Result.GetError().ServerMessage;
             }
             State->bCompleted = true;
         });

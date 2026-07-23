@@ -33,6 +33,7 @@ struct FBatchTestState
     bool bCompleted = false;
     int32 CallbackCount = 0;
     int32 ValidationFailureCount = 0;
+    TArray<FString> ValidationMessages;
     bool bSucceeded = false;
     FOpenPocketBaseBatchResult BatchResult;
     FOpenPocketBaseError Error;
@@ -164,6 +165,21 @@ public:
             return false;
         }
         Test->TestEqual(TEXT("All invalid bounds fail locally"), State->CallbackCount, 3);
+        Test->TestTrue(
+            TEXT("The operation count error names both values"),
+            State->ValidationMessages.Contains(
+                TEXT("Batch contains 4 operations, but Max Operations is 3.")));
+        Test->TestTrue(
+            TEXT("The serialized body error names both values"),
+            State->ValidationMessages.ContainsByPredicate([](const FString& Message)
+            {
+                return Message.StartsWith(TEXT("Serialized batch body is ")) &&
+                    Message.EndsWith(TEXT(" bytes, but Max Body Bytes is 1024."));
+            }));
+        Test->TestTrue(
+            TEXT("The timeout error names the invalid setting"),
+            State->ValidationMessages.Contains(
+                TEXT("Total Timeout must be greater than 0 and no more than 120 seconds.")));
         Test->TestEqual(TEXT("Invalid batches never reach the transport"), State->Transport->GetRequestCount(), 0);
         State->Client->Shutdown();
         return true;
@@ -194,14 +210,13 @@ FOpenPocketBaseBatchRequest MakeCompleteBatch()
     FOpenPocketBaseRecordBody UpdateBody;
     UpdateBody.SetDynamicStringField(TEXT("title"), TEXT("Update"));
     FOpenPocketBaseRecordBody UpsertBody;
-    UpsertBody.SetDynamicStringField(TEXT("id"), TEXT("task00000000003"));
     UpsertBody.SetDynamicStringField(TEXT("title"), TEXT("Upsert"));
 
     FOpenPocketBaseBatchRequest Batch;
     Batch
         .AddDynamicCreate(TEXT("tasks"), MoveTemp(CreateBody), {}, {TEXT("title")})
         .AddDynamicUpdate(TEXT("tasks"), TEXT("task00000000001"), MoveTemp(UpdateBody))
-        .AddDynamicUpsert(TEXT("tasks"), MoveTemp(UpsertBody))
+        .AddDynamicUpsert(TEXT("tasks"), TEXT("task00000000003"), MoveTemp(UpsertBody))
         .AddDynamicDelete(TEXT("tasks"), TEXT("task00000000002"));
     return Batch;
 }
@@ -233,11 +248,29 @@ bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
         WithCreate,
         Collection,
         TEXT("task00000000001"));
+    const FOpenPocketBaseBatchRequest WithUpsert = UOpenPocketBaseBatchLibrary::WithUpsert(
+        WithCreate,
+        Collection,
+        TEXT("task00000000003"),
+        Body,
+        {});
 
     TestEqual(TEXT("The original batch remains empty"), Empty.Entries.Num(), 0);
     TestEqual(TEXT("The create value has one entry"), WithCreate.Entries.Num(), 1);
     TestEqual(TEXT("The next value retains both entries"), WithDelete.Entries.Num(), 2);
     TestEqual(TEXT("The batch retains its client"), WithDelete.GetClient(), Collection.Client.Get());
+    TestTrue(TEXT("A typed upsert remains valid"), WithUpsert.IsValid());
+    if (WithUpsert.Entries.Num() == 2)
+    {
+        TestEqual(
+            TEXT("Typed upsert stores the record ID"),
+            WithUpsert.Entries[1].RecordId,
+            FString(TEXT("task00000000003")));
+        TestEqual(
+            TEXT("Typed upsert writes the record ID into the PocketBase body"),
+            WithUpsert.Entries[1].Body.Data.JsonObject->GetStringField(TEXT("id")),
+            FString(TEXT("task00000000003")));
+    }
     if (WithDelete.Entries.Num() == 2)
     {
         TestEqual(
@@ -275,6 +308,32 @@ bool FOpenPocketBaseBlueprintBatchValueTest::RunTest(const FString& Parameters)
             DynamicBatch.Entries[0].DynamicCollection,
             FString(TEXT("tasks")));
     }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseBatchBlueprintSurfaceTest,
+    "OpenPocketBase.Blueprint.Batch.UsesGuidedMakeAndBreakNodes",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseBatchBlueprintSurfaceTest::RunTest(const FString& Parameters)
+{
+    TestEqual(
+        TEXT("Batch requests use New Batch"),
+        FOpenPocketBaseBatchRequest::StaticStruct()->GetMetaData(TEXT("HasNativeMake")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.NewBatch")));
+    TestEqual(
+        TEXT("Batch options use Batch Options"),
+        FOpenPocketBaseBatchOptions::StaticStruct()->GetMetaData(TEXT("HasNativeMake")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.NewBatchOptions")));
+    TestEqual(
+        TEXT("Batch results expose their results array"),
+        FOpenPocketBaseBatchResult::StaticStruct()->GetMetaData(TEXT("HasNativeBreak")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.BreakBatchResult")));
+    TestEqual(
+        TEXT("Batch operation results expose the returned record"),
+        FOpenPocketBaseBatchOperationResult::StaticStruct()->GetMetaData(TEXT("HasNativeBreak")),
+        FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseBatchLibrary.BreakBatchOperationResult")));
     return true;
 }
 
@@ -375,6 +434,7 @@ bool FOpenPocketBaseBatchBoundsTest::RunTest(const FString& Parameters)
         if (!Result.IsSuccess() && Result.GetError().Kind == EOpenPocketBaseErrorKind::InvalidArgument)
         {
             ++State->ValidationFailureCount;
+            State->ValidationMessages.Add(Result.GetError().ServerMessage);
         }
         ++State->CallbackCount;
     };

@@ -277,7 +277,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRequestOptions
     int64 MaxResponseBytes = 8 * 1024 * 1024;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeMake = "/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.NewRecordOptions"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordOptions
 {
     GENERATED_BODY()
@@ -307,7 +309,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordOptions
     bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeMake = "/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.NewListOptions"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
 {
     GENERATED_BODY()
@@ -351,7 +355,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseListOptions
     bool BelongsTo(const FOpenPocketBaseCollectionRef& Collection) const;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeMake = "/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.NewFullListOptions"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseFullListOptions
 {
     GENERATED_BODY()

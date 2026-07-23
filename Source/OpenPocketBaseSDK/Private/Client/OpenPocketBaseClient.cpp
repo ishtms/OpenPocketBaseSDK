@@ -1142,17 +1142,51 @@ bool ValidateBatch(
             *Batch.ErrorMessage);
         return false;
     }
-    if (Options.MaxOperations < 1 || Options.MaxOperations > 50 || Batch.Entries.IsEmpty() ||
-        Batch.Entries.Num() > Options.MaxOperations ||
-        Options.MaxBodyBytes < 1024 || Options.MaxBodyBytes > 16 * 1024 * 1024 ||
-        Options.RequestOptions.TotalTimeoutSeconds <= 0 ||
-        Options.RequestOptions.TotalTimeoutSeconds > 120 ||
-        Options.RequestOptions.ActivityTimeoutSeconds <= 0 ||
+    if (Batch.Entries.IsEmpty())
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Batch must contain at least one operation."));
+        return false;
+    }
+    if (Options.MaxOperations < 1 || Options.MaxOperations > 50)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Max Operations must be between 1 and 50."));
+        return false;
+    }
+    if (Batch.Entries.Num() > Options.MaxOperations)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Batch contains %d operations, but Max Operations is %d."),
+                Batch.Entries.Num(),
+                Options.MaxOperations));
+        return false;
+    }
+    if (Options.MaxBodyBytes < 1024 || Options.MaxBodyBytes > 16 * 1024 * 1024)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Max Body Bytes must be between 1024 and 16777216."));
+        return false;
+    }
+    if (Options.RequestOptions.TotalTimeoutSeconds <= 0 ||
+        Options.RequestOptions.TotalTimeoutSeconds > 120)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Total Timeout must be greater than 0 and no more than 120 seconds."));
+        return false;
+    }
+    if (Options.RequestOptions.ActivityTimeoutSeconds <= 0 ||
         Options.RequestOptions.ActivityTimeoutSeconds > 120)
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Batch count, body, and timeout bounds are invalid."));
+            TEXT("Activity Timeout must be greater than 0 and no more than 120 seconds."));
         return false;
     }
 
@@ -1172,12 +1206,13 @@ bool ValidateBatch(
         }
 
         const bool bUsesRecordId = Entry.Operation == EOpenPocketBaseBatchOperation::Update ||
+            Entry.Operation == EOpenPocketBaseBatchOperation::Upsert ||
             Entry.Operation == EOpenPocketBaseBatchOperation::Delete;
         if (bUsesRecordId && !IsSafePathSegment(Entry.RecordId))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Batch update and delete entries require a valid record ID."));
+                TEXT("Batch update, upsert, and delete entries require a valid record ID."));
             return false;
         }
 
@@ -1204,13 +1239,20 @@ bool ValidateBatch(
         }
         if (Entry.Operation == EOpenPocketBaseBatchOperation::Upsert)
         {
-            FString UpsertId;
-            if (!Entry.Body.Data.JsonObject->TryGetStringField(TEXT("id"), UpsertId) ||
-                UpsertId.Len() != 15 || !IsSafePathSegment(UpsertId))
+            if (Entry.RecordId.Len() != 15)
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::InvalidArgument,
-                    TEXT("Batch upsert bodies require a valid 15-character record ID."));
+                    TEXT("Batch upsert Record ID must contain exactly 15 characters."));
+                return false;
+            }
+            FString BodyRecordId;
+            if (!Entry.Body.Data.JsonObject->TryGetStringField(TEXT("id"), BodyRecordId) ||
+                BodyRecordId != Entry.RecordId)
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::InvalidArgument,
+                    TEXT("Batch upsert body does not contain its selected Record ID."));
                 return false;
             }
         }
@@ -4415,7 +4457,10 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendBatch(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The serialized batch exceeds the configured body bound.")));
+                *FString::Printf(
+                    TEXT("Serialized batch body is %d bytes, but Max Body Bytes is %lld."),
+                    Body.Num(),
+                    static_cast<long long>(Options.MaxBodyBytes))));
         return {};
     }
 
@@ -5319,17 +5364,47 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFullList(
     FOpenPocketBaseFullListCallback OnComplete) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    const bool bBoundsValid = (Options.MaxItems > 0 || Options.MaxPages > 0) &&
-        Options.MaxItems >= 0 && Options.MaxItems <= 1000000 &&
-        Options.MaxPages >= 0 && Options.MaxPages <= 10000;
-    if (!PinnedClient.IsValid() || !IsValid() ||
-        Options.ListOptions.Page != 1 || Options.ListOptions.PerPage < 1 || !bBoundsValid)
+    const auto Fail = [&OnComplete](const TCHAR* Message)
     {
         DispatchFailure<FOpenPocketBaseFullListResult>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Full-list traversal requires a client, collection, first page, and an explicit item or page bound.")));
+                Message));
+    };
+    if (!PinnedClient.IsValid())
+    {
+        Fail(TEXT("Full-list traversal requires a ready PocketBase client."));
+        return {};
+    }
+    if (!IsValid())
+    {
+        Fail(TEXT("Choose a valid collection before starting full-list traversal."));
+        return {};
+    }
+    if (Options.ListOptions.Page != 1)
+    {
+        Fail(TEXT("Full-list traversal must start at page 1."));
+        return {};
+    }
+    if (Options.ListOptions.PerPage < 1)
+    {
+        Fail(TEXT("Per Page must be at least 1 for full-list traversal."));
+        return {};
+    }
+    if (Options.MaxItems < 0 || Options.MaxItems > 1000000)
+    {
+        Fail(TEXT("Max Items must be between 0 and 1000000."));
+        return {};
+    }
+    if (Options.MaxPages < 0 || Options.MaxPages > 10000)
+    {
+        Fail(TEXT("Max Pages must be between 0 and 10000."));
+        return {};
+    }
+    if (Options.MaxItems == 0 && Options.MaxPages == 0)
+    {
+        Fail(TEXT("Set Max Items or Max Pages before starting full-list traversal."));
         return {};
     }
 
