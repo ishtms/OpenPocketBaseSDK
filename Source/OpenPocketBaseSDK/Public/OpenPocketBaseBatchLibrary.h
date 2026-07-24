@@ -30,6 +30,19 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Batch",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DisplayName = "Batch Options",
+            ToolTip = "Preserves batch options created by an older Open PocketBase Make Struct node during automatic Blueprint migration.",
+            Keywords = "pocketbase batch options migrate legacy"))
+    static FOpenPocketBaseBatchOptions MakeLegacyBatchOptions(
+        int32 MaxOperations,
+        int64 MaxBodyBytes,
+        FOpenPocketBaseRequestOptions RequestOptions);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Batch",
         meta = (DisplayName = "With Request Options"))
     static FOpenPocketBaseBatchOptions BatchOptionsWithRequestOptions(
         FOpenPocketBaseBatchOptions Options,

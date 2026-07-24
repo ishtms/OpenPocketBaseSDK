@@ -1,10 +1,12 @@
 #include "BlueprintCompilationManager.h"
 #include "EdGraphUtilities.h"
+#include "Editor.h"
 #include "Engine/Blueprint.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
 #include "OpenPocketBaseBlueprintMetadata.h"
+#include "OpenPocketBaseBlueprintMigration.h"
 #include "OpenPocketBaseEditorValidation.h"
 #include "OpenPocketBaseSchema.h"
 #include "PropertyEditorModule.h"
@@ -31,6 +33,12 @@ public:
         FBlueprintCompilationManager::RegisterCompilerExtension(
             UBlueprint::StaticClass(),
             SchemaCompilerExtension);
+        if (GEditor != nullptr)
+        {
+            BlueprintPreCompileHandle = GEditor->OnBlueprintPreCompile().AddRaw(
+                this,
+                &FOpenPocketBaseSDKEditorModule::HandleBlueprintPreCompile);
+        }
 
         FPropertyEditorModule& PropertyEditor =
             FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
@@ -59,6 +67,12 @@ public:
 
     virtual void ShutdownModule() override
     {
+        if (GEditor != nullptr && BlueprintPreCompileHandle.IsValid())
+        {
+            GEditor->OnBlueprintPreCompile().Remove(BlueprintPreCompileHandle);
+            BlueprintPreCompileHandle.Reset();
+        }
+
         if (ModulesChangedHandle.IsValid())
         {
             FModuleManager::Get().OnModulesChanged().Remove(ModulesChangedHandle);
@@ -87,6 +101,14 @@ public:
     }
 
 private:
+    void HandleBlueprintPreCompile(UBlueprint* Blueprint) const
+    {
+        if (Blueprint != nullptr)
+        {
+            FOpenPocketBaseBlueprintMigration::UpgradeNativeMakeNodes(*Blueprint);
+        }
+    }
+
     void HandleModulesChanged(
         const FName ModuleName,
         const EModuleChangeReason ChangeReason) const
@@ -120,6 +142,7 @@ private:
     }
 
     IConsoleObject* ValidationCommand = nullptr;
+    FDelegateHandle BlueprintPreCompileHandle;
     FDelegateHandle ModulesChangedHandle;
     TSharedPtr<FGraphPanelPinFactory> SchemaPinFactory;
     UOpenPocketBaseSchemaCompilerExtension* SchemaCompilerExtension = nullptr;

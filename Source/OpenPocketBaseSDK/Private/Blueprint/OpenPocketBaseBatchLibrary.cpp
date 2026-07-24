@@ -69,6 +69,18 @@ FOpenPocketBaseBatchOptions UOpenPocketBaseBatchLibrary::NewBatchOptions(
     return Options;
 }
 
+FOpenPocketBaseBatchOptions UOpenPocketBaseBatchLibrary::MakeLegacyBatchOptions(
+    const int32 MaxOperations,
+    const int64 MaxBodyBytes,
+    FOpenPocketBaseRequestOptions RequestOptions)
+{
+    FOpenPocketBaseBatchOptions Options;
+    Options.MaxOperations = MaxOperations;
+    Options.MaxBodyBytes = MaxBodyBytes;
+    Options.RequestOptions = MoveTemp(RequestOptions);
+    return Options;
+}
+
 FOpenPocketBaseBatchOptions UOpenPocketBaseBatchLibrary::BatchOptionsWithRequestOptions(
     FOpenPocketBaseBatchOptions Options,
     FOpenPocketBaseRequestOptions RequestOptions)

@@ -448,6 +448,52 @@ FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::NewFullListOptions(
     return Options;
 }
 
+FOpenPocketBaseRecordOptions UOpenPocketBaseRecordLibrary::MakeLegacyRecordOptions(
+    TArray<FOpenPocketBaseExpand> Expand,
+    TArray<FOpenPocketBaseFieldSelection> Fields,
+    FOpenPocketBaseRequestOptions RequestOptions)
+{
+    FOpenPocketBaseRecordOptions Options;
+    Options.Expand = MoveTemp(Expand);
+    Options.Fields = MoveTemp(Fields);
+    Options.RequestOptions = MoveTemp(RequestOptions);
+    return Options;
+}
+
+FOpenPocketBaseListOptions UOpenPocketBaseRecordLibrary::MakeLegacyListOptions(
+    const int32 Page,
+    const int32 PerPage,
+    FOpenPocketBaseFilter Filter,
+    TArray<FOpenPocketBaseSort> Sort,
+    TArray<FOpenPocketBaseExpand> Expand,
+    TArray<FOpenPocketBaseFieldSelection> Fields,
+    const bool bSkipTotal,
+    FOpenPocketBaseRequestOptions RequestOptions)
+{
+    FOpenPocketBaseListOptions Options;
+    Options.Page = Page;
+    Options.PerPage = PerPage;
+    Options.Filter = MoveTemp(Filter);
+    Options.Sort = MoveTemp(Sort);
+    Options.Expand = MoveTemp(Expand);
+    Options.Fields = MoveTemp(Fields);
+    Options.bSkipTotal = bSkipTotal;
+    Options.RequestOptions = MoveTemp(RequestOptions);
+    return Options;
+}
+
+FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::MakeLegacyFullListOptions(
+    FOpenPocketBaseListOptions ListOptions,
+    const int32 MaxItems,
+    const int32 MaxPages)
+{
+    FOpenPocketBaseFullListOptions Options;
+    Options.ListOptions = MoveTemp(ListOptions);
+    Options.MaxItems = MaxItems;
+    Options.MaxPages = MaxPages;
+    return Options;
+}
+
 FOpenPocketBaseFullListOptions UOpenPocketBaseRecordLibrary::FullListOptionsWhere(
     FOpenPocketBaseFullListOptions Options,
     FOpenPocketBaseFilter Filter)

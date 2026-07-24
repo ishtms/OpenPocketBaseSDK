@@ -296,6 +296,50 @@ public:
 
     UFUNCTION(
         BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DisplayName = "Record Options",
+            ToolTip = "Preserves an options value created by an older Open PocketBase Make Struct node during automatic Blueprint migration.",
+            Keywords = "pocketbase records options migrate legacy"))
+    static FOpenPocketBaseRecordOptions MakeLegacyRecordOptions(
+        TArray<FOpenPocketBaseExpand> Expand,
+        TArray<FOpenPocketBaseFieldSelection> Fields,
+        FOpenPocketBaseRequestOptions RequestOptions);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DisplayName = "List Options",
+            ToolTip = "Preserves list options created by an older Open PocketBase Make Struct node during automatic Blueprint migration.",
+            Keywords = "pocketbase records list options migrate legacy"))
+    static FOpenPocketBaseListOptions MakeLegacyListOptions(
+        int32 Page,
+        int32 PerPage,
+        FOpenPocketBaseFilter Filter,
+        TArray<FOpenPocketBaseSort> Sort,
+        TArray<FOpenPocketBaseExpand> Expand,
+        TArray<FOpenPocketBaseFieldSelection> Fields,
+        bool bSkipTotal,
+        FOpenPocketBaseRequestOptions RequestOptions);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Options",
+        meta = (
+            BlueprintInternalUseOnly = "true",
+            DisplayName = "Full List Options",
+            ToolTip = "Preserves full-list options created by an older Open PocketBase Make Struct node during automatic Blueprint migration.",
+            Keywords = "pocketbase records full list options migrate legacy"))
+    static FOpenPocketBaseFullListOptions MakeLegacyFullListOptions(
+        FOpenPocketBaseListOptions ListOptions,
+        int32 MaxItems,
+        int32 MaxPages);
+
+    UFUNCTION(
+        BlueprintPure,
         Category = "Open PocketBase|Records|Options|Full List",
         meta = (DisplayName = "Where"))
     static FOpenPocketBaseFullListOptions FullListOptionsWhere(
