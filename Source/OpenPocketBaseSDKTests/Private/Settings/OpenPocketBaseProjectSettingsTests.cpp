@@ -62,8 +62,8 @@ bool FOpenPocketBaseProjectSettingsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Credential rejection is typed"),
         Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
     TestFalse(TEXT("Credential material is not copied into the error"),
-        Error.ServerMessage.Contains(TEXT("operator")) ||
-        Error.ServerMessage.Contains(TEXT("secret")));
+        Error.Message.Contains(TEXT("operator")) ||
+        Error.Message.Contains(TEXT("secret")));
 
     Settings->Profiles.Add(Local);
     TestFalse(TEXT("Duplicate profile names are rejected"),

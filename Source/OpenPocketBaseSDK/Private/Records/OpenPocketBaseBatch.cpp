@@ -56,12 +56,12 @@ void FOpenPocketBaseBatchRequest::BindClient(UOpenPocketBaseClient* InClient)
     }
     if (InClient == nullptr)
     {
-        Invalidate(TEXT("Every batch operation requires a PocketBase collection."));
+        Invalidate(TEXT("A batch operation received a Collection with no active PocketBase client. Build the Collection with Use Collection before adding it to the batch."));
         return;
     }
     if (Client != nullptr && Client != InClient)
     {
-        Invalidate(TEXT("Every batch operation must use the same PocketBase client."));
+        Invalidate(TEXT("This batch contains Collections from different PocketBase clients. Build every operation from the same client and server."));
         return;
     }
     Client = InClient;

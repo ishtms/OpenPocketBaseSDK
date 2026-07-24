@@ -118,8 +118,8 @@ public:
             return false;
         }
         Test->TestEqual(TEXT("The download preserves timeout classification"), State->Error.Kind, EOpenPocketBaseErrorKind::Timeout);
-        Test->TestFalse(TEXT("The protected token is redacted"), State->Error.ServerMessage.Contains(TEXT("top-secret-file-token")));
-        Test->TestFalse(TEXT("The protected query is redacted"), State->Error.ServerMessage.Contains(TEXT("token=")));
+        Test->TestFalse(TEXT("The protected token is redacted"), State->Error.Message.Contains(TEXT("top-secret-file-token")));
+        Test->TestFalse(TEXT("The protected query is redacted"), State->Error.Message.Contains(TEXT("token=")));
         Test->TestEqual(TEXT("A protected download is never retried"), State->Transport->Requests.Num(), 3);
         State->Client->Shutdown();
         return true;

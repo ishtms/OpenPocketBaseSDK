@@ -345,7 +345,7 @@ bool FOpenPocketBaseResponseLimitPolicyTest::RunTest(const FString& Parameters)
             if (!Result.IsSuccess())
             {
                 State->ErrorKind = Result.GetError().Kind;
-                State->ErrorMessage = Result.GetError().ServerMessage;
+                State->ErrorMessage = Result.GetError().Message;
             }
             State->bCompleted = true;
         },

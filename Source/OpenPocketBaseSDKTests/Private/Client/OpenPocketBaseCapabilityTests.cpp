@@ -166,7 +166,7 @@ bool FOpenPocketBaseRealtimeCapabilityGateTest::RunTest(const FString& Parameter
         SubscriptionResult.GetError().Kind, EOpenPocketBaseErrorKind::Unsupported);
     TestEqual(TEXT("The unsupported transport receives no request"), Transport->RequestCount, 0);
     TestTrue(TEXT("The public error carries the sanitized capability reason"),
-        SubscriptionResult.GetError().ServerMessage.Contains(TEXT("cannot stream")));
+        SubscriptionResult.GetError().Message.Contains(TEXT("cannot stream")));
 
     const FOpenPocketBaseCapabilityInfo SecurePersistence =
         Client->GetCapability(EOpenPocketBaseCapability::SecurePersistence);

@@ -25,7 +25,7 @@ FOpenPocketBaseJsonValue UOpenPocketBaseJsonValueLibrary::JsonNumber(const doubl
 {
     return FMath::IsFinite(Value)
         ? FOpenPocketBaseJsonValue::FromJsonValue(MakeShared<FJsonValueNumber>(Value))
-        : FOpenPocketBaseJsonValue::Invalid(TEXT("JSON numbers must be finite."));
+        : FOpenPocketBaseJsonValue::Invalid(TEXT("JSON Number must be finite. NaN and infinity are not valid JSON numbers."));
 }
 
 FOpenPocketBaseJsonValue UOpenPocketBaseJsonValueLibrary::JsonBoolean(const bool bValue)
@@ -48,17 +48,19 @@ FOpenPocketBaseJsonValue UOpenPocketBaseJsonValueLibrary::SetJsonProperty(
     const TSharedPtr<FJsonObject>* SourceObject = nullptr;
     if (Name.IsEmpty())
     {
-        return FOpenPocketBaseJsonValue::Invalid(TEXT("A JSON property name is required."));
+        return FOpenPocketBaseJsonValue::Invalid(TEXT("JSON Property Name is empty. Enter the object key to set."));
     }
     if (!ObjectValue.IsValid() || !ObjectValue->TryGetObject(SourceObject) ||
         SourceObject == nullptr || !SourceObject->IsValid())
     {
-        return FOpenPocketBaseJsonValue::Invalid(TEXT("Set JSON Property requires a JSON object."));
+        return FOpenPocketBaseJsonValue::Invalid(TEXT("Set JSON Property requires an Object built by Make JSON Object or Parse JSON. The supplied value is empty or has another JSON type."));
     }
     if (!PropertyValue.IsValid())
     {
         return FOpenPocketBaseJsonValue::Invalid(
-            Value.ErrorMessage.IsEmpty() ? TEXT("A valid JSON property value is required.") : Value.ErrorMessage);
+            Value.ErrorMessage.IsEmpty()
+                ? TEXT("JSON Property Value is empty or invalid. Build a JSON value before setting the property.")
+                : Value.ErrorMessage);
     }
 
     TSharedPtr<FJsonObject> ResultObject = MakeShared<FJsonObject>();
@@ -76,12 +78,14 @@ FOpenPocketBaseJsonValue UOpenPocketBaseJsonValueLibrary::AddJsonItem(
     const TArray<TSharedPtr<FJsonValue>>* SourceItems = nullptr;
     if (!ArrayValue.IsValid() || !ArrayValue->TryGetArray(SourceItems) || SourceItems == nullptr)
     {
-        return FOpenPocketBaseJsonValue::Invalid(TEXT("Add JSON Item requires a JSON array."));
+        return FOpenPocketBaseJsonValue::Invalid(TEXT("Add JSON Item requires an Array built by Make JSON Array or Parse JSON. The supplied value is empty or has another JSON type."));
     }
     if (!ItemValue.IsValid())
     {
         return FOpenPocketBaseJsonValue::Invalid(
-            Value.ErrorMessage.IsEmpty() ? TEXT("A valid JSON array item is required.") : Value.ErrorMessage);
+            Value.ErrorMessage.IsEmpty()
+                ? TEXT("JSON Array Item is empty or invalid. Build a JSON value before adding it to the array.")
+                : Value.ErrorMessage);
     }
 
     TArray<TSharedPtr<FJsonValue>> ResultItems = *SourceItems;
@@ -100,7 +104,13 @@ bool UOpenPocketBaseJsonValueLibrary::ParseJson(
     if (!FJsonSerializer::Deserialize(Reader, Values) || Values.Num() != 1 ||
         !Values[0].IsValid())
     {
-        OutValue = FOpenPocketBaseJsonValue::Invalid(TEXT("The JSON text is invalid."));
+        const FString ReaderError = Reader->GetErrorMessage();
+        OutValue = FOpenPocketBaseJsonValue::Invalid(
+            ReaderError.IsEmpty()
+                ? TEXT("JSON Text could not be parsed. Check commas, quotes, brackets, braces, and value types.")
+                : FString::Printf(
+                      TEXT("JSON Text could not be parsed. %s"),
+                      *ReaderError));
         return false;
     }
     OutValue = FOpenPocketBaseJsonValue::FromJsonValue(Values[0]);

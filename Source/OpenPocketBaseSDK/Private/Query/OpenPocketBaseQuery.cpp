@@ -130,7 +130,7 @@ FOpenPocketBaseExpand OpenPocketBase::Query::Expand(
     if (!Relation.ResolveCurrentAs(Current))
     {
         Result.bValid = false;
-        Result.ErrorMessage = TEXT("Choose a relation field to expand.");
+        Result.ErrorMessage = TEXT("Expand Relation is missing or stale. Choose a relation field again from the current collection schema.");
         return Result;
     }
     Result.Path.Add(MoveTemp(Current));
@@ -146,7 +146,7 @@ FOpenPocketBaseExpand OpenPocketBase::Query::ThenExpand(
         Path.bValid = false;
         if (Path.ErrorMessage.IsEmpty())
         {
-            Path.ErrorMessage = TEXT("Start with a valid relation field.");
+            Path.ErrorMessage = TEXT("The existing Expand path is invalid. Start a new path with Expand Relation using a current relation field.");
         }
         return Path;
     }
@@ -154,7 +154,7 @@ FOpenPocketBaseExpand OpenPocketBase::Query::ThenExpand(
     if (!Relation.ResolveCurrentAs(Current))
     {
         Path.bValid = false;
-        Path.ErrorMessage = TEXT("Choose a relation field to append.");
+        Path.ErrorMessage = TEXT("Then Expand Relation is missing or stale. Choose a relation field from the collection targeted by the previous relation.");
         return Path;
     }
 
@@ -166,7 +166,7 @@ FOpenPocketBaseExpand OpenPocketBase::Query::ThenExpand(
     {
         Path.bValid = false;
         Path.ErrorMessage = FString::Printf(
-            TEXT("Relation '%s' does not belong to the collection targeted by '%s'."),
+            TEXT("Relation '%s' does not belong to the collection targeted by '%s'. Choose the next relation from that target collection."),
             *Current.Name,
             *Previous.Name);
         return Path;
@@ -207,7 +207,7 @@ FOpenPocketBaseFieldSelection OpenPocketBase::Query::Select(
     FOpenPocketBaseFieldRef Current;
     if (!Field.ResolveCurrent(Current))
     {
-        return InvalidSelection(TEXT("Choose a field to select."));
+        return InvalidSelection(TEXT("Selected Field is missing or stale. Choose it again from the current collection schema."));
     }
     FOpenPocketBaseFieldSelection Result;
     static_cast<FOpenPocketBaseFieldRef&>(Result.Field) = MoveTemp(Current);
@@ -222,7 +222,9 @@ FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExcerpt(
     FOpenPocketBaseStringFieldRef Current;
     if (!Field.ResolveCurrentAs(Current) || MaxLength < 0)
     {
-        return InvalidSelection(TEXT("Choose a string field and a non-negative excerpt length."));
+        return InvalidSelection(FString::Printf(
+            TEXT("Select Excerpt requires a current string field and Max Length of 0 or greater. Received Max Length %d."),
+            MaxLength));
     }
     FOpenPocketBaseFieldSelection Result;
     Result.Field = MoveTemp(Current);
@@ -239,7 +241,7 @@ FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExpanded(
     FOpenPocketBaseFieldRef Current;
     if (!Field.ResolveCurrent(Current) || !FieldMatchesExpandTarget(Path, Current))
     {
-        return InvalidSelection(TEXT("The selected field must belong to the expanded collection."));
+        return InvalidSelection(TEXT("The selected field does not belong to the final collection in this Expand path. Choose the field from that expanded collection."));
     }
     FOpenPocketBaseFieldSelection Result;
     static_cast<FOpenPocketBaseFieldRef&>(Result.Field) = MoveTemp(Current);
@@ -257,7 +259,9 @@ FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExpandedExcerpt(
     if (!Field.ResolveCurrentAs(Current) || MaxLength < 0 ||
         !FieldMatchesExpandTarget(Path, Current))
     {
-        return InvalidSelection(TEXT("Choose a string field from the expanded collection and a non-negative excerpt length."));
+        return InvalidSelection(FString::Printf(
+            TEXT("Select Expanded Excerpt requires a string field from the final expanded collection and Max Length of 0 or greater. Received Max Length %d."),
+            MaxLength));
     }
     FOpenPocketBaseFieldSelection Result;
     Result.Field = MoveTemp(Current);
@@ -273,7 +277,7 @@ FOpenPocketBaseFieldSelection OpenPocketBase::Query::SelectExpandedRecord(
 {
     if (!Path.IsSet())
     {
-        return InvalidSelection(TEXT("Choose a valid relation path to select an expanded record."));
+        return InvalidSelection(TEXT("Select Expanded Record requires a valid Expand path. Build the path with Expand Relation before selecting the expanded record."));
     }
     FOpenPocketBaseFieldSelection Result;
     Result.Expand = MoveTemp(Path);

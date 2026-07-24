@@ -62,8 +62,8 @@ FString DescribeAdminIntegrationError(
         Operation,
         static_cast<int32>(Error.Kind),
         Error.HttpStatus,
-        *Error.ServerCode,
-        *Error.ServerMessage,
+        *Error.Code,
+        *Error.Message,
         *Error.RequestId);
 }
 
@@ -594,7 +594,7 @@ bool FOpenPocketBasePinnedAdminTest::RunTest(const FString& Parameters)
         FOpenPocketBaseAdminClient::Create(Config, Policy);
     if (!TestTrue(TEXT("The pinned privileged client is created"), ClientResult.IsSuccess()))
     {
-        AddError(ClientResult.GetError().ServerMessage);
+        AddError(ClientResult.GetError().Message);
         return false;
     }
     State->Client = ClientResult.TakeValue();

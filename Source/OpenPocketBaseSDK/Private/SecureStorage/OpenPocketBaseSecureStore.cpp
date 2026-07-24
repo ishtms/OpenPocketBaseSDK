@@ -45,7 +45,7 @@ private:
     {
         OutError = FOpenPocketBaseError();
         OutError.Kind = EOpenPocketBaseErrorKind::SecureStorage;
-        OutError.ServerMessage = TEXT("Secure session storage is unavailable on this platform or build.");
+        OutError.Message = TEXT("Secure session storage is unavailable on this platform or build. Use Memory Only session persistence, or provide a supported secure-store implementation.");
         return false;
     }
 };

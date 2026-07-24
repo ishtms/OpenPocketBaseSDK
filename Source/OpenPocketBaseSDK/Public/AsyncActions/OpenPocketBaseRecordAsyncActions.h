@@ -106,6 +106,7 @@ protected:
     bool TryBeginTerminal();
     void Finish();
     static FOpenPocketBaseError MakeCancelledError();
+    static FOpenPocketBaseError MakeClientUnavailableError();
 
     UPROPERTY(Transient)
     TObjectPtr<UOpenPocketBaseClient> Client;

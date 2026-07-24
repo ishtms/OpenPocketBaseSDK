@@ -16,9 +16,20 @@ FOpenPocketBaseError MakeTransportError(const FOpenPocketBaseHttpResponse& Respo
         ? EOpenPocketBaseErrorKind::Timeout
         : EOpenPocketBaseErrorKind::Transport;
     Error.HttpStatus = Response.HttpStatus;
-    Error.ServerMessage = Response.ErrorMessage.IsEmpty()
-        ? TEXT("The PocketBase request did not complete.")
-        : Response.ErrorMessage;
+    if (Response.bTimedOut)
+    {
+        Error.Message = TEXT("PocketBase did not respond before the request timeout. Check that the server is reachable or increase the request timeout.");
+    }
+    else if (Response.ErrorMessage.IsEmpty())
+    {
+        Error.Message = TEXT("PocketBase did not return a response. Check the server URL, confirm the server is running, and verify network access.");
+    }
+    else
+    {
+        Error.Message = FString::Printf(
+            TEXT("PocketBase did not return a response. Transport reported: %s"),
+            *Response.ErrorMessage);
+    }
     Error.bMayRetry = true;
     Error.RequestId = Response.RequestId;
     return Error;
@@ -69,7 +80,9 @@ FOpenPocketBaseError MakeHttpError(const FOpenPocketBaseHttpResponse& Response)
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::Http;
     Error.HttpStatus = Response.HttpStatus;
-    Error.ServerMessage = TEXT("PocketBase returned an HTTP error.");
+    Error.Message = FString::Printf(
+        TEXT("PocketBase returned HTTP %d without a valid PocketBase error message."),
+        Response.HttpStatus);
     Error.bMayRetry = Response.HttpStatus >= 500 && Response.HttpStatus < 600;
     Error.RequestId = Response.RequestId;
 
@@ -80,8 +93,13 @@ FOpenPocketBaseError MakeHttpError(const FOpenPocketBaseHttpResponse& Response)
     }
 
     Error.Kind = EOpenPocketBaseErrorKind::PocketBase;
-    Object->TryGetStringField(TEXT("message"), Error.ServerMessage);
-    Object->TryGetStringField(TEXT("code"), Error.ServerCode);
+    FString PocketBaseMessage;
+    if (Object->TryGetStringField(TEXT("message"), PocketBaseMessage) &&
+        !PocketBaseMessage.TrimStartAndEnd().IsEmpty())
+    {
+        Error.Message = MoveTemp(PocketBaseMessage);
+    }
+    Object->TryGetStringField(TEXT("code"), Error.Code);
 
     const TSharedPtr<FJsonObject>* Data = nullptr;
     if (Object->TryGetObjectField(TEXT("data"), Data) && Data != nullptr)
@@ -108,10 +126,10 @@ FOpenPocketBaseError MakeBatchHttpError(const FOpenPocketBaseHttpResponse& Respo
 {
     FOpenPocketBaseError Error = MakeHttpError(Response);
     if (Response.HttpStatus == 403 &&
-        Error.ServerMessage.Contains(TEXT("Batch requests are not allowed"), ESearchCase::IgnoreCase))
+        Error.Message.Contains(TEXT("Batch requests are not allowed"), ESearchCase::IgnoreCase))
     {
         Error.Kind = EOpenPocketBaseErrorKind::Unsupported;
-        Error.ServerCode = TEXT("batch_disabled");
+        Error.Code = TEXT("batch_disabled");
         Error.bMayRetry = false;
         return Error;
     }
@@ -135,9 +153,9 @@ FOpenPocketBaseError MakeBatchHttpError(const FOpenPocketBaseHttpResponse& Respo
             continue;
         }
 
-        if (Error.ServerCode.IsEmpty())
+        if (Error.Code.IsEmpty())
         {
-            (*RequestFailure)->TryGetStringField(TEXT("code"), Error.ServerCode);
+            (*RequestFailure)->TryGetStringField(TEXT("code"), Error.Code);
         }
         const TSharedPtr<FJsonObject>* FailureResponse = nullptr;
         const TSharedPtr<FJsonObject>* FieldData = nullptr;
@@ -170,12 +188,12 @@ FOpenPocketBaseError MakeBatchHttpError(const FOpenPocketBaseHttpResponse& Respo
 
 FOpenPocketBaseError MakeSerializationError(
     const FOpenPocketBaseHttpResponse& Response,
-    const TCHAR* Message)
+    FString Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::Serialization;
     Error.HttpStatus = Response.HttpStatus;
-    Error.ServerMessage = Message;
+    Error.Message = MoveTemp(Message);
     Error.RequestId = Response.RequestId;
     return Error;
 }
@@ -209,11 +227,18 @@ FJsonObjectWrapper WrapRecordData(const TSharedRef<FJsonObject>& Object)
     return WrapObject(Data);
 }
 
-bool ParseRecordObject(const TSharedRef<FJsonObject>& Object, FOpenPocketBaseRecord& OutRecord)
+bool ParseRecordObject(
+    const TSharedRef<FJsonObject>& Object,
+    FOpenPocketBaseRecord& OutRecord,
+    FString* OutFailureReason = nullptr)
 {
     OutRecord = FOpenPocketBaseRecord();
-    if (!Object->TryGetStringField(TEXT("id"), OutRecord.Id))
+    if (!Object->TryGetStringField(TEXT("id"), OutRecord.Id) || OutRecord.Id.IsEmpty())
     {
+        if (OutFailureReason != nullptr)
+        {
+            *OutFailureReason = TEXT("The record is missing its non-empty string 'id' field.");
+        }
         return false;
     }
 
@@ -224,11 +249,19 @@ bool ParseRecordObject(const TSharedRef<FJsonObject>& Object, FOpenPocketBaseRec
     if (Object->TryGetStringField(TEXT("created"), DateValue) &&
         !OpenPocketBase::Date::TryParse(DateValue, OutRecord.Created))
     {
+        if (OutFailureReason != nullptr)
+        {
+            *OutFailureReason = TEXT("The record's 'created' field is not a valid PocketBase date.");
+        }
         return false;
     }
     if (Object->TryGetStringField(TEXT("updated"), DateValue) &&
         !OpenPocketBase::Date::TryParse(DateValue, OutRecord.Updated))
     {
+        if (OutFailureReason != nullptr)
+        {
+            *OutFailureReason = TEXT("The record's 'updated' field is not a valid PocketBase date.");
+        }
         return false;
     }
 
@@ -314,10 +347,20 @@ TOpenPocketBaseResult<FOpenPocketBaseRecord> ParseRecordResponse(
 
     TSharedPtr<FJsonObject> Object;
     FOpenPocketBaseRecord Record;
-    if (!ParseObject(Response.Body, Object) || !ParseRecordObject(Object.ToSharedRef(), Record))
+    if (!ParseObject(Response.Body, Object))
     {
         return TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned an invalid record.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase returned a successful record response that is not a JSON object. Confirm the route is a standard records endpoint and check any server hook that replaces its response.")));
+    }
+    FString FailureReason;
+    if (!ParseRecordObject(Object.ToSharedRef(), Record, &FailureReason))
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase returned a record the SDK could not parse. ") + FailureReason));
     }
     return TOpenPocketBaseResult<FOpenPocketBaseRecord>::Success(MoveTemp(Record));
 }
@@ -335,22 +378,61 @@ TOpenPocketBaseResult<FOpenPocketBaseRecordPage> ParseRecordPageResponse(
     if (!ParseObject(Response.Body, Object))
     {
         return TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned an invalid record page.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase returned a successful list response that is not a JSON object. Confirm the route is a standard records list endpoint and check any server hook that replaces its response.")));
     }
 
     FOpenPocketBaseRecordPage Page;
-    Page.Page = Object->GetIntegerField(TEXT("page"));
-    Page.PerPage = Object->GetIntegerField(TEXT("perPage"));
+    double NumericPage = 0;
+    double NumericPerPage = 0;
+    if (!Object->TryGetNumberField(TEXT("page"), NumericPage) ||
+        !Object->TryGetNumberField(TEXT("perPage"), NumericPerPage) ||
+        !FMath::IsFinite(NumericPage) || !FMath::IsFinite(NumericPerPage) ||
+        NumericPage != FMath::RoundToDouble(NumericPage) ||
+        NumericPerPage != FMath::RoundToDouble(NumericPerPage) ||
+        NumericPage < 1 || NumericPage > MAX_int32 ||
+        NumericPerPage < 1 || NumericPerPage > MAX_int32)
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase record page must contain integer 'page' and 'perPage' values greater than zero. Check any custom list-response hook and PocketBase version compatibility.")));
+    }
+    Page.Page = static_cast<int32>(NumericPage);
+    Page.PerPage = static_cast<int32>(NumericPerPage);
 
     double TotalItems = -1;
-    if (Object->TryGetNumberField(TEXT("totalItems"), TotalItems) && TotalItems >= 0)
+    if (Object->HasField(TEXT("totalItems")) &&
+        (!Object->TryGetNumberField(TEXT("totalItems"), TotalItems) ||
+         !FMath::IsFinite(TotalItems) ||
+         TotalItems != FMath::RoundToDouble(TotalItems) || TotalItems < -1 ||
+         TotalItems > 9007199254740991.0))
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase record page 'totalItems' must be -1 when totals were skipped, or a non-negative safe integer. Check any custom list-response hook.")));
+    }
+    if (TotalItems >= 0)
     {
         Page.bHasTotalItems = true;
         Page.TotalItems = static_cast<int64>(TotalItems);
     }
 
     double TotalPages = -1;
-    if (Object->TryGetNumberField(TEXT("totalPages"), TotalPages) && TotalPages >= 0)
+    if (Object->HasField(TEXT("totalPages")) &&
+        (!Object->TryGetNumberField(TEXT("totalPages"), TotalPages) ||
+         !FMath::IsFinite(TotalPages) ||
+         TotalPages != FMath::RoundToDouble(TotalPages) ||
+         TotalPages < -1 || TotalPages > MAX_int32))
+    {
+        return TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase record page 'totalPages' must be -1 when totals were skipped, or a non-negative 32-bit integer. Check any custom list-response hook.")));
+    }
+    if (TotalPages >= 0)
     {
         Page.bHasTotalPages = true;
         Page.TotalPages = static_cast<int32>(TotalPages);
@@ -360,19 +442,36 @@ TOpenPocketBaseResult<FOpenPocketBaseRecordPage> ParseRecordPageResponse(
     if (!Object->TryGetArrayField(TEXT("items"), Items) || Items == nullptr)
     {
         return TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase record page is missing items.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase record page is missing the 'items' array. Check any custom list-response hook and PocketBase version compatibility.")));
     }
 
     Page.Items.Reserve(Items->Num());
-    for (const TSharedPtr<FJsonValue>& Item : *Items)
+    for (int32 ItemIndex = 0; ItemIndex < Items->Num(); ++ItemIndex)
     {
+        const TSharedPtr<FJsonValue>& Item = (*Items)[ItemIndex];
         const TSharedPtr<FJsonObject>* ItemObject = nullptr;
         FOpenPocketBaseRecord Record;
-        if (!Item.IsValid() || !Item->TryGetObject(ItemObject) || ItemObject == nullptr ||
-            !ParseRecordObject(ItemObject->ToSharedRef(), Record))
+        if (!Item.IsValid() || !Item->TryGetObject(ItemObject) || ItemObject == nullptr)
         {
             return TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(
-                MakeSerializationError(Response, TEXT("PocketBase record page contains an invalid item.")));
+                MakeSerializationError(
+                    Response,
+                    FString::Printf(
+                        TEXT("PocketBase record page item %d is not a JSON object. Check any custom list-response hook."),
+                        ItemIndex)));
+        }
+        FString FailureReason;
+        if (!ParseRecordObject(ItemObject->ToSharedRef(), Record, &FailureReason))
+        {
+            return TOpenPocketBaseResult<FOpenPocketBaseRecordPage>::Failure(
+                MakeSerializationError(
+                    Response,
+                    FString::Printf(
+                        TEXT("PocketBase record page item %d could not be parsed. %s"),
+                        ItemIndex,
+                        *FailureReason)));
         }
         Page.Items.Add(MoveTemp(Record));
     }
@@ -396,14 +495,18 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthResult> ParseAuthResponse(
         !Object->TryGetObjectField(TEXT("record"), RecordObject) || RecordObject == nullptr)
     {
         return TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned an invalid authentication response.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase authentication response must contain a string 'token' and an object 'record'. Confirm the auth collection and check any server hook that replaces the response.")));
     }
 
     FOpenPocketBaseAuthResult Result;
     if (!ParseRecordObject(RecordObject->ToSharedRef(), Result.Record))
     {
         return TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned an invalid authenticated record.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase authentication succeeded, but its 'record' object is missing a valid ID or contains an invalid date. Check any auth-response hook.")));
     }
     return TOpenPocketBaseResult<FOpenPocketBaseAuthResult>::Success(MoveTemp(Result));
 }
@@ -429,7 +532,9 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthMethods> ParseAuthMethodsResponse(
         !Root->TryGetObjectField(TEXT("oauth2"), OAuth2) || OAuth2 == nullptr)
     {
         return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned invalid auth methods.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase auth-methods response must contain 'mfa', 'otp', 'password', and 'oauth2' objects. Confirm the auth collection and PocketBase version.")));
     }
 
     FOpenPocketBaseAuthMethods Result;
@@ -450,7 +555,9 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthMethods> ParseAuthMethodsResponse(
         OtpDuration < 0 || OtpDuration > MAX_int32)
     {
         return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned unbounded auth methods.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase auth-methods response contains missing, incorrectly typed, or oversized method settings. Confirm the auth collection configuration and PocketBase version.")));
     }
     Result.Mfa.DurationSeconds = static_cast<int32>(MfaDuration);
     Result.Otp.DurationSeconds = static_cast<int32>(OtpDuration);
@@ -461,7 +568,9 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthMethods> ParseAuthMethodsResponse(
         if (!Value.IsValid() || !Value->TryGetString(Field) || Field.IsEmpty() || Field.Len() > 128)
         {
             return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
-                MakeSerializationError(Response, TEXT("PocketBase returned an invalid auth identity field.")));
+                MakeSerializationError(
+                    Response,
+                    TEXT("PocketBase auth-methods response contains an empty, non-string, or oversized password identity field. Check the auth collection's identityFields setting.")));
         }
         Result.Password.IdentityFields.Add(MoveTemp(Field));
     }
@@ -487,7 +596,9 @@ TOpenPocketBaseResult<FOpenPocketBaseAuthMethods> ParseAuthMethodsResponse(
             Provider.CodeChallengeMethod.Len() > 32)
         {
             return TOpenPocketBaseResult<FOpenPocketBaseAuthMethods>::Failure(
-                MakeSerializationError(Response, TEXT("PocketBase returned an invalid OAuth provider.")));
+                MakeSerializationError(
+                    Response,
+                    TEXT("PocketBase auth-methods response contains an incomplete or oversized OAuth provider entry. Check the provider configuration and PocketBase version.")));
         }
         Result.OAuth2.Providers.Add(MoveTemp(Provider));
     }
@@ -511,7 +622,9 @@ TOpenPocketBaseResult<FOpenPocketBaseOtpRequest> ParseOtpResponse(
         Result.OtpId.IsEmpty() || Result.OtpId.Len() > 256)
     {
         return TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned an invalid OTP request ID.")));
+            MakeSerializationError(
+                Response,
+                TEXT("PocketBase OTP response must contain a non-empty string 'otpId' no longer than 256 characters. Check any auth-response hook and PocketBase version.")));
     }
     return TOpenPocketBaseResult<FOpenPocketBaseOtpRequest>::Success(MoveTemp(Result));
 }
@@ -575,7 +688,11 @@ TOpenPocketBaseResult<FOpenPocketBaseBatchResult> ParseBatchResponse(
     if (!ParseArray(Response.Body, Items) || Items.Num() != Request.Entries.Num())
     {
         return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
-            MakeSerializationError(Response, TEXT("PocketBase returned an invalid batch result.")));
+            MakeSerializationError(
+                Response,
+                FString::Printf(
+                    TEXT("PocketBase batch response must be a JSON array with %d result(s), one for each submitted operation."),
+                    Request.Entries.Num())));
     }
 
     FOpenPocketBaseBatchResult Result;
@@ -589,7 +706,11 @@ TOpenPocketBaseResult<FOpenPocketBaseBatchResult> ParseBatchResponse(
             Status < 200 || Status >= 300)
         {
             return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
-                MakeSerializationError(Response, TEXT("PocketBase returned an invalid batch operation result.")));
+                MakeSerializationError(
+                    Response,
+                    FString::Printf(
+                        TEXT("PocketBase batch result %d must be an object with a successful numeric 'status'. Check the server's batch response format."),
+                        Index)));
         }
 
         FOpenPocketBaseBatchOperationResult OperationResult;
@@ -604,14 +725,22 @@ TOpenPocketBaseResult<FOpenPocketBaseBatchResult> ParseBatchResponse(
                 !ParseRecordObject(RecordObject->ToSharedRef(), OperationResult.Record))
             {
                 return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
-                    MakeSerializationError(Response, TEXT("PocketBase batch result contains an invalid record.")));
+                    MakeSerializationError(
+                        Response,
+                        FString::Printf(
+                            TEXT("PocketBase batch result %d for a create or update operation must contain a valid record object in 'body'."),
+                            Index)));
             }
             OperationResult.bHasRecord = true;
         }
         else if (BodyValue != nullptr && BodyValue->IsValid() && !(*BodyValue)->IsNull())
         {
             return TOpenPocketBaseResult<FOpenPocketBaseBatchResult>::Failure(
-                MakeSerializationError(Response, TEXT("PocketBase batch delete returned an unexpected body.")));
+                MakeSerializationError(
+                    Response,
+                    FString::Printf(
+                        TEXT("PocketBase batch result %d is a delete operation, but its 'body' is not null. Check the server's batch response format."),
+                        Index)));
         }
         Result.Results.Add(MoveTemp(OperationResult));
     }

@@ -59,17 +59,19 @@ private:
 
 FOpenPocketBaseError MakeLocalError(
     const EOpenPocketBaseErrorKind Kind,
-    const TCHAR* Message)
+    const FString& Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = Kind;
-    Error.ServerMessage = Message;
+    Error.Message = Message;
     return Error;
 }
 
 FOpenPocketBaseError MakeCancelledError()
 {
-    return MakeLocalError(EOpenPocketBaseErrorKind::Cancelled, TEXT("The request was cancelled."));
+    return MakeLocalError(
+        EOpenPocketBaseErrorKind::Cancelled,
+        TEXT("The PocketBase request was cancelled by the caller."));
 }
 
 FString GetBuildConfigurationName()
@@ -89,20 +91,20 @@ FString GetBuildConfigurationName()
 
 FOpenPocketBaseError SanitizeProtectedFileError(FOpenPocketBaseError Error)
 {
-    Error.ServerMessage = Error.Kind == EOpenPocketBaseErrorKind::Timeout
-        ? TEXT("The protected file download timed out.")
-        : TEXT("The protected file download failed.");
-    Error.ServerCode.Reset();
+    Error.Message = Error.Kind == EOpenPocketBaseErrorKind::Timeout
+        ? TEXT("The protected file download timed out. Retry it or increase the request timeout.")
+        : TEXT("The protected file download failed. Check the error kind, HTTP status, and request ID without logging the protected URL.");
+    Error.Code.Reset();
     Error.FieldErrors.Reset();
     return Error;
 }
 
 FOpenPocketBaseError SanitizeOAuthExchangeError(FOpenPocketBaseError Error)
 {
-    Error.ServerMessage = Error.Kind == EOpenPocketBaseErrorKind::Timeout
-        ? TEXT("The OAuth code exchange timed out.")
-        : TEXT("The OAuth code exchange failed.");
-    Error.ServerCode.Reset();
+    Error.Message = Error.Kind == EOpenPocketBaseErrorKind::Timeout
+        ? TEXT("The OAuth code exchange timed out. Restart the OAuth login and try again.")
+        : TEXT("The OAuth code exchange failed. Restart the OAuth login and check the provider configuration.");
+    Error.Code.Reset();
     Error.FieldErrors.Reset();
     return Error;
 }
@@ -275,13 +277,26 @@ bool ValidateDefaultHeaders(
         return false;
     }
 
+    int32 HeaderIndex = 0;
     for (const TPair<FString, FString>& Header : Config.DefaultHeaders)
     {
-        if (!IsValidHeaderName(Header.Key) || !IsValidHeaderValue(Header.Value))
+        ++HeaderIndex;
+        if (!IsValidHeaderName(Header.Key))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Default headers contain an invalid name or value."));
+                *FString::Printf(
+                    TEXT("Default header %d has an invalid name. Use a non-empty HTTP token name without spaces or control characters."),
+                    HeaderIndex));
+            return false;
+        }
+        if (!IsValidHeaderValue(Header.Value))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                *FString::Printf(
+                    TEXT("Default header '%s' contains a control character. Header values must stay on one line."),
+                    *Header.Key));
             return false;
         }
 
@@ -289,7 +304,9 @@ bool ValidateDefaultHeaders(
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Default headers must not override transport-owned headers."));
+                *FString::Printf(
+                    TEXT("Default header '%s' is managed by the SDK and cannot be overridden."),
+                    *Header.Key));
             return false;
         }
     }
@@ -380,15 +397,45 @@ bool TryBuildCustomRoutePath(
     FString& OutPath,
     FOpenPocketBaseError& OutError)
 {
-    if (Path.Len() < 2 || Path.Len() > 2048 || !Path.StartsWith(TEXT("/")) ||
-        Path.StartsWith(TEXT("//")) || Path.EndsWith(TEXT("/")) ||
-        Path.Contains(TEXT("//")) || Path.Contains(TEXT("?")) ||
-        Path.Contains(TEXT("#")) || Path.Contains(TEXT("\\")) ||
-        Path.Contains(TEXT("%")) || Query.Num() > 64)
+    if (Path.Len() < 2 || Path.Len() > 2048)
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The custom route path or query is invalid."));
+            *FString::Printf(
+                TEXT("Custom route Path must contain between 2 and 2048 characters, but it contains %d."),
+                Path.Len()));
+        return false;
+    }
+    if (!Path.StartsWith(TEXT("/")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Custom route Path must start with '/'. Pass only the route path, without the PocketBase server URL."));
+        return false;
+    }
+    if (Path.StartsWith(TEXT("//")) || Path.EndsWith(TEXT("/")) ||
+        Path.Contains(TEXT("//")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Custom route Path must use single separators and must not end with '/'."));
+        return false;
+    }
+    if (Path.Contains(TEXT("?")) || Path.Contains(TEXT("#")) ||
+        Path.Contains(TEXT("\\")) || Path.Contains(TEXT("%")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Custom route Path must not contain a query, fragment, backslash, or percent encoding. Add query values through the Query input."));
+        return false;
+    }
+    if (Query.Num() > 64)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Custom route Query contains %d entries, but the maximum is 64."),
+                Query.Num()));
         return false;
     }
 
@@ -398,19 +445,24 @@ bool TryBuildCustomRoutePath(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The custom route path exceeds the supported segment bound."));
+            *FString::Printf(
+                TEXT("Custom route Path contains %d segments, but the maximum is 32."),
+                Segments.Num()));
         return false;
     }
 
     TArray<FString> EncodedSegments;
     EncodedSegments.Reserve(Segments.Num());
-    for (const FString& Segment : Segments)
+    for (int32 SegmentIndex = 0; SegmentIndex < Segments.Num(); ++SegmentIndex)
     {
+        const FString& Segment = Segments[SegmentIndex];
         if (!IsSafePathSegment(Segment) || Segment.Len() > 255)
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The custom route path contains an invalid segment."));
+                *FString::Printf(
+                    TEXT("Custom route Path segment %d is empty, unsafe, or longer than 255 characters."),
+                    SegmentIndex + 1));
             return false;
         }
         EncodedSegments.Add(EncodeSegment(Segment));
@@ -422,15 +474,18 @@ bool TryBuildCustomRoutePath(
     QueryNames.Sort();
     TArray<FString> QueryParts;
     QueryParts.Reserve(QueryNames.Num());
-    for (const FString& Name : QueryNames)
+    for (int32 QueryIndex = 0; QueryIndex < QueryNames.Num(); ++QueryIndex)
     {
+        const FString& Name = QueryNames[QueryIndex];
         const FString* Value = Query.Find(Name);
         if (Value == nullptr || Name.IsEmpty() || !IsBoundedPlainText(Name, 128) ||
             !IsBoundedPlainText(*Value, 4096))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The custom route query contains an invalid name or value."));
+                *FString::Printf(
+                    TEXT("Custom route Query entry %d needs a non-empty name up to 128 characters and a value up to 4096 characters, without control characters."),
+                    QueryIndex + 1));
             return false;
         }
         QueryParts.Add(FGenericPlatformHttp::UrlEncode(Name) + TEXT("=") +
@@ -444,7 +499,9 @@ bool TryBuildCustomRoutePath(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The custom route URL exceeds the supported bound."));
+            *FString::Printf(
+                TEXT("The encoded custom route URL is %d characters, but the maximum is 8192. Reduce the path or query values."),
+                OutPath.Len()));
         return false;
     }
     OutError = FOpenPocketBaseError();
@@ -456,11 +513,20 @@ bool TrySerializeCustomForm(
     TArray<uint8>& OutBody,
     FOpenPocketBaseError& OutError)
 {
-    if (Fields.IsEmpty() || Fields.Num() > 128)
+    if (Fields.IsEmpty())
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A form body requires a bounded set of fields."));
+            TEXT("Form Fields is empty. Add at least one field before sending a form body."));
+        return false;
+    }
+    if (Fields.Num() > 128)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Form Fields contains %d entries, but the maximum is 128."),
+                Fields.Num()));
         return false;
     }
     TArray<FString> Names;
@@ -468,15 +534,18 @@ bool TrySerializeCustomForm(
     Names.Sort();
     TArray<FString> Parts;
     Parts.Reserve(Names.Num());
-    for (const FString& Name : Names)
+    for (int32 FieldIndex = 0; FieldIndex < Names.Num(); ++FieldIndex)
     {
+        const FString& Name = Names[FieldIndex];
         const FString* Value = Fields.Find(Name);
         if (Value == nullptr || Name.IsEmpty() || !IsBoundedPlainText(Name, 128) ||
             !IsBoundedPlainText(*Value, 4096))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The form body contains an invalid name or value."));
+                *FString::Printf(
+                    TEXT("Form field %d needs a non-empty name up to 128 characters and a value up to 4096 characters, without control characters."),
+                    FieldIndex + 1));
             return false;
         }
         Parts.Add(FGenericPlatformHttp::UrlEncode(Name) + TEXT("=") +
@@ -678,19 +747,34 @@ bool TrySplitHttpUrl(
     FString& OutPath,
     FOpenPocketBaseError& OutError)
 {
-    if (Url.IsEmpty() || Url.Len() > 8192 || Url.Contains(TEXT("\\")) ||
-        Url.Contains(TEXT("#")) || Url.Contains(TEXT("?")))
+    if (Url.IsEmpty())
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("OAuth redirect URLs must be bounded HTTP or HTTPS URLs without query or fragment data."));
+            TEXT("OAuth Redirect URL is empty. Provide the exact HTTP or HTTPS callback URL registered with the OAuth provider."));
+        return false;
+    }
+    if (Url.Len() > 8192)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(
+                TEXT("OAuth Redirect URL is %d characters. Use at most 8192 characters."),
+                Url.Len()));
+        return false;
+    }
+    if (Url.Contains(TEXT("\\")) || Url.Contains(TEXT("#")) || Url.Contains(TEXT("?")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("OAuth Redirect URL must not contain a backslash, query, or fragment. Provide only the registered callback origin and path."));
         return false;
     }
     if (!TryGetNormalizedOrigin(Url, OutOrigin))
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("OAuth redirect URLs must contain a valid HTTP or HTTPS origin."));
+            TEXT("OAuth Redirect URL must contain a valid HTTP or HTTPS origin and an optional path."));
         return false;
     }
 
@@ -746,12 +830,19 @@ bool TryBuildOAuthAuthorizationUrl(
     FString& OutUrl,
     FOpenPocketBaseError& OutError)
 {
-    if (ProviderUrl.IsEmpty() || ProviderUrl.Len() > 8192 ||
-        ProviderUrl.Contains(TEXT("#")) || ProviderUrl.Contains(TEXT("\\")))
+    if (ProviderUrl.IsEmpty())
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Serialization,
-            TEXT("PocketBase returned an invalid OAuth authorization URL."));
+            TEXT("PocketBase returned an empty OAuth authorization URL. Check the provider configuration in PocketBase."));
+        return false;
+    }
+    if (ProviderUrl.Len() > 8192 || ProviderUrl.Contains(TEXT("#")) ||
+        ProviderUrl.Contains(TEXT("\\")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::Serialization,
+            TEXT("PocketBase returned an OAuth authorization URL that exceeds 8192 characters or contains a fragment or backslash. Check the provider configuration in PocketBase."));
         return false;
     }
     FString ProviderOrigin;
@@ -771,7 +862,7 @@ bool TryBuildOAuthAuthorizationUrl(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Serialization,
-            TEXT("PocketBase returned invalid OAuth authorization parameters."));
+            TEXT("PocketBase returned duplicate, empty, or oversized OAuth authorization query parameters. Check the provider configuration in PocketBase."));
         return false;
     }
     Values.Add(TEXT("redirect_uri"), RedirectUrl);
@@ -784,16 +875,21 @@ bool TryBuildOAuthAuthorizationUrl(
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("OAuth scopes exceed the supported bound."));
+                FString::Printf(
+                    TEXT("OAuth Scopes contains %d entries. Use at most 32 scopes."),
+                    Scopes.Num()));
             return false;
         }
-        for (const FString& Scope : Scopes)
+        for (int32 ScopeIndex = 0; ScopeIndex < Scopes.Num(); ++ScopeIndex)
         {
+            const FString& Scope = Scopes[ScopeIndex];
             if (!IsSafeOAuthValue(Scope, 256) || Scope.Contains(TEXT(" ")))
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::InvalidArgument,
-                    TEXT("OAuth scopes contain an invalid value."));
+                    FString::Printf(
+                        TEXT("OAuth Scope %d is empty, exceeds 256 characters, contains a space, or contains a control character."),
+                        ScopeIndex + 1));
                 return false;
             }
         }
@@ -816,7 +912,9 @@ bool TryBuildOAuthAuthorizationUrl(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The OAuth authorization URL exceeds the supported bound."));
+            FString::Printf(
+                TEXT("The OAuth authorization URL is %d characters after adding redirect, state, PKCE, and scopes. Reduce the configured scopes to stay within 8192 characters."),
+                OutUrl.Len()));
         return false;
     }
     OutError = FOpenPocketBaseError();
@@ -831,12 +929,19 @@ bool TryBuildAssistedOAuthAuthorizationUrl(
     FString& OutUrl,
     FOpenPocketBaseError& OutError)
 {
-    if (ProviderUrl.IsEmpty() || ProviderUrl.Len() > 8192 ||
-        ProviderUrl.Contains(TEXT("#")) || ProviderUrl.Contains(TEXT("\\")))
+    if (ProviderUrl.IsEmpty())
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Serialization,
-            TEXT("PocketBase returned an invalid OAuth authorization URL."));
+            TEXT("PocketBase returned an empty OAuth authorization URL. Check the provider configuration in PocketBase."));
+        return false;
+    }
+    if (ProviderUrl.Len() > 8192 || ProviderUrl.Contains(TEXT("#")) ||
+        ProviderUrl.Contains(TEXT("\\")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::Serialization,
+            TEXT("PocketBase returned an OAuth authorization URL that exceeds 8192 characters or contains a fragment or backslash. Check the provider configuration in PocketBase."));
         return false;
     }
     FString ProviderOrigin;
@@ -856,7 +961,7 @@ bool TryBuildAssistedOAuthAuthorizationUrl(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Serialization,
-            TEXT("PocketBase returned invalid OAuth authorization parameters."));
+            TEXT("PocketBase returned duplicate, empty, or oversized OAuth authorization query parameters. Check the provider configuration in PocketBase."));
         return false;
     }
     Values.Add(TEXT("redirect_uri"), RedirectUrl);
@@ -867,16 +972,21 @@ bool TryBuildAssistedOAuthAuthorizationUrl(
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("OAuth scopes exceed the supported bound."));
+                FString::Printf(
+                    TEXT("OAuth Scopes contains %d entries. Use at most 32 scopes."),
+                    Scopes.Num()));
             return false;
         }
-        for (const FString& Scope : Scopes)
+        for (int32 ScopeIndex = 0; ScopeIndex < Scopes.Num(); ++ScopeIndex)
         {
+            const FString& Scope = Scopes[ScopeIndex];
             if (!IsSafeOAuthValue(Scope, 256) || Scope.Contains(TEXT(" ")))
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::InvalidArgument,
-                    TEXT("OAuth scopes contain an invalid value."));
+                    FString::Printf(
+                        TEXT("OAuth Scope %d is empty, exceeds 256 characters, contains a space, or contains a control character."),
+                        ScopeIndex + 1));
                 return false;
             }
         }
@@ -899,7 +1009,9 @@ bool TryBuildAssistedOAuthAuthorizationUrl(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The OAuth authorization URL exceeds the supported bound."));
+            FString::Printf(
+                TEXT("The assisted OAuth authorization URL is %d characters after adding redirect, state, and scopes. Reduce the configured scopes to stay within 8192 characters."),
+                OutUrl.Len()));
         return false;
     }
     OutError = FOpenPocketBaseError();
@@ -914,11 +1026,18 @@ bool TryValidateOAuthCallback(
     FOpenPocketBaseError& OutError)
 {
     OutCode.Reset();
-    if (CallbackUrl.IsEmpty() || CallbackUrl.Len() > 8192 || CallbackUrl.Contains(TEXT("#")))
+    if (CallbackUrl.IsEmpty())
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Authentication,
-            TEXT("The OAuth callback URL is invalid."));
+            TEXT("OAuth Callback URL is empty. Pass the full callback URL returned by the OAuth provider."));
+        return false;
+    }
+    if (CallbackUrl.Len() > 8192 || CallbackUrl.Contains(TEXT("#")))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::Authentication,
+            TEXT("OAuth Callback URL exceeds 8192 characters or contains a fragment. Pass the provider callback URL without a fragment."));
         return false;
     }
     FString CallbackBase;
@@ -927,7 +1046,7 @@ bool TryValidateOAuthCallback(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Authentication,
-            TEXT("The OAuth callback is missing authorization parameters."));
+            TEXT("OAuth Callback URL has no query parameters. Pass the full callback URL containing state and code or error."));
         return false;
     }
 
@@ -951,21 +1070,21 @@ bool TryValidateOAuthCallback(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Authentication,
-            TEXT("The OAuth callback parameters are invalid."));
+            TEXT("OAuth Callback URL contains duplicate, empty, or oversized query parameters. Restart the OAuth login and use the callback URL once."));
         return false;
     }
     if (Values.FindRef(TEXT("state")) != ExpectedState)
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Authentication,
-            TEXT("The OAuth callback state does not match the active transaction."));
+            TEXT("OAuth Callback state does not match the active transaction. Do not reuse a callback URL, and restart the OAuth login."));
         return false;
     }
     if (Values.Contains(TEXT("error")))
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Authentication,
-            TEXT("The OAuth provider rejected the authorization request."));
+            TEXT("The OAuth provider returned an error instead of an authorization code. Restart the login and check the provider permissions and redirect URL."));
         return false;
     }
     OutCode = Values.FindRef(TEXT("code"));
@@ -1153,7 +1272,9 @@ bool ValidateBatch(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Max Operations must be between 1 and 50."));
+            FString::Printf(
+                TEXT("Max Operations is %d. Use a value from 1 to 50."),
+                Options.MaxOperations));
         return false;
     }
     if (Batch.Entries.Num() > Options.MaxOperations)
@@ -1170,7 +1291,9 @@ bool ValidateBatch(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Max Body Bytes must be between 1024 and 16777216."));
+            FString::Printf(
+                TEXT("Max Body Bytes is %d. Use a value from 1024 to 16777216 bytes."),
+                Options.MaxBodyBytes));
         return false;
     }
     if (Options.RequestOptions.TotalTimeoutSeconds <= 0 ||
@@ -1178,7 +1301,9 @@ bool ValidateBatch(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Total Timeout must be greater than 0 and no more than 120 seconds."));
+            FString::Printf(
+                TEXT("Batch Total Timeout is %.3f seconds. Use a value greater than 0 and no more than 120 seconds."),
+                Options.RequestOptions.TotalTimeoutSeconds));
         return false;
     }
     if (Options.RequestOptions.ActivityTimeoutSeconds <= 0 ||
@@ -1186,12 +1311,16 @@ bool ValidateBatch(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Activity Timeout must be greater than 0 and no more than 120 seconds."));
+            FString::Printf(
+                TEXT("Batch Activity Timeout is %.3f seconds. Use a value greater than 0 and no more than 120 seconds."),
+                Options.RequestOptions.ActivityTimeoutSeconds));
         return false;
     }
 
-    for (const FOpenPocketBaseBatchEntry& Entry : Batch.Entries)
+    for (int32 EntryIndex = 0; EntryIndex < Batch.Entries.Num(); ++EntryIndex)
     {
+        const FOpenPocketBaseBatchEntry& Entry = Batch.Entries[EntryIndex];
+        const int32 OperationNumber = EntryIndex + 1;
         const bool bTypedCollection = Entry.Collection.IsSet();
         FOpenPocketBaseWritableCollectionRef CurrentCollection;
         if ((bTypedCollection &&
@@ -1201,7 +1330,9 @@ bool ValidateBatch(
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Every batch entry requires a valid collection."));
+                *FString::Printf(
+                    TEXT("Batch operation %d has no valid collection. Choose a current collection from the imported schema."),
+                    OperationNumber));
             return false;
         }
 
@@ -1212,7 +1343,9 @@ bool ValidateBatch(
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Batch update, upsert, and delete entries require a valid record ID."));
+                *FString::Printf(
+                    TEXT("Batch operation %d requires a non-empty Record ID without path separators or control characters."),
+                    OperationNumber));
             return false;
         }
 
@@ -1222,9 +1355,25 @@ bool ValidateBatch(
              !Entry.Body.IsValid() ||
              (bTypedCollection && !Entry.Body.BelongsTo(Entry.Collection))))
         {
+            FString BodyReason;
+            if (!Entry.Body.IsValid() && !Entry.Body.ErrorMessage.IsEmpty())
+            {
+                BodyReason = Entry.Body.ErrorMessage;
+            }
+            else if (!Entry.Body.Data.JsonObject.IsValid())
+            {
+                BodyReason = TEXT("Start with New Record Body and add the fields for this operation.");
+            }
+            else
+            {
+                BodyReason = TEXT("The body was built for another collection. Rebuild it from this operation's Collection pin.");
+            }
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Batch create, update, and upsert entries require a valid body for their collection."));
+                FString::Printf(
+                    TEXT("Batch operation %d has an invalid Record Body. %s"),
+                    OperationNumber,
+                    *BodyReason));
             return false;
         }
 
@@ -1234,7 +1383,9 @@ bool ValidateBatch(
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Batch response options contain a field from another collection."));
+                *FString::Printf(
+                    TEXT("Batch operation %d has response fields or expansions from another collection."),
+                    OperationNumber));
             return false;
         }
         if (Entry.Operation == EOpenPocketBaseBatchOperation::Upsert)
@@ -1243,7 +1394,10 @@ bool ValidateBatch(
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::InvalidArgument,
-                    TEXT("Batch upsert Record ID must contain exactly 15 characters."));
+                    *FString::Printf(
+                        TEXT("Batch upsert operation %d needs a 15-character Record ID, but the supplied ID contains %d characters."),
+                        OperationNumber,
+                        Entry.RecordId.Len()));
                 return false;
             }
             FString BodyRecordId;
@@ -1252,7 +1406,9 @@ bool ValidateBatch(
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::InvalidArgument,
-                    TEXT("Batch upsert body does not contain its selected Record ID."));
+                    *FString::Printf(
+                        TEXT("Batch upsert operation %d could not attach its Record ID to the request body. Rebuild the body with New Record Body and reconnect it to With Upsert."),
+                        OperationNumber));
                 return false;
             }
         }
@@ -1292,31 +1448,137 @@ bool ValidateRequestOptions(
     const FOpenPocketBaseRequestOptions& Options,
     FOpenPocketBaseError& OutError)
 {
-    bool bRequestKeyValid = Options.RequestKey.Len() <= 128;
-    for (const TCHAR Character : Options.RequestKey)
-    {
-        bRequestKeyValid = bRequestKeyValid && !FChar::IsControl(Character);
-    }
-
-    bool bHeadersValid = Options.AdditionalHeaders.Num() <= 32;
-    for (const TPair<FString, FString>& Header : Options.AdditionalHeaders)
-    {
-        bHeadersValid = bHeadersValid && Header.Key.Len() <= 128 &&
-            Header.Value.Len() <= 4096 && IsValidHeaderName(Header.Key) &&
-            IsValidHeaderValue(Header.Value) && !IsProtectedRequestHeader(Header.Key);
-    }
-
-    if (!bRequestKeyValid || !bHeadersValid || !IsValidTraceParent(Options.TraceParent) ||
-        Options.TotalTimeoutSeconds < 0 || Options.ActivityTimeoutSeconds < 0 ||
-        Options.MaxReadRetries < 0 || Options.MaxReadRetries > 5 ||
-        Options.RetryBaseDelaySeconds < 0 || Options.RetryBaseDelaySeconds > 30 ||
-        Options.RetryMaxDelaySeconds < 0 || Options.RetryMaxDelaySeconds > 60 ||
-        Options.RetryJitterFraction < 0 || Options.RetryJitterFraction > 1 ||
-        Options.MaxResponseBytes < 1024 || Options.MaxResponseBytes > 64 * 1024 * 1024)
+    if (Options.RequestKey.Len() > 128)
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Request options contain a value outside the supported bounds."));
+            *FString::Printf(
+                TEXT("Request Key contains %d characters, but the maximum is 128."),
+                Options.RequestKey.Len()));
+        return false;
+    }
+    for (const TCHAR Character : Options.RequestKey)
+    {
+        if (FChar::IsControl(Character))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Request Key contains a control character. Use a short printable identifier."));
+            return false;
+        }
+    }
+
+    if (Options.AdditionalHeaders.Num() > 32)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Additional Headers contains %d entries, but the maximum is 32."),
+                Options.AdditionalHeaders.Num()));
+        return false;
+    }
+    int32 HeaderIndex = 0;
+    for (const TPair<FString, FString>& Header : Options.AdditionalHeaders)
+    {
+        ++HeaderIndex;
+        if (Header.Key.Len() > 128 || !IsValidHeaderName(Header.Key))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                *FString::Printf(
+                    TEXT("Additional header %d has an invalid name. Use an HTTP token name up to 128 characters."),
+                    HeaderIndex));
+            return false;
+        }
+        if (Header.Value.Len() > 4096 || !IsValidHeaderValue(Header.Value))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                *FString::Printf(
+                    TEXT("Additional header '%s' must be at most 4096 characters and must not contain control characters."),
+                    *Header.Key));
+            return false;
+        }
+        if (IsProtectedRequestHeader(Header.Key))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                *FString::Printf(
+                    TEXT("Additional header '%s' is managed by the SDK and cannot be overridden."),
+                    *Header.Key));
+            return false;
+        }
+    }
+
+    if (!IsValidTraceParent(Options.TraceParent))
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Trace Parent is invalid. Leave it empty or provide a lowercase W3C traceparent value in the 00-<trace-id>-<parent-id>-<flags> format."));
+        return false;
+    }
+    if (Options.TotalTimeoutSeconds < 0)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Total Timeout cannot be negative, but it is %.3f seconds."),
+                Options.TotalTimeoutSeconds));
+        return false;
+    }
+    if (Options.ActivityTimeoutSeconds < 0)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Activity Timeout cannot be negative, but it is %.3f seconds."),
+                Options.ActivityTimeoutSeconds));
+        return false;
+    }
+    if (Options.MaxReadRetries < 0 || Options.MaxReadRetries > 5)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Max Read Retries must be between 0 and 5, but it is %d."),
+                Options.MaxReadRetries));
+        return false;
+    }
+    if (Options.RetryBaseDelaySeconds < 0 || Options.RetryBaseDelaySeconds > 30)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Retry Base Delay must be between 0 and 30 seconds, but it is %.3f."),
+                Options.RetryBaseDelaySeconds));
+        return false;
+    }
+    if (Options.RetryMaxDelaySeconds < 0 || Options.RetryMaxDelaySeconds > 60)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Retry Max Delay must be between 0 and 60 seconds, but it is %.3f."),
+                Options.RetryMaxDelaySeconds));
+        return false;
+    }
+    if (Options.RetryJitterFraction < 0 || Options.RetryJitterFraction > 1)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Retry Jitter Fraction must be between 0 and 1, but it is %.3f."),
+                Options.RetryJitterFraction));
+        return false;
+    }
+    if (Options.MaxResponseBytes < 1024 ||
+        Options.MaxResponseBytes > 64 * 1024 * 1024)
+    {
+        OutError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            *FString::Printf(
+                TEXT("Max Response Bytes must be between 1024 and 67108864, but it is %lld."),
+                static_cast<long long>(Options.MaxResponseBytes)));
         return false;
     }
     return true;
@@ -1382,7 +1644,7 @@ public:
         {
             FOpenPocketBaseHttpResponse Response;
             Response.RequestId = Request.RequestId;
-            Response.ErrorMessage = TEXT("The transport became unavailable.");
+            Response.ErrorMessage = TEXT("The HTTP transport became unavailable before the request could start.");
             HandleResponse(MoveTemp(Response), Generation);
             return;
         }
@@ -1439,15 +1701,19 @@ private:
         {
             Response = FOpenPocketBaseHttpResponse();
             Response.RequestId = Request.RequestId;
-            Response.ErrorMessage = TEXT("The HTTP response used a disallowed redirect origin.");
+            Response.ErrorMessage = TEXT("The HTTP response redirected to another origin. Cross-origin redirects are blocked to protect authentication data.");
         }
 
         const bool bExceededResponseLimit = Response.Body.Num() > Options.MaxResponseBytes;
         if (bExceededResponseLimit)
         {
+            const int64 ActualResponseBytes = Response.Body.Num();
             Response = FOpenPocketBaseHttpResponse();
             Response.RequestId = Request.RequestId;
-            Response.ErrorMessage = TEXT("The response exceeded the configured byte limit.");
+            Response.ErrorMessage = FString::Printf(
+                TEXT("The response is %lld bytes, which exceeds Max Response Bytes of %lld. Increase the limit only if this response size is expected."),
+                ActualResponseBytes,
+                Options.MaxResponseBytes);
         }
 
         if (!bRejectedRedirect && !bExceededResponseLimit && bEligibleRead && Options.bRetryEligibleReads &&
@@ -1853,15 +2119,37 @@ struct FOpenPocketBaseClient::FImpl
         FOpenPocketBaseError& OutError)
     {
         OutAuthorization = FOpenPocketBaseOAuth2Authorization();
-        if (bShutdown.load(std::memory_order_acquire) ||
-            !IsSafePathSegment(TransactionAuthCollection) ||
-            !IsSafeOAuthValue(Provider.Name, 128) ||
-            Provider.Name != Options.Provider ||
-            !IsSafeOAuthValue(Options.RedirectUrl, 8192))
+        if (bShutdown.load(std::memory_order_acquire))
+        {
+            OutError = MakeCancelledError();
+            return false;
+        }
+        if (!IsSafePathSegment(TransactionAuthCollection))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A live client, valid auth collection, provider, and redirect URL are required."));
+                TEXT("Auth Collection is empty or contains an unsafe path character. Choose an auth collection from the current schema."));
+            return false;
+        }
+        if (!IsSafeOAuthValue(Provider.Name, 128))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::Serialization,
+                TEXT("PocketBase returned an empty or invalid OAuth provider name. Refresh the auth methods and check the provider configuration."));
+            return false;
+        }
+        if (Provider.Name != Options.Provider)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The selected OAuth provider does not match OAuth Start Options. Rebuild the options from the same provider returned by Get Auth Methods."));
+            return false;
+        }
+        if (!IsSafeOAuthValue(Options.RedirectUrl, 8192))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OAuth Redirect URL is empty, exceeds 8192 characters, or contains a control character."));
             return false;
         }
 
@@ -1879,7 +2167,7 @@ struct FOpenPocketBaseClient::FImpl
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::Serialization,
-                TEXT("The OAuth PKCE challenge could not be generated."));
+                TEXT("The OAuth PKCE challenge could not be generated from the provider's code verifier. Refresh the auth methods and restart OAuth instead of reusing this provider response."));
             return false;
         }
 
@@ -1911,7 +2199,7 @@ struct FOpenPocketBaseClient::FImpl
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::Authentication,
-                    TEXT("The maximum number of active OAuth transactions has been reached."));
+                    TEXT("The client already has 16 active OAuth transactions. Finish or cancel one, or wait up to five minutes for an unused transaction to expire."));
                 return false;
             }
 
@@ -1928,7 +2216,7 @@ struct FOpenPocketBaseClient::FImpl
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::Authentication,
-                    TEXT("A unique OAuth transaction could not be created."));
+                    TEXT("The SDK could not allocate a unique OAuth transaction ID after four attempts. Retry the OAuth login."));
                 return false;
             }
 
@@ -1968,12 +2256,18 @@ struct FOpenPocketBaseClient::FImpl
             OutError = MakeCancelledError();
             return false;
         }
-        if (!IsSafePathSegment(ExpectedAuthCollection) ||
-            !IsBoundedTransientAuthId(Callback.TransactionId))
+        if (!IsSafePathSegment(ExpectedAuthCollection))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A valid auth collection and OAuth transaction ID are required."));
+                TEXT("Auth Collection is empty or contains an unsafe path character. Use the same auth collection that started the OAuth login."));
+            return false;
+        }
+        if (!IsBoundedTransientAuthId(Callback.TransactionId))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OAuth Transaction ID is empty, exceeds 256 characters, or contains whitespace. Use the callback from the active OAuth authorization."));
             return false;
         }
 
@@ -1988,7 +2282,7 @@ struct FOpenPocketBaseClient::FImpl
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("The OAuth transaction is not active."));
+                TEXT("The OAuth transaction is not active. It may already be completed, cancelled, or unknown to this client. Restart the OAuth login."));
             return false;
         }
         if (Transaction->ExpiresAtMonotonicSeconds <= Clock->MonotonicSeconds())
@@ -1996,14 +2290,14 @@ struct FOpenPocketBaseClient::FImpl
             OAuthTransactions.Remove(Callback.TransactionId);
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("The OAuth transaction expired."));
+                TEXT("The OAuth transaction expired after five minutes. Restart the OAuth login."));
             return false;
         }
         if (Transaction->AuthCollection != ExpectedAuthCollection)
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("The OAuth transaction belongs to another auth collection."));
+                TEXT("The OAuth transaction belongs to another auth collection. Complete it through the same auth collection that started it."));
             return false;
         }
         if (!TryValidateOAuthCallback(
@@ -2033,15 +2327,44 @@ struct FOpenPocketBaseClient::FImpl
     {
         OutTransactionId.Reset();
         OutAuthorizationUrl.Reset();
-        if (!Config.bEnableAssistedOAuth || bShutdown.load(std::memory_order_acquire) ||
-            !IsSafePathSegment(TransactionAuthCollection) ||
-            !IsSafeOAuthValue(Provider.Name, 128) ||
-            !IsSafeOAuthValue(Provider.CodeVerifier, 4096) ||
-            !IsBoundedTransientAuthId(RealtimeClientId))
+        if (bShutdown.load(std::memory_order_acquire))
+        {
+            OutError = MakeCancelledError();
+            return false;
+        }
+        if (!Config.bEnableAssistedOAuth)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::Unsupported,
+                TEXT("Assisted OAuth is disabled for this client profile. Enable Assisted OAuth or use the manual OAuth flow."));
+            return false;
+        }
+        if (!IsSafePathSegment(TransactionAuthCollection))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A configured client, provider, verifier, and realtime identity are required."));
+                TEXT("Auth Collection is empty or contains an unsafe path character. Choose an auth collection from the current schema."));
+            return false;
+        }
+        if (!IsSafeOAuthValue(Provider.Name, 128))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::Serialization,
+                TEXT("PocketBase returned an empty or invalid OAuth provider name. Refresh the auth methods and check the provider configuration."));
+            return false;
+        }
+        if (!IsSafeOAuthValue(Provider.CodeVerifier, 4096))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::Serialization,
+                TEXT("PocketBase returned an empty or invalid assisted OAuth code verifier. Restart the assisted OAuth login."));
+            return false;
+        }
+        if (!IsBoundedTransientAuthId(RealtimeClientId))
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::Authentication,
+                TEXT("Assisted OAuth has no valid realtime client ID. Wait for the realtime connection before starting assisted OAuth."));
             return false;
         }
 
@@ -2070,7 +2393,7 @@ struct FOpenPocketBaseClient::FImpl
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("The maximum number of active OAuth transactions has been reached."));
+                TEXT("The client already has 16 active OAuth transactions. Finish or cancel one, or wait up to five minutes for an unused transaction to expire."));
             return false;
         }
         for (int32 Attempt = 0; Attempt < 4; ++Attempt)
@@ -2086,7 +2409,7 @@ struct FOpenPocketBaseClient::FImpl
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("A unique OAuth transaction could not be created."));
+                TEXT("The SDK could not allocate a unique OAuth transaction ID after four attempts. Retry the assisted OAuth login."));
             return false;
         }
 
@@ -2373,7 +2696,7 @@ struct FOpenPocketBaseClient::FImpl
             {
                 OutError = MakeLocalError(
                     EOpenPocketBaseErrorKind::SecureStorage,
-                    TEXT("The secure session could not be saved."));
+                    TEXT("The secure session could not be saved, and the secure-store implementation returned no error details. Check secure storage availability and permissions, or use Memory Only persistence."));
             }
             return false;
         }
@@ -2988,7 +3311,7 @@ private:
         {
             FinishFailure(MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("OAuth2 is not enabled for this auth collection.")));
+                TEXT("OAuth2 is disabled for this auth collection in PocketBase. Enable at least one OAuth2 provider or choose another login method.")));
             return;
         }
         const FOpenPocketBaseOAuthProvider* MatchedProvider =
@@ -3001,7 +3324,7 @@ private:
         {
             FinishFailure(MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("The requested OAuth provider is not available.")));
+                TEXT("The requested OAuth provider is not available on this auth collection. Choose one returned by Get Auth Methods.")));
             return;
         }
         Provider = *MatchedProvider;
@@ -3063,7 +3386,7 @@ private:
             {
                 FinishFailure(MakeLocalError(
                     EOpenPocketBaseErrorKind::Transport,
-                    TEXT("The assisted OAuth realtime handoff was interrupted.")));
+                    TEXT("The assisted OAuth realtime connection stopped before the provider result arrived. Restart the login and keep the client running until it completes.")));
             }
         }
     }
@@ -3075,7 +3398,7 @@ private:
         {
             FinishFailure(MakeLocalError(
                 EOpenPocketBaseErrorKind::Transport,
-                TEXT("The assisted OAuth realtime identity is unavailable.")));
+                TEXT("The realtime connection is active but has no PocketBase client ID for assisted OAuth. Restart the realtime connection, then try the login again.")));
             return;
         }
 
@@ -3152,14 +3475,14 @@ private:
         {
             FinishFailure(MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("The assisted OAuth handoff state does not match.")));
+                TEXT("The assisted OAuth handoff state does not match the active login. The result was rejected. Restart the login.")));
             return;
         }
         if (bProviderRejected)
         {
             FinishFailure(MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("The OAuth provider rejected the assisted authorization request.")));
+                TEXT("The OAuth provider returned an error or no valid authorization code. Restart the login and check provider permissions and redirect settings.")));
             return;
         }
 
@@ -3211,8 +3534,8 @@ private:
             }
         }
         FOpenPocketBaseError Sanitized = Error;
-        Sanitized.ServerMessage = TEXT("The assisted OAuth realtime handoff failed.");
-        Sanitized.ServerCode.Reset();
+        Sanitized.Message = TEXT("The assisted OAuth realtime handoff failed before a provider result arrived. Restart the login and check realtime connectivity.");
+        Sanitized.Code.Reset();
         Sanitized.FieldErrors.Reset();
         FinishFailure(MoveTemp(Sanitized));
     }
@@ -3228,7 +3551,7 @@ private:
         {
             FinishFailure(MakeLocalError(
                 EOpenPocketBaseErrorKind::Transport,
-                TEXT("The assisted OAuth realtime handoff may have missed its result.")));
+                TEXT("The realtime stream reported a gap during assisted OAuth, so the provider result may be missing. Restart the login instead of reusing this transaction.")));
         }
     }
 
@@ -3586,7 +3909,7 @@ FOpenPocketBaseClient::CreateEphemeralAuthenticated(
     {
         return FOpenPocketBaseClientResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A valid auth collection reference is required.")));
+            TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose an auth collection from the current schema.")));
     }
     return CreateDynamicEphemeralAuthenticated(
         Config,
@@ -3615,13 +3938,26 @@ FOpenPocketBaseClient::CreateDynamicEphemeralAuthenticated(
         return ClientResult;
     }
     FOpenPocketBaseClientRef Client = ClientResult.TakeValue();
-    if (Token.IsEmpty() || Token.Len() > 8192 || !IsSafePathSegment(AuthCollection) ||
-        AuthRecord.Id.IsEmpty() || AuthRecord.Id.Len() > 255)
+    if (Token.IsEmpty() || Token.Len() > 8192)
     {
         Client->Shutdown();
         return FOpenPocketBaseClientResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A bounded token, auth collection, and auth record are required.")));
+            TEXT("Ephemeral Auth Token is empty or exceeds 8192 characters. Pass the token returned by a trusted PocketBase auth flow.")));
+    }
+    if (!IsSafePathSegment(AuthCollection))
+    {
+        Client->Shutdown();
+        return FOpenPocketBaseClientResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Ephemeral Auth Collection is empty or contains an unsafe path character. Use the collection that issued the token.")));
+    }
+    if (AuthRecord.Id.IsEmpty() || AuthRecord.Id.Len() > 255)
+    {
+        Client->Shutdown();
+        return FOpenPocketBaseClientResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Ephemeral Auth Record has an empty ID or an ID longer than 255 characters. Pass the auth record that belongs to the token.")));
     }
     for (const TCHAR Character : Token)
     {
@@ -3630,7 +3966,7 @@ FOpenPocketBaseClient::CreateDynamicEphemeralAuthenticated(
             Client->Shutdown();
             return FOpenPocketBaseClientResult::Failure(MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The ephemeral authentication token is invalid.")));
+                TEXT("Ephemeral Auth Token contains whitespace or a control character. Pass the token exactly as returned by PocketBase.")));
         }
     }
     Client->Impl->bAuthRefreshAllowed = false;
@@ -3667,7 +4003,9 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Auth Refresh lead time must be between zero and 3600 seconds."));
+            FString::Printf(
+                TEXT("Auth Refresh Lead Time Seconds is %g. Use a finite value from 0 to 3600 seconds."),
+                Config.AuthRefreshLeadTimeSeconds));
         return nullptr;
     }
 
@@ -3678,10 +4016,10 @@ TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> FOpenPocketBaseClient::Cr
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::SecureStorage,
-                TEXT("Required secure session storage is unavailable."));
+                TEXT("This client requires secure session storage, but no secure store is available. Use Memory Only persistence or add platform secure-store support."));
             if (!UnavailableReason.IsEmpty())
             {
-                OutError.ServerMessage += TEXT(" ") + UnavailableReason;
+                OutError.Message += TEXT(" ") + UnavailableReason;
             }
             return nullptr;
         }
@@ -3815,7 +4153,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::Health(
                     return TOpenPocketBaseResult<FOpenPocketBaseHealthResult>::Failure(
                         MakeResponseSerializationError(
                             Response,
-                            TEXT("PocketBase returned an invalid health response.")));
+                            TEXT("PocketBase health response must be a JSON object with an integer code and a one-line message up to 1024 characters.")));
                 }
 
                 FOpenPocketBaseHealthResult Health;
@@ -3852,20 +4190,35 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendCustomRoute(
     FOpenPocketBaseError ValidationError;
     FString Path;
     const TCHAR* Method = GetCustomRouteMethod(CustomRequest.Method);
-    if (Method == nullptr || !ValidateRequestOptions(CustomRequest.Options, ValidationError) ||
-        !TryBuildCustomRoutePath(
-            CustomRequest.Path, CustomRequest.Query, Path, ValidationError) ||
-        CustomRequest.MaxRequestBytes < 0 ||
-        CustomRequest.MaxRequestBytes > 64LL * 1024 * 1024 ||
-        (CustomRequest.Method == EOpenPocketBaseCustomRouteMethod::Get &&
-            CustomRequest.BodyFormat != EOpenPocketBaseCustomBodyFormat::None))
+    if (Method == nullptr)
     {
-        if (!ValidationError.IsSet())
+        ValidationError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Custom Route Method is not supported. Choose GET, POST, PUT, PATCH, or DELETE."));
+    }
+    else if (ValidateRequestOptions(CustomRequest.Options, ValidationError) &&
+             TryBuildCustomRoutePath(
+                 CustomRequest.Path, CustomRequest.Query, Path, ValidationError))
+    {
+        if (CustomRequest.MaxRequestBytes < 0 ||
+            CustomRequest.MaxRequestBytes > 64LL * 1024 * 1024)
         {
             ValidationError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The custom route method or body bound is invalid."));
+                FString::Printf(
+                    TEXT("Custom Route Max Request Bytes is %lld. Use a value from 0 to 67108864 bytes."),
+                    CustomRequest.MaxRequestBytes));
         }
+        else if (CustomRequest.Method == EOpenPocketBaseCustomRouteMethod::Get &&
+                 CustomRequest.BodyFormat != EOpenPocketBaseCustomBodyFormat::None)
+        {
+            ValidationError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Custom Route GET requests cannot contain a body. Set Body Format to None or choose another HTTP method."));
+        }
+    }
+    if (ValidationError.IsSet())
+    {
         DispatchFailure<FOpenPocketBaseCustomRouteResponse>(
             MoveTemp(OnComplete), MoveTemp(ValidationError));
         return {};
@@ -3943,15 +4296,50 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendCustomRoute(
         break;
     }
 
-    if (!bBodyValid || Body.Num() > CustomRequest.MaxRequestBytes ||
-        BodyLength > CustomRequest.MaxRequestBytes)
+    if (!bBodyValid)
     {
         if (!ValidationError.IsSet())
         {
+            FString BodyMessage;
+            switch (CustomRequest.BodyFormat)
+            {
+            case EOpenPocketBaseCustomBodyFormat::None:
+                BodyMessage = TEXT("Body Format is None, but body data, form fields, files, or Content Type was supplied. Clear those inputs or choose the matching body format.");
+                break;
+            case EOpenPocketBaseCustomBodyFormat::Json:
+                BodyMessage = TEXT("Body Format is JSON. Supply a valid Json Body only, and leave form fields, files, raw body, and Content Type empty.");
+                break;
+            case EOpenPocketBaseCustomBodyFormat::Form:
+                BodyMessage = TEXT("Body Format is Form. Supply at least one Form Field only, and leave files, raw body, and Content Type empty.");
+                break;
+            case EOpenPocketBaseCustomBodyFormat::Multipart:
+                BodyMessage = TEXT("Body Format is Multipart. Supply at least one Form Field or File, and leave raw Body and Content Type empty.");
+                break;
+            case EOpenPocketBaseCustomBodyFormat::Raw:
+            case EOpenPocketBaseCustomBodyFormat::Binary:
+                BodyMessage = TEXT("Raw and Binary body formats require a valid Content Type and cannot include Form Fields or Files.");
+                break;
+            default:
+                BodyMessage = TEXT("Body Format is not supported. Choose None, JSON, Form, Multipart, Raw, or Binary.");
+                break;
+            }
             ValidationError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("The custom route body does not match its bounded body format."));
+                BodyMessage);
         }
+        DispatchFailure<FOpenPocketBaseCustomRouteResponse>(
+            MoveTemp(OnComplete), MoveTemp(ValidationError));
+        return {};
+    }
+    const int64 ActualBodyBytes = BodyStream.IsValid() ? BodyLength : Body.Num();
+    if (ActualBodyBytes > CustomRequest.MaxRequestBytes)
+    {
+        ValidationError = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(
+                TEXT("Custom Route body is %lld bytes, but Max Request Bytes is %lld. Reduce the body or raise the limit."),
+                ActualBodyBytes,
+                CustomRequest.MaxRequestBytes));
         DispatchFailure<FOpenPocketBaseCustomRouteResponse>(
             MoveTemp(OnComplete), MoveTemp(ValidationError));
         return {};
@@ -4026,7 +4414,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::SendCustomRoute(
                         return TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>::Failure(
                             MakeResponseSerializationError(
                                 Response,
-                                TEXT("The custom route returned invalid JSON.")));
+                                TEXT("The custom route declared a JSON Content Type, but its response body is not valid JSON. Fix the route response or return the correct non-JSON Content Type.")));
                     }
                     CustomResponse.bHasJson = true;
                     switch (CustomResponse.ParsedJson->Type)
@@ -4092,7 +4480,7 @@ FOpenPocketBaseCapabilityInfo FOpenPocketBaseClient::GetCapability(
         {
             Info.Reason = Info.IsSupported()
                 ? TEXT("A platform secure store is available.")
-                : TEXT("A platform secure store is unavailable.");
+                : TEXT("No platform secure store is available. Use Memory Only persistence or provide a secure-store implementation for this target.");
         }
         break;
     case EOpenPocketBaseCapability::OAuthCallback:
@@ -4518,7 +4906,7 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseClient::DynamicSubscribe(
     {
         return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::Cancelled,
-            TEXT("The client has shut down.")));
+            TEXT("The PocketBase client has shut down, so it cannot create a realtime subscription. Create or retrieve an active client first.")));
     }
     const FOpenPocketBaseCapabilityInfo Streaming =
         GetCapability(EOpenPocketBaseCapability::HttpStreaming);
@@ -4539,7 +4927,7 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseClient::DynamicSubscribe(
         {
             Error = MakeLocalError(
                 EOpenPocketBaseErrorKind::Transport,
-                TEXT("The realtime subscription could not be started."));
+                TEXT("The realtime subscription did not start and no lower-level error was returned. Check the topic, options, and client state."));
         }
         return FOpenPocketBaseSubscriptionResult::Failure(MoveTemp(Error));
     }
@@ -4597,7 +4985,7 @@ FOpenPocketBaseFileUrlResult FOpenPocketBaseFileService::BuildUrl(
     {
         return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A schema-backed collection is required.")));
+            TEXT("Collection is missing or stale. Choose a collection from the current imported schema before building a file URL.")));
     }
     return DynamicBuildUrl(
         MoveTemp(Current.Name),
@@ -4613,13 +5001,29 @@ FOpenPocketBaseFileUrlResult FOpenPocketBaseFileService::DynamicBuildUrl(
     FOpenPocketBaseFileUrlOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
-        !IsSafePathSegment(InCollection) || !IsSafePathSegment(RecordId) ||
-        !IsSafePathSegment(FileName))
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client and safe collection, record ID, and filename are required.")));
+            TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before building a file URL.")));
+    }
+    if (!IsSafePathSegment(InCollection))
+    {
+        return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Collection Name is empty or contains an unsafe path character. Choose a collection from the current schema.")));
+    }
+    if (!IsSafePathSegment(RecordId))
+    {
+        return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Record ID is empty or contains an unsafe path character. Pass the ID of the record that owns the file.")));
+    }
+    if (!IsSafePathSegment(FileName))
+    {
+        return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("File Name is empty or contains an unsafe path character. Pass the stored PocketBase file name returned on the record.")));
     }
 
     FString Thumbnail;
@@ -4631,7 +5035,10 @@ FOpenPocketBaseFileUrlResult FOpenPocketBaseFileService::DynamicBuildUrl(
     {
         return FOpenPocketBaseFileUrlResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Thumbnail dimensions and crop mode are invalid.")));
+            FString::Printf(
+                TEXT("Thumbnail Width and Height are %d by %d. Each value must be from 0 to 16384. Use mode None only with 0 by 0, and choose a resize mode when either dimension is set."),
+                Options.Thumbnail.Width,
+                Options.Thumbnail.Height)));
     }
 
     if (Options.Thumbnail.Mode != EOpenPocketBaseThumbnailMode::None)
@@ -4678,13 +5085,22 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::GetToken(
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() || !PinnedClient->IsAuthenticated())
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        DispatchFailure<FOpenPocketBaseFileToken>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before requesting a protected-file token.")));
+        return {};
+    }
+    if (!PinnedClient->IsAuthenticated())
     {
         DispatchFailure<FOpenPocketBaseFileToken>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::Authentication,
-                TEXT("An authenticated PocketBase client is required.")));
+                TEXT("A protected-file token requires an authenticated session. Log in before requesting the token.")));
         return {};
     }
 
@@ -4724,7 +5140,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::GetToken(
                     return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(
                         MakeLocalError(
                             EOpenPocketBaseErrorKind::Serialization,
-                            TEXT("PocketBase returned an invalid file token response.")));
+                            TEXT("PocketBase returned an empty protected-file token response. Check the PocketBase version and server endpoint.")));
                 }
 
                 const FUTF8ToTCHAR Converted(
@@ -4741,7 +5157,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::GetToken(
                     return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(
                         MakeLocalError(
                             EOpenPocketBaseErrorKind::Serialization,
-                            TEXT("PocketBase returned an invalid file token response.")));
+                            TEXT("PocketBase file token response must be a JSON object with a non-empty token no longer than 4096 characters.")));
                 }
                 for (const TCHAR Character : TokenValue)
                 {
@@ -4750,7 +5166,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::GetToken(
                         return TOpenPocketBaseResult<FOpenPocketBaseFileToken>::Failure(
                             MakeLocalError(
                                 EOpenPocketBaseErrorKind::Serialization,
-                                TEXT("PocketBase returned an invalid file token response.")));
+                                TEXT("PocketBase returned a file token containing a control character. Refuse the token and check the server response.")));
                     }
                 }
 
@@ -4788,7 +5204,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::Download(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A schema-backed collection is required.")));
+                TEXT("Collection is missing or stale. Choose a collection from the current imported schema before downloading a file.")));
         return {};
     }
     return DynamicDownload(
@@ -4817,7 +5233,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A ready PocketBase client is required.")));
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before downloading a file.")));
         return {};
     }
 
@@ -4856,7 +5272,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
                 MoveTemp(OnComplete),
                 MakeLocalError(
                     EOpenPocketBaseErrorKind::InvalidArgument,
-                    TEXT("The protected-file token is invalid.")));
+                    TEXT("Protected File Token exceeds 4096 characters or contains a control character. Use the token returned by Get File Token without modifying it.")));
             return {};
         }
         Url += Url.Contains(TEXT("?")) ? TEXT("&token=") : TEXT("?token=");
@@ -5066,19 +5482,56 @@ bool FOpenPocketBaseCollectionService::ValidateRecordOptions(
     const FOpenPocketBaseRecordOptions& Options,
     FOpenPocketBaseError& OutError) const
 {
-    if (!Options.IsValid())
+    for (int32 ExpandIndex = 0; ExpandIndex < Options.Expand.Num(); ++ExpandIndex)
     {
-        OutError = MakeLocalError(
-            EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Record options contain an invalid field selection or expansion."));
-        return false;
+        if (!Options.Expand[ExpandIndex].IsSet())
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("Record Options Expand entry %d is empty. Remove it or choose a relation field."),
+                    ExpandIndex + 1));
+            return false;
+        }
     }
-    if (Reference.IsSet() && !Options.BelongsTo(Reference))
+    for (int32 FieldIndex = 0; FieldIndex < Options.Fields.Num(); ++FieldIndex)
     {
-        OutError = MakeLocalError(
-            EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Record options contain a field from another collection."));
-        return false;
+        if (!Options.Fields[FieldIndex].IsSet())
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("Record Options Fields entry %d is empty. Remove it or choose a field."),
+                    FieldIndex + 1));
+            return false;
+        }
+    }
+    if (Reference.IsSet())
+    {
+        for (int32 ExpandIndex = 0; ExpandIndex < Options.Expand.Num(); ++ExpandIndex)
+        {
+            if (!Options.Expand[ExpandIndex].BelongsTo(Reference))
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::InvalidArgument,
+                    FString::Printf(
+                        TEXT("Record Options Expand entry %d belongs to another collection. Choose it again from the selected collection."),
+                        ExpandIndex + 1));
+                return false;
+            }
+        }
+        for (int32 FieldIndex = 0; FieldIndex < Options.Fields.Num(); ++FieldIndex)
+        {
+            if (!Options.Fields[FieldIndex].BelongsTo(Reference))
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::InvalidArgument,
+                    FString::Printf(
+                        TEXT("Record Options Fields entry %d belongs to another collection. Choose it again from the selected collection."),
+                        FieldIndex + 1));
+                return false;
+            }
+        }
     }
     return true;
 }
@@ -5087,21 +5540,81 @@ bool FOpenPocketBaseCollectionService::ValidateListOptions(
     const FOpenPocketBaseListOptions& Options,
     FOpenPocketBaseError& OutError) const
 {
-    if (!Options.IsValid())
+    if (!Options.Filter.IsValid())
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            Options.Filter.IsValid()
-                ? TEXT("List options contain an invalid sort, field selection, or expansion.")
-                : *Options.Filter.ErrorMessage);
+            Options.Filter.ErrorMessage.IsEmpty()
+                ? TEXT("List Options Filter is invalid. Rebuild it with the schema-driven filter nodes.")
+                : FString::Printf(TEXT("List Options Filter is invalid. %s"), *Options.Filter.ErrorMessage));
         return false;
     }
-    if (Reference.IsSet() && !Options.BelongsTo(Reference))
+    for (int32 SortIndex = 0; SortIndex < Options.Sort.Num(); ++SortIndex)
+    {
+        if (!Options.Sort[SortIndex].IsSet())
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(TEXT("List Options Sort entry %d is empty. Remove it or choose a field."), SortIndex + 1));
+            return false;
+        }
+    }
+    for (int32 ExpandIndex = 0; ExpandIndex < Options.Expand.Num(); ++ExpandIndex)
+    {
+        if (!Options.Expand[ExpandIndex].IsSet())
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(TEXT("List Options Expand entry %d is empty. Remove it or choose a relation field."), ExpandIndex + 1));
+            return false;
+        }
+    }
+    for (int32 FieldIndex = 0; FieldIndex < Options.Fields.Num(); ++FieldIndex)
+    {
+        if (!Options.Fields[FieldIndex].IsSet())
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(TEXT("List Options Fields entry %d is empty. Remove it or choose a field."), FieldIndex + 1));
+            return false;
+        }
+    }
+    if (Reference.IsSet() && !Options.Filter.BelongsTo(Reference))
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("List options contain a field from another collection."));
+            TEXT("List Options Filter was built for another collection. Rebuild it from the selected collection."));
         return false;
+    }
+    if (Reference.IsSet())
+    {
+        for (int32 SortIndex = 0; SortIndex < Options.Sort.Num(); ++SortIndex)
+        {
+            if (!Options.Sort[SortIndex].BelongsTo(Reference))
+            {
+                OutError = MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                    FString::Printf(TEXT("List Options Sort entry %d belongs to another collection. Choose it again from the selected collection."), SortIndex + 1));
+                return false;
+            }
+        }
+        for (int32 ExpandIndex = 0; ExpandIndex < Options.Expand.Num(); ++ExpandIndex)
+        {
+            if (!Options.Expand[ExpandIndex].BelongsTo(Reference))
+            {
+                OutError = MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                    FString::Printf(TEXT("List Options Expand entry %d belongs to another collection. Choose it again from the selected collection."), ExpandIndex + 1));
+                return false;
+            }
+        }
+        for (int32 FieldIndex = 0; FieldIndex < Options.Fields.Num(); ++FieldIndex)
+        {
+            if (!Options.Fields[FieldIndex].BelongsTo(Reference))
+            {
+                OutError = MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                    FString::Printf(TEXT("List Options Fields entry %d belongs to another collection. Choose it again from the selected collection."), FieldIndex + 1));
+                return false;
+            }
+        }
     }
     return true;
 }
@@ -5114,14 +5627,16 @@ bool FOpenPocketBaseWritableCollectionService::ValidateBody(
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            *Body.ErrorMessage);
+            Body.ErrorMessage.IsEmpty()
+                ? TEXT("Record Body is invalid. Start with New Record Body and add fields from the selected collection.")
+                : Body.ErrorMessage);
         return false;
     }
     if (Reference.IsSet() && !Body.BelongsTo(Reference))
     {
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The record body contains a field from another collection."));
+            TEXT("Record Body was built for another collection. Rebuild it from the selected collection."));
         return false;
     }
     return true;
@@ -5132,13 +5647,16 @@ bool FOpenPocketBaseWritableCollectionService::ValidateFiles(
     FOpenPocketBaseError& OutError) const
 {
     TMap<FString, int32> FieldCounts;
-    for (const FOpenPocketBaseFileInput& File : Files)
+    for (int32 FileIndex = 0; FileIndex < Files.Num(); ++FileIndex)
     {
+        const FOpenPocketBaseFileInput& File = Files[FileIndex];
         if (!File.IsValid() || (Reference.IsSet() && !File.BelongsTo(Reference)))
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Every uploaded file requires a file field from the selected collection."));
+                FString::Printf(
+                    TEXT("File %d has no valid file field from the selected collection. Choose its field again."),
+                    FileIndex + 1));
             return false;
         }
 
@@ -5158,17 +5676,38 @@ bool FOpenPocketBaseWritableCollectionService::ValidateFiles(
         const int64 FileSize = File.bUseFilePath
             ? IFileManager::Get().FileSize(*File.FilePath)
             : File.Bytes.Num();
-        if (!bMimeAllowed ||
-            (CurrentField.MaxSizeBytes > 0 && FileSize >= 0 &&
-             FileSize > CurrentField.MaxSizeBytes) ||
-            (!CurrentField.bMultiple &&
-             File.Modifier != EOpenPocketBaseFieldModifier::Replace))
+        if (!bMimeAllowed)
         {
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                *FString::Printf(
-                    TEXT("File '%s' does not satisfy field '%s'."),
-                    *File.FileName,
+                FString::Printf(
+                    TEXT("File %d uses Content Type '%s', which field '%s' does not accept."),
+                    FileIndex + 1,
+                    *File.ContentType,
+                    *CurrentField.Name));
+            return false;
+        }
+        if (CurrentField.MaxSizeBytes > 0 && FileSize >= 0 &&
+            FileSize > CurrentField.MaxSizeBytes)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("File %d is %lld bytes, but field '%s' accepts at most %lld bytes."),
+                    FileIndex + 1,
+                    FileSize,
+                    *CurrentField.Name,
+                    CurrentField.MaxSizeBytes));
+            return false;
+        }
+        if (!CurrentField.bMultiple &&
+            File.Modifier != EOpenPocketBaseFieldModifier::Replace)
+        {
+            OutError = MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("File %d uses append or remove for single-file field '%s'. Use Replace instead."),
+                    FileIndex + 1,
                     *CurrentField.Name));
             return false;
         }
@@ -5179,7 +5718,7 @@ bool FOpenPocketBaseWritableCollectionService::ValidateFiles(
             OutError = MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
                 *FString::Printf(
-                    TEXT("Field '%s' accepts at most %d files."),
+                    TEXT("Field '%s' received too many files. It accepts at most %d files."),
                     *CurrentField.Name,
                     CurrentField.MaxSelect));
             return false;
@@ -5240,7 +5779,7 @@ bool FOpenPocketBaseWritableCollectionService::ValidateCreateBody(
     OutError = MakeLocalError(
         EOpenPocketBaseErrorKind::InvalidArgument,
         *FString::Printf(
-            TEXT("Required fields are missing: %s."),
+            TEXT("Create Record is missing required fields: %s. Add them to the record body or file inputs."),
             *FString::Join(Missing, TEXT(", "))));
     return false;
 }
@@ -5251,11 +5790,24 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetOne(
     FOpenPocketBaseRecordOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId))
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before getting a record.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Collection is missing, stale, or invalid. Choose it again from the current schema.");
+    }
+    else if (!IsSafePathSegment(RecordId))
+    {
+        ValidationMessage = TEXT("Record ID is empty or contains an unsafe path character. Pass an ID returned by PocketBase.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
-            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument, TEXT("Client, collection, and record ID are required.")));
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument, ValidationMessage));
         return {};
     }
 
@@ -5307,14 +5859,30 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetList(
     FOpenPocketBaseRecordPageCallback OnComplete) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || Options.Page < 1 ||
-        Options.PerPage < 1)
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before listing records.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Collection is missing, stale, or invalid. Choose it again from the current schema.");
+    }
+    else if (Options.Page < 1)
+    {
+        ValidationMessage = FString::Printf(TEXT("Page is %d. Use page 1 or greater."), Options.Page);
+    }
+    else if (Options.PerPage < 1)
+    {
+        ValidationMessage = FString::Printf(TEXT("Per Page is %d. Use 1 or more records per page."), Options.PerPage);
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecordPage>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, page, and per-page values are required.")));
+                ValidationMessage));
         return {};
     }
 
@@ -5372,39 +5940,39 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFullList(
                 EOpenPocketBaseErrorKind::InvalidArgument,
                 Message));
     };
-    if (!PinnedClient.IsValid())
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
-        Fail(TEXT("Full-list traversal requires a ready PocketBase client."));
+        Fail(TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before getting a full record list."));
         return {};
     }
     if (!IsValid())
     {
-        Fail(TEXT("Choose a valid collection before starting full-list traversal."));
+        Fail(TEXT("Collection is missing, stale, or invalid. Choose it again from the current schema before getting a full record list."));
         return {};
     }
     if (Options.ListOptions.Page != 1)
     {
-        Fail(TEXT("Full-list traversal must start at page 1."));
+        Fail(TEXT("Start Page must be 1 for a full record list. The SDK walks forward from the first page."));
         return {};
     }
     if (Options.ListOptions.PerPage < 1)
     {
-        Fail(TEXT("Per Page must be at least 1 for full-list traversal."));
+        Fail(*FString::Printf(TEXT("Per Page is %d. Use 1 or more records per request."), Options.ListOptions.PerPage));
         return {};
     }
     if (Options.MaxItems < 0 || Options.MaxItems > 1000000)
     {
-        Fail(TEXT("Max Items must be between 0 and 1000000."));
+        Fail(*FString::Printf(TEXT("Max Items is %d. Use a value from 0 to 1000000."), Options.MaxItems));
         return {};
     }
     if (Options.MaxPages < 0 || Options.MaxPages > 10000)
     {
-        Fail(TEXT("Max Pages must be between 0 and 10000."));
+        Fail(*FString::Printf(TEXT("Max Pages is %d. Use a value from 0 to 10000."), Options.MaxPages));
         return {};
     }
     if (Options.MaxItems == 0 && Options.MaxPages == 0)
     {
-        Fail(TEXT("Set Max Items or Max Pages before starting full-list traversal."));
+        Fail(TEXT("Max Items and Max Pages are both 0. Set at least one limit so full-list traversal has an explicit stopping bound."));
         return {};
     }
 
@@ -5470,8 +6038,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseCollectionService::GetFirstListItem(
                 FOpenPocketBaseError Error;
                 Error.Kind = EOpenPocketBaseErrorKind::PocketBase;
                 Error.HttpStatus = 404;
-                Error.ServerCode = TEXT("404");
-                Error.ServerMessage = TEXT("The requested record wasn't found.");
+                Error.Code = TEXT("404");
+                Error.Message = TEXT("No record matched the supplied filter. Check the filter values and collection data.");
                 OnComplete(TOpenPocketBaseResult<FOpenPocketBaseRecord>::Failure(MoveTemp(Error)));
                 return;
             }
@@ -5485,13 +6053,26 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::Create(
     FOpenPocketBaseRecordOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || !Body.Data.JsonObject.IsValid())
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before creating a record.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Collection is missing, stale, or not writable. Choose a writable collection from the current schema.");
+    }
+    else if (!Body.Data.JsonObject.IsValid())
+    {
+        ValidationMessage = TEXT("Record Body has no valid JSON data. Start with New Record Body using the selected collection.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, and a JSON record body are required.")));
+                ValidationMessage));
         return {};
     }
 
@@ -5552,14 +6133,30 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::CreateWit
     FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || !Body.Data.JsonObject.IsValid() ||
-        Files.IsEmpty())
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before creating a record with files.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Collection is missing, stale, or not writable. Choose a writable collection from the current schema.");
+    }
+    else if (!Body.Data.JsonObject.IsValid())
+    {
+        ValidationMessage = TEXT("Record Body has no valid JSON data. Start with New Record Body using the selected collection.");
+    }
+    else if (Files.IsEmpty())
+    {
+        ValidationMessage = TEXT("Files is empty. Add at least one file input, or use Create Record when no upload is needed.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, JSON record body, and at least one file are required.")));
+                ValidationMessage));
         return {};
     }
 
@@ -5669,14 +6266,30 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::Update(
     FOpenPocketBaseRecordOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId) ||
-        !Body.Data.JsonObject.IsValid())
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before updating a record.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Collection is missing, stale, or not writable. Choose a writable collection from the current schema.");
+    }
+    else if (!IsSafePathSegment(RecordId))
+    {
+        ValidationMessage = TEXT("Record ID is empty or contains an unsafe path character. Pass an ID returned by PocketBase.");
+    }
+    else if (!Body.Data.JsonObject.IsValid())
+    {
+        ValidationMessage = TEXT("Record Body has no valid JSON data. Start with New Record Body using the selected collection.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, record ID, and a JSON record body are required.")));
+                ValidationMessage));
         return {};
     }
 
@@ -5756,14 +6369,34 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::UpdateWit
     FOpenPocketBaseTransferProgressCallback OnProgress) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId) ||
-        !Body.Data.JsonObject.IsValid() || Files.IsEmpty())
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before updating a record with files.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Collection is missing, stale, or not writable. Choose a writable collection from the current schema.");
+    }
+    else if (!IsSafePathSegment(RecordId))
+    {
+        ValidationMessage = TEXT("Record ID is empty or contains an unsafe path character. Pass an ID returned by PocketBase.");
+    }
+    else if (!Body.Data.JsonObject.IsValid())
+    {
+        ValidationMessage = TEXT("Record Body has no valid JSON data. Start with New Record Body using the selected collection.");
+    }
+    else if (Files.IsEmpty())
+    {
+        ValidationMessage = TEXT("Files is empty. Add at least one file input, or use Update Record when no upload is needed.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseRecord>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, record ID, JSON record body, and at least one file are required.")));
+                ValidationMessage));
         return {};
     }
 
@@ -5890,13 +6523,26 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseWritableCollectionService::Delete(
     FOpenPocketBaseRequestOptions Options) const
 {
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || !IsSafePathSegment(RecordId))
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before deleting a record.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Collection is missing, stale, or not writable. Choose a writable collection from the current schema.");
+    }
+    else if (!IsSafePathSegment(RecordId))
+    {
+        ValidationMessage = TEXT("Record ID is empty or contains an unsafe path character. Pass an ID returned by PocketBase.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, and record ID are required.")));
+                ValidationMessage));
         return {};
     }
 
@@ -5952,12 +6598,20 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListAuthMetho
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid())
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         DispatchFailure<FOpenPocketBaseAuthMethods>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A ready client and valid auth collection are required.")));
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before listing auth methods.")));
+        return {};
+    }
+    if (!IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseAuthMethods>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.")));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6004,13 +6658,28 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestOtp(
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() ||
-        Email.IsEmpty() || Email.Len() > 320)
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         DispatchFailure<FOpenPocketBaseOtpRequest>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A ready client, valid auth collection, and bounded email are required.")));
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before requesting an OTP.")));
+        return {};
+    }
+    if (!IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseOtpRequest>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.")));
+        return {};
+    }
+    if (!IsSafeOAuthValue(Email, 320))
+    {
+        DispatchFailure<FOpenPocketBaseOtpRequest>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Email is empty, exceeds 320 characters, or contains a control character.")));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6059,13 +6728,36 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithPassw
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() ||
-        Identity.IsEmpty() || Identity.Len() > 320 || Password.IsEmpty() || Password.Len() > 4096)
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, bounded identity, and password are required.")));
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before logging in.")));
+        return {};
+    }
+    if (!IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.")));
+        return {};
+    }
+    if (!IsSafeOAuthValue(Identity, 320))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Identity is empty, exceeds 320 characters, or contains a control character.")));
+        return {};
+    }
+    if (!IsSafeOAuthValue(Password, 4096))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(
+            MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Password is empty, exceeds 4096 characters, or contains a control character.")));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6142,14 +6834,40 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOtp(
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() ||
-        !IsBoundedTransientAuthId(OtpId) || Password.IsEmpty() || Password.Len() > 4096 ||
-        (Mfa.IsSet() && !IsBoundedTransientAuthId(Mfa.Id)))
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("Client, collection, bounded OTP ID, password, and MFA continuation are required.")));
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before completing OTP login.")));
+        return {};
+    }
+    if (!IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.")));
+        return {};
+    }
+    if (!IsBoundedTransientAuthId(OtpId))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OTP ID is empty, exceeds 256 characters, or contains whitespace. Use the ID returned by Request OTP.")));
+        return {};
+    }
+    if (!IsSafeOAuthValue(Password, 4096))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OTP Password is empty, exceeds 4096 characters, or contains a control character.")));
+        return {};
+    }
+    if (Mfa.IsSet() && !IsBoundedTransientAuthId(Mfa.Id))
+    {
+        DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("MFA Continuation ID exceeds 256 characters or contains whitespace. Use the continuation returned by the previous auth attempt.")));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6225,15 +6943,34 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::BeginOAuth2(
     FOpenPocketBaseOAuth2AuthorizationCallback OnComplete) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
-        !IsValid() || !IsSafeOAuthValue(Options.Provider, 128) ||
-        !IsSafeOAuthValue(Options.RedirectUrl, 8192))
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         DispatchFailure<FOpenPocketBaseOAuth2Authorization>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A live client, valid auth collection, provider, and redirect URL are required.")));
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before starting OAuth2.")));
+        return {};
+    }
+    if (!IsValid())
+    {
+        DispatchFailure<FOpenPocketBaseOAuth2Authorization>(MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.")));
+        return {};
+    }
+    if (!IsSafeOAuthValue(Options.Provider, 128))
+    {
+        DispatchFailure<FOpenPocketBaseOAuth2Authorization>(MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OAuth Provider is empty, exceeds 128 characters, or contains a control character. Choose a provider returned by Get Auth Methods.")));
+        return {};
+    }
+    if (!IsSafeOAuthValue(Options.RedirectUrl, 8192))
+    {
+        DispatchFailure<FOpenPocketBaseOAuth2Authorization>(MoveTemp(OnComplete),
+            MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("OAuth Redirect URL is empty, exceeds 8192 characters, or contains a control character.")));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6277,7 +7014,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::BeginOAuth2(
                     TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>::Failure(
                         MakeLocalError(
                             EOpenPocketBaseErrorKind::Authentication,
-                            TEXT("OAuth2 is not enabled for this auth collection."))));
+                            TEXT("OAuth2 is disabled for this auth collection in PocketBase. Enable at least one OAuth2 provider or choose another login method."))));
                 return;
             }
 
@@ -6293,7 +7030,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::BeginOAuth2(
                     TOpenPocketBaseResult<FOpenPocketBaseOAuth2Authorization>::Failure(
                         MakeLocalError(
                             EOpenPocketBaseErrorKind::Authentication,
-                            TEXT("The requested OAuth provider is not available."))));
+                            TEXT("The requested OAuth provider is not available on this auth collection. Choose one returned by Get Auth Methods."))));
                 return;
             }
 
@@ -6328,16 +7065,30 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::CompleteOAuth
         DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete), MakeCancelledError());
         return {};
     }
-    if (!IsValid() ||
-        !IsBoundedTransientAuthId(Callback.TransactionId) ||
-        Callback.CallbackUrl.IsEmpty() || Callback.CallbackUrl.Len() > 8192 ||
-        (Callback.Mfa.IsSet() && !IsBoundedTransientAuthId(Callback.Mfa.Id)))
+    FString ValidationMessage;
+    if (!IsValid())
+    {
+        ValidationMessage = TEXT("Auth Collection is missing, stale, or is not an auth collection. Use the same collection that started OAuth2.");
+    }
+    else if (!IsBoundedTransientAuthId(Callback.TransactionId))
+    {
+        ValidationMessage = TEXT("OAuth Transaction ID is empty, exceeds 256 characters, or contains whitespace. Use the callback for the active OAuth transaction.");
+    }
+    else if (Callback.CallbackUrl.IsEmpty() || Callback.CallbackUrl.Len() > 8192)
+    {
+        ValidationMessage = TEXT("OAuth Callback URL is empty or exceeds 8192 characters. Pass the full URL returned by the OAuth provider.");
+    }
+    else if (Callback.Mfa.IsSet() && !IsBoundedTransientAuthId(Callback.Mfa.Id))
+    {
+        ValidationMessage = TEXT("MFA Continuation ID exceeds 256 characters or contains whitespace. Use the continuation returned by the previous auth attempt.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A valid auth collection, OAuth transaction, callback URL, and MFA continuation are required.")));
+                ValidationMessage));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6349,15 +7100,19 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::CompleteOAuth
 
     const bool bHasCreateData = Callback.CreateData.Data.JsonObject.IsValid() &&
         !Callback.CreateData.Data.JsonObject->Values.IsEmpty();
-    if (bHasCreateData &&
-        OpenPocketBase::Json::SerializeObject(
-            Callback.CreateData.Data.JsonObject.ToSharedRef()).Num() > 64 * 1024)
+    const int32 CreateDataBytes = bHasCreateData
+        ? OpenPocketBase::Json::SerializeObject(
+            Callback.CreateData.Data.JsonObject.ToSharedRef()).Num()
+        : 0;
+    if (CreateDataBytes > 64 * 1024)
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("OAuth create data exceeds the supported byte limit.")));
+                FString::Printf(
+                    TEXT("OAuth Create Data is %d bytes. Use at most 65536 bytes."),
+                    CreateDataBytes)));
         return {};
     }
 
@@ -6459,15 +7214,30 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOAuth
     FOpenPocketBaseAuthAttemptCallback OnComplete) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown() ||
-        !IsValid() || !IsSafeOAuthValue(Options.Provider, 128) ||
-        (Options.Mfa.IsSet() && !IsBoundedTransientAuthId(Options.Mfa.Id)))
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before starting assisted OAuth2.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.");
+    }
+    else if (!IsSafeOAuthValue(Options.Provider, 128))
+    {
+        ValidationMessage = TEXT("OAuth Provider is empty, exceeds 128 characters, or contains a control character. Choose a provider returned by Get Auth Methods.");
+    }
+    else if (Options.Mfa.IsSet() && !IsBoundedTransientAuthId(Options.Mfa.Id))
+    {
+        ValidationMessage = TEXT("MFA Continuation ID exceeds 256 characters or contains whitespace. Use the continuation returned by the previous auth attempt.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A live client, auth collection, provider, and bounded MFA continuation are required.")));
+                ValidationMessage));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6482,31 +7252,40 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOAuth
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("OAuth scopes exceed the supported bound.")));
+                FString::Printf(
+                    TEXT("OAuth Scopes contains %d entries. Use at most 32 scopes."),
+                    Options.Scopes.Num())));
         return {};
     }
-    for (const FString& Scope : Options.Scopes)
+    for (int32 ScopeIndex = 0; ScopeIndex < Options.Scopes.Num(); ++ScopeIndex)
     {
+        const FString& Scope = Options.Scopes[ScopeIndex];
         if (!IsSafeOAuthValue(Scope, 256) || Scope.Contains(TEXT(" ")))
         {
             DispatchFailure<FOpenPocketBaseAuthAttempt>(
                 MoveTemp(OnComplete),
                 MakeLocalError(
                     EOpenPocketBaseErrorKind::InvalidArgument,
-                    TEXT("OAuth scopes contain an invalid value.")));
+                    FString::Printf(
+                        TEXT("OAuth Scope %d is empty, exceeds 256 characters, contains a space, or contains a control character."),
+                        ScopeIndex + 1)));
             return {};
         }
     }
-    if (Options.CreateData.Data.JsonObject.IsValid() &&
-        !Options.CreateData.Data.JsonObject->Values.IsEmpty() &&
-        OpenPocketBase::Json::SerializeObject(
-            Options.CreateData.Data.JsonObject.ToSharedRef()).Num() > 64 * 1024)
+    const int32 CreateDataBytes = Options.CreateData.Data.JsonObject.IsValid() &&
+        !Options.CreateData.Data.JsonObject->Values.IsEmpty()
+        ? OpenPocketBase::Json::SerializeObject(
+            Options.CreateData.Data.JsonObject.ToSharedRef()).Num()
+        : 0;
+    if (CreateDataBytes > 64 * 1024)
     {
         DispatchFailure<FOpenPocketBaseAuthAttempt>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("OAuth create data exceeds the supported byte limit.")));
+                FString::Printf(
+                    TEXT("OAuth Create Data is %d bytes. Use at most 65536 bytes."),
+                    CreateDataBytes)));
         return {};
     }
 
@@ -6516,10 +7295,10 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOAuth
     {
         FOpenPocketBaseError Error = MakeLocalError(
             EOpenPocketBaseErrorKind::Unsupported,
-            TEXT("Assisted OAuth is unavailable."));
+            TEXT("Assisted OAuth is unavailable for this client."));
         if (!Capability.Reason.IsEmpty())
         {
-            Error.ServerMessage += TEXT(" ") + Capability.Reason;
+            Error.Message += TEXT(" ") + Capability.Reason;
         }
         DispatchFailure<FOpenPocketBaseAuthAttempt>(MoveTemp(OnComplete), MoveTemp(Error));
         return {};
@@ -6541,13 +7320,22 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::SendAccountPo
     TUniqueFunction<bool(FOpenPocketBaseError&)> OnSucceeded) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid())
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A ready client and valid auth collection are required.")));
+                TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before sending this account request.")));
+        return {};
+    }
+    if (!IsValid())
+    {
+        DispatchFailure<bool>(
+            MoveTemp(OnComplete),
+            MakeLocalError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.")));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6616,7 +7404,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestPasswo
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A bounded email is required.")));
+                TEXT("Email is empty, exceeds 320 characters, or contains a control character.")));
         return {};
     }
     TMap<FString, FString> Body;
@@ -6636,14 +7424,30 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmPasswo
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
 {
-    if (!IsSafeOAuthValue(Token, 8192) || !IsSafeOAuthValue(Password, 4096) ||
-        Password != PasswordConfirm)
+    FString ValidationMessage;
+    if (!IsSafeOAuthValue(Token, 8192))
+    {
+        ValidationMessage = TEXT("Password Reset Token is empty, exceeds 8192 characters, or contains a control character. Use the token from the reset link.");
+    }
+    else if (!IsSafeOAuthValue(Password, 4096))
+    {
+        ValidationMessage = TEXT("New Password is empty, exceeds 4096 characters, or contains a control character.");
+    }
+    else if (PasswordConfirm.IsEmpty())
+    {
+        ValidationMessage = TEXT("Password Confirm is empty. Enter the new password again.");
+    }
+    else if (Password != PasswordConfirm)
+    {
+        ValidationMessage = TEXT("New Password and Password Confirm do not match.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A bounded token and matching passwords are required.")));
+                ValidationMessage));
         return {};
     }
     TMap<FString, FString> Body;
@@ -6668,7 +7472,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestVerifi
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A bounded email is required.")));
+                TEXT("Email is empty, exceeds 320 characters, or contains a control character.")));
         return {};
     }
     TMap<FString, FString> Body;
@@ -6691,7 +7495,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmVerifi
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A bounded verification token is required.")));
+                TEXT("Verification Token is empty, exceeds 8192 characters, or contains a control character. Use the token from the verification link.")));
         return {};
     }
     FString RecordId;
@@ -6738,7 +7542,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::RequestEmailC
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A bounded new email is required.")));
+                TEXT("New Email is empty, exceeds 320 characters, or contains a control character.")));
         return {};
     }
     TMap<FString, FString> Body;
@@ -6757,12 +7561,21 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmEmailC
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
 {
-    if (!IsSafeOAuthValue(Token, 8192) || !IsSafeOAuthValue(Password, 4096))
+    FString ValidationMessage;
+    if (!IsSafeOAuthValue(Token, 8192))
+    {
+        ValidationMessage = TEXT("Email Change Token is empty, exceeds 8192 characters, or contains a control character. Use the token from the email-change link.");
+    }
+    else if (!IsSafeOAuthValue(Password, 4096))
+    {
+        ValidationMessage = TEXT("Password is empty, exceeds 4096 characters, or contains a control character.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A bounded email-change token and password are required.")));
+                ValidationMessage));
         return {};
     }
     FString RecordId;
@@ -6803,13 +7616,25 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListExternalA
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() ||
-        !IsSafePathSegment(RecordId))
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before listing linked external auths.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.");
+    }
+    else if (!IsSafePathSegment(RecordId))
+    {
+        ValidationMessage = TEXT("Record ID is empty or contains an unsafe path character. Pass the auth record ID returned by PocketBase.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<TArray<FOpenPocketBaseExternalAuth>>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A ready client, auth collection, and record ID are required.")));
+                ValidationMessage));
         return {};
     }
     FOpenPocketBaseDynamicFilterParams Params;
@@ -6855,7 +7680,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ListExternalA
                     OnComplete(TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>::Failure(
                         MakeLocalError(
                             EOpenPocketBaseErrorKind::Serialization,
-                            TEXT("PocketBase returned an invalid linked external-auth record."))));
+                            TEXT("PocketBase returned a linked external-auth record without the required provider, provider ID, or record reference fields."))));
                     return;
                 }
                 ExternalAuths.Add(MoveTemp(ExternalAuth));
@@ -6872,13 +7697,29 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::UnlinkExterna
     FOpenPocketBaseRequestOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() ||
-        !IsSafePathSegment(RecordId) || !IsSafeOAuthValue(Provider, 128))
+    FString ValidationMessage;
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
+    {
+        ValidationMessage = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before unlinking an external auth.");
+    }
+    else if (!IsValid())
+    {
+        ValidationMessage = TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it again from the current schema.");
+    }
+    else if (!IsSafePathSegment(RecordId))
+    {
+        ValidationMessage = TEXT("Record ID is empty or contains an unsafe path character. Pass the auth record ID returned by PocketBase.");
+    }
+    else if (!IsSafeOAuthValue(Provider, 128))
+    {
+        ValidationMessage = TEXT("Provider is empty, exceeds 128 characters, or contains a control character. Use the provider name returned by List External Auths.");
+    }
+    if (!ValidationMessage.IsEmpty())
     {
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
             MakeLocalError(EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A ready client, auth collection, record ID, and provider are required.")));
+                ValidationMessage));
         return {};
     }
     FOpenPocketBaseError OptionsError;
@@ -6979,12 +7820,23 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
     FOpenPocketBaseRealtimeOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() || !Options.IsValid() ||
-        (Reference.IsSet() && !Options.BelongsTo(Reference)))
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client, valid collection, and matching realtime options are required.")));
+            TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before subscribing to records.")));
+    }
+    if (!IsValid())
+    {
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Collection is missing, stale, or invalid. Choose it again from the current schema before subscribing.")));
+    }
+    if (Options.IsValid() && Reference.IsSet() && !Options.BelongsTo(Reference))
+    {
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Realtime Options contains a filter, field, or expand from another collection. Rebuild the options from the selected collection.")));
     }
     return PinnedClient->DynamicSubscribe(
         Collection + TEXT("/*"),
@@ -6998,13 +7850,29 @@ FOpenPocketBaseSubscriptionResult FOpenPocketBaseCollectionService::SubscribeToR
     FOpenPocketBaseRealtimeOptions Options) const
 {
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient = Client.Pin();
-    if (!PinnedClient.IsValid() || !IsValid() ||
-        !IsSafePathSegment(RecordId) || !Options.IsValid() ||
-        (Reference.IsSet() && !Options.BelongsTo(Reference)))
+    if (!PinnedClient.IsValid() || PinnedClient->IsShutdown())
     {
         return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("A ready client, valid collection, record ID, and matching realtime options are required.")));
+            TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before subscribing to a record.")));
+    }
+    if (!IsValid())
+    {
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Collection is missing, stale, or invalid. Choose it again from the current schema before subscribing.")));
+    }
+    if (!IsSafePathSegment(RecordId))
+    {
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Record ID is empty or contains an unsafe path character. Pass an ID returned by PocketBase.")));
+    }
+    if (Options.IsValid() && Reference.IsSet() && !Options.BelongsTo(Reference))
+    {
+        return FOpenPocketBaseSubscriptionResult::Failure(MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Realtime Options contains a filter, field, or expand from another collection. Rebuild the options from the selected collection.")));
     }
     return PinnedClient->DynamicSubscribe(
         Collection + TEXT("/") + MoveTemp(RecordId),

@@ -34,6 +34,52 @@ TSharedRef<FJsonObject> GeoPointValue(const FOpenPocketBaseGeoPoint& Value)
     Result->SetNumberField(TEXT("lon"), Value.Longitude);
     return Result;
 }
+
+FOpenPocketBaseRecordBody& InvalidateBody(
+    FOpenPocketBaseRecordBody& Body,
+    FString Message)
+{
+    Body.bValid = false;
+    Body.ErrorMessage = MoveTemp(Message);
+    return Body;
+}
+
+bool IsValidDynamicFieldName(const FString& Name)
+{
+    if (Name.IsEmpty() || Name.Len() > 255 ||
+        (!FChar::IsAlpha(Name[0]) && Name[0] != TEXT('_')))
+    {
+        return false;
+    }
+    for (const TCHAR Character : Name)
+    {
+        if (!FChar::IsAlnum(Character) && Character != TEXT('_'))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ValidateDynamicField(
+    FOpenPocketBaseRecordBody& Body,
+    const FString& FieldName)
+{
+    if (!Body.bValid)
+    {
+        return false;
+    }
+    if (IsValidDynamicFieldName(FieldName))
+    {
+        return true;
+    }
+    InvalidateBody(
+        Body,
+        FString::Printf(
+            TEXT("Dynamic Record Field '%s' is invalid. Use a PocketBase field name up to 255 characters containing only letters, numbers, and underscores."),
+            *FieldName));
+    return false;
+}
 }
 
 bool FOpenPocketBaseGeoPoint::IsValid() const
@@ -88,14 +134,18 @@ bool FOpenPocketBaseRecordBody::AcceptField(
     }
     if (!Field.ResolveCurrent(OutCurrentField))
     {
-        bValid = false;
-        ErrorMessage = TEXT("Choose a valid collection field for the record body.");
+        InvalidateBody(
+            *this,
+            TEXT("Record Body Field is missing or stale. Choose the field again from the current collection schema."));
         return false;
     }
     if (OutCurrentField.bReadOnly)
     {
-        bValid = false;
-        ErrorMessage = FString::Printf(TEXT("Field '%s' is read-only."), *OutCurrentField.Name);
+        InvalidateBody(
+            *this,
+            FString::Printf(
+                TEXT("Field '%s' is read-only and cannot be added to a Record Body. Choose a writable field."),
+                *OutCurrentField.Name));
         return false;
     }
     if (!SchemaId.IsValid())
@@ -106,8 +156,9 @@ bool FOpenPocketBaseRecordBody::AcceptField(
     }
     if (SchemaId != OutCurrentField.SchemaId || CollectionId != OutCurrentField.CollectionId)
     {
-        bValid = false;
-        ErrorMessage = TEXT("A record body cannot contain fields from different collections.");
+        InvalidateBody(
+            *this,
+            TEXT("This Record Body already contains fields from another collection. Start a new body from the intended Collection pin."));
         return false;
     }
     return true;
@@ -147,17 +198,37 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringField(
     const EOpenPocketBaseFieldModifier Modifier)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseTextFieldRef::Accepts(Current) ||
-        Modifier != EOpenPocketBaseFieldModifier::Replace ||
-        (Current.bHasMin && Value.Len() < Current.Min) ||
-        (Current.bHasMax && Value.Len() > Current.Max))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable string field for the record body.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseTextFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a text, email, URL, editor, or password field. Use the field node matching its schema type."),
+            *Current.Name));
+    }
+    if (Modifier != EOpenPocketBaseFieldModifier::Replace)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("String field '%s' only supports the Replace modifier. Choose Replace before setting it."),
+            *Current.Name));
+    }
+    if (Current.bHasMin && Value.Len() < Current.Min)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("String field '%s' contains %d characters, but its minimum is %.0f."),
+            *Current.Name,
+            Value.Len(),
+            Current.Min));
+    }
+    if (Current.bHasMax && Value.Len() > Current.Max)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("String field '%s' contains %d characters, but its maximum is %.0f."),
+            *Current.Name,
+            Value.Len(),
+            Current.Max));
     }
     GetOrCreateBodyObject(*this)->SetStringField(MakeModifiedFieldName(Current.Name, Modifier), Value);
     return *this;
@@ -169,17 +240,43 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
     const EOpenPocketBaseFieldModifier Modifier)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseNumberFieldRef::Accepts(Current) ||
-        Modifier == EOpenPocketBaseFieldModifier::Prepend ||
-        (Current.bHasMin && Value < Current.Min) ||
-        (Current.bHasMax && Value > Current.Max))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable number field for the record body.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseNumberFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a number field. Use With Number Field only with a number field from the schema."),
+            *Current.Name));
+    }
+    if (!FMath::IsFinite(Value))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Number field '%s' requires a finite value. NaN and infinity cannot be sent to PocketBase."),
+            *Current.Name));
+    }
+    if (Modifier == EOpenPocketBaseFieldModifier::Prepend)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Number field '%s' does not support the Prepend modifier. Use Replace, Append, or Remove."),
+            *Current.Name));
+    }
+    if (Current.bHasMin && Value < Current.Min)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Number field '%s' has value %.17g, but its minimum is %.17g."),
+            *Current.Name,
+            Value,
+            Current.Min));
+    }
+    if (Current.bHasMax && Value > Current.Max)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Number field '%s' has value %.17g, but its maximum is %.17g."),
+            *Current.Name,
+            Value,
+            Current.Max));
     }
     GetOrCreateBodyObject(*this)->SetNumberField(MakeModifiedFieldName(Current.Name, Modifier), Value);
     return *this;
@@ -191,15 +288,21 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetBooleanField(
     const EOpenPocketBaseFieldModifier Modifier)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseBooleanFieldRef::Accepts(Current) ||
-        Modifier != EOpenPocketBaseFieldModifier::Replace)
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable boolean field for the record body.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseBooleanFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a Boolean field. Use With Boolean Field only with a Boolean field from the schema."),
+            *Current.Name));
+    }
+    if (Modifier != EOpenPocketBaseFieldModifier::Replace)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Boolean field '%s' only supports the Replace modifier."),
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetBoolField(MakeModifiedFieldName(Current.Name, Modifier), bValue);
     return *this;
@@ -210,14 +313,15 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNullField(
     const EOpenPocketBaseFieldModifier Modifier)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || Modifier != EOpenPocketBaseFieldModifier::Replace)
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable field for the record body.");
-        }
         return *this;
+    }
+    if (Modifier != EOpenPocketBaseFieldModifier::Replace)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Null field '%s' only supports the Replace modifier."),
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetField(
         MakeModifiedFieldName(Current.Name, Modifier),
@@ -231,14 +335,15 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringArrayField(
     const EOpenPocketBaseFieldModifier Modifier)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseStringArrayFieldRef::Accepts(Current))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable string-array field for the record body.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseStringArrayFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a string-array field. Choose a compatible multiple-value field from the schema."),
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetArrayField(
         MakeModifiedFieldName(Current.Name, Modifier),
@@ -251,14 +356,15 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDateField(
     const FDateTime& Value)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseDateFieldRef::Accepts(Current))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable date field for the record body.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseDateFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a date field. Use With Date Field only with a date field from the schema."),
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetStringField(Current.Name, OpenPocketBase::Date::Format(Value));
     return *this;
@@ -270,17 +376,25 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetJsonField(
 {
     FOpenPocketBaseFieldRef Current;
     const TSharedPtr<FJsonValue> JsonValue = Value.ToJsonValue();
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseJsonFieldRef::Accepts(Current) ||
-        !JsonValue.IsValid())
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = Value.ErrorMessage.IsEmpty()
-                ? TEXT("Choose a writable JSON field and a valid JSON value.")
-                : Value.ErrorMessage;
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseJsonFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a JSON field. Use With JSON Field only with a JSON field from the schema."),
+            *Current.Name));
+    }
+    if (!JsonValue.IsValid())
+    {
+        return InvalidateBody(
+            *this,
+            Value.ErrorMessage.IsEmpty()
+                ? FString::Printf(
+                      TEXT("JSON value for field '%s' is empty or invalid. Build a JSON value before setting the field."),
+                      *Current.Name)
+                : Value.ErrorMessage);
     }
     GetOrCreateBodyObject(*this)->SetField(Current.Name, JsonValue);
     return *this;
@@ -291,15 +405,21 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetGeoPointField(
     const FOpenPocketBaseGeoPoint& Value)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseGeoPointFieldRef::Accepts(Current) ||
-        !Value.IsValid())
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable geo point field and valid coordinates.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseGeoPointFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a geo point field. Use With Geo Point Field only with a geo field from the schema."),
+            *Current.Name));
+    }
+    if (!Value.IsValid())
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Geo field '%s' requires finite coordinates with latitude from -90 to 90 and longitude from -180 to 180."),
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetObjectField(Current.Name, GeoPointValue(Value));
     return *this;
@@ -310,20 +430,22 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetSingleSelectField(
     const FString& Value)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseSingleSelectFieldRef::Accepts(Current) ||
-        (!Current.Choices.IsEmpty() && !Current.Choices.Contains(Value)))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = Current.IsSet() && !Current.Choices.IsEmpty()
-                ? FString::Printf(
-                      TEXT("Value '%s' is not allowed by select field '%s'."),
-                      *Value,
-                      *Current.Name)
-                : TEXT("Choose a writable single-select field.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseSingleSelectFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a single-select field. Choose a single-select field from the schema."),
+            *Current.Name));
+    }
+    if (!Current.Choices.IsEmpty() && !Current.Choices.Contains(Value))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Value '%s' is not allowed by select field '%s'. Choose one of the field's schema choices."),
+            *Value,
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetStringField(Current.Name, Value);
     return *this;
@@ -335,14 +457,15 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetMultipleSelectField(
     const EOpenPocketBaseFieldModifier Modifier)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseMultipleSelectFieldRef::Accepts(Current))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable multiple-select field.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseMultipleSelectFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a multiple-select field. Choose a multiple-select field from the schema."),
+            *Current.Name));
     }
     const bool bInvalidChoice = Value.ContainsByPredicate(
         [&Current](const FString& Choice)
@@ -354,31 +477,30 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetMultipleSelectField(
          (Value.Num() < Current.MinSelect ||
           (Current.MaxSelect > 0 && Value.Num() > Current.MaxSelect))))
     {
-        if (bValid)
+        if (bInvalidChoice)
         {
-            bValid = false;
-            if (bInvalidChoice)
-            {
-                const FString* InvalidChoice = Value.FindByPredicate(
-                    [&Current](const FString& Choice)
-                    {
-                        return !Current.Choices.Contains(Choice);
-                    });
-                ErrorMessage = FString::Printf(
-                    TEXT("Value '%s' is not allowed by select field '%s'."),
-                    InvalidChoice != nullptr ? **InvalidChoice : TEXT(""),
-                    *Current.Name);
-            }
-            else
-            {
-                ErrorMessage = FString::Printf(
-                    TEXT("Select field '%s' requires between %d and %d values."),
-                    *Current.Name,
-                    Current.MinSelect,
-                    Current.MaxSelect);
-            }
+            const FString* InvalidChoice = Value.FindByPredicate(
+                [&Current](const FString& Choice)
+                {
+                    return !Current.Choices.Contains(Choice);
+                });
+            return InvalidateBody(*this, FString::Printf(
+                TEXT("Value '%s' is not allowed by select field '%s'. Choose only values listed in the field's schema choices."),
+                InvalidChoice != nullptr ? **InvalidChoice : TEXT(""),
+                *Current.Name));
         }
-        return *this;
+        return Current.MaxSelect > 0
+            ? InvalidateBody(*this, FString::Printf(
+                  TEXT("Select field '%s' received %d values, but it requires from %d to %d values."),
+                  *Current.Name,
+                  Value.Num(),
+                  Current.MinSelect,
+                  Current.MaxSelect))
+            : InvalidateBody(*this, FString::Printf(
+                  TEXT("Select field '%s' received %d values, but it requires at least %d values."),
+                  *Current.Name,
+                  Value.Num(),
+                  Current.MinSelect));
     }
     GetOrCreateBodyObject(*this)->SetArrayField(
         MakeModifiedFieldName(Current.Name, Modifier), StringValues(Value));
@@ -390,14 +512,21 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetSingleRelationField(
     const FString& RecordId)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseSingleRelationFieldRef::Accepts(Current))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable single-relation field.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseSingleRelationFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a single-relation field. Choose a single-relation field from the schema."),
+            *Current.Name));
+    }
+    if (RecordId.IsEmpty())
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Relation field '%s' requires a non-empty Record ID returned by PocketBase."),
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetStringField(Current.Name, RecordId);
     return *this;
@@ -409,17 +538,38 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetMultipleRelationField(
     const EOpenPocketBaseFieldModifier Modifier)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseMultipleRelationFieldRef::Accepts(Current) ||
-        (Modifier == EOpenPocketBaseFieldModifier::Replace &&
-         (RecordIds.Num() < Current.MinSelect ||
-          (Current.MaxSelect > 0 && RecordIds.Num() > Current.MaxSelect))))
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = TEXT("Choose a writable multiple-relation field.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseMultipleRelationFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a multiple-relation field. Choose a multiple-relation field from the schema."),
+            *Current.Name));
+    }
+    if (RecordIds.ContainsByPredicate([](const FString& Id) { return Id.IsEmpty(); }))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Relation field '%s' contains an empty Record ID. Use IDs returned by PocketBase."),
+            *Current.Name));
+    }
+    if (Modifier == EOpenPocketBaseFieldModifier::Replace &&
+        (RecordIds.Num() < Current.MinSelect ||
+         (Current.MaxSelect > 0 && RecordIds.Num() > Current.MaxSelect)))
+    {
+        return Current.MaxSelect > 0
+            ? InvalidateBody(*this, FString::Printf(
+                  TEXT("Relation field '%s' received %d Record IDs, but it requires from %d to %d."),
+                  *Current.Name,
+                  RecordIds.Num(),
+                  Current.MinSelect,
+                  Current.MaxSelect))
+            : InvalidateBody(*this, FString::Printf(
+                  TEXT("Relation field '%s' received %d Record IDs, but it requires at least %d."),
+                  *Current.Name,
+                  RecordIds.Num(),
+                  Current.MinSelect));
     }
     GetOrCreateBodyObject(*this)->SetArrayField(
         MakeModifiedFieldName(Current.Name, Modifier), StringValues(RecordIds));
@@ -431,20 +581,28 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetSingleRelationRecord(
     const FOpenPocketBaseRecord& Record)
 {
     FOpenPocketBaseFieldRef Current;
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseSingleRelationFieldRef::Accepts(Current) ||
-        Record.Id.IsEmpty() || Record.CollectionId != Current.RelatedCollectionId)
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = Current.IsSet()
-                ? FString::Printf(
-                      TEXT("Record '%s' does not belong to relation field '%s'."),
-                      *Record.Id,
-                      *Current.Name)
-                : TEXT("Choose a writable single-relation field and a related record.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseSingleRelationFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a single-relation field. Choose a single-relation field from the schema."),
+            *Current.Name));
+    }
+    if (Record.Id.IsEmpty())
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Relation field '%s' received a record with no ID. Fetch or create the related record before connecting it."),
+            *Current.Name));
+    }
+    if (Record.CollectionId != Current.RelatedCollectionId)
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Record '%s' belongs to another collection and cannot be assigned to relation field '%s'. Choose a record from that field's related collection."),
+            *Record.Id,
+            *Current.Name));
     }
     GetOrCreateBodyObject(*this)->SetStringField(Current.Name, Record.Id);
     return *this;
@@ -465,20 +623,26 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetMultipleRelationRecords
                 return Record.Id.IsEmpty() || Record.CollectionId != Current.RelatedCollectionId;
             });
     }
-    if (!AcceptField(Field, Current) || !FOpenPocketBaseMultipleRelationFieldRef::Accepts(Current) ||
-        InvalidRecord != nullptr)
+    if (!AcceptField(Field, Current))
     {
-        if (bValid)
-        {
-            bValid = false;
-            ErrorMessage = InvalidRecord != nullptr
-                ? FString::Printf(
-                      TEXT("Record '%s' does not belong to relation field '%s'."),
-                      *InvalidRecord->Id,
-                      *Current.Name)
-                : TEXT("Choose a writable multiple-relation field and related records.");
-        }
         return *this;
+    }
+    if (!FOpenPocketBaseMultipleRelationFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a multiple-relation field. Choose a multiple-relation field from the schema."),
+            *Current.Name));
+    }
+    if (InvalidRecord != nullptr)
+    {
+        return InvalidateBody(*this, InvalidRecord->Id.IsEmpty()
+            ? FString::Printf(
+                  TEXT("Relation field '%s' received a record with no ID. Fetch or create every related record before connecting them."),
+                  *Current.Name)
+            : FString::Printf(
+                  TEXT("Record '%s' belongs to another collection and cannot be assigned to relation field '%s'. Choose records from that field's related collection."),
+                  *InvalidRecord->Id,
+                  *Current.Name));
     }
 
     TArray<FString> RecordIds;
@@ -495,6 +659,10 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicStringField(
     const FString& Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
     GetOrCreateBodyObject(*this)->SetStringField(MakeModifiedFieldName(FieldName, Modifier), Value);
     return *this;
 }
@@ -504,6 +672,16 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicNumberField(
     const double Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
+    if (!FMath::IsFinite(Value))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Dynamic number field '%s' requires a finite value. NaN and infinity cannot be sent to PocketBase."),
+            *FieldName));
+    }
     GetOrCreateBodyObject(*this)->SetNumberField(MakeModifiedFieldName(FieldName, Modifier), Value);
     return *this;
 }
@@ -513,6 +691,10 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicBooleanField(
     const bool bValue,
     const EOpenPocketBaseFieldModifier Modifier)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
     GetOrCreateBodyObject(*this)->SetBoolField(MakeModifiedFieldName(FieldName, Modifier), bValue);
     return *this;
 }
@@ -521,6 +703,10 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicNullField(
     const FString& FieldName,
     const EOpenPocketBaseFieldModifier Modifier)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
     GetOrCreateBodyObject(*this)->SetField(
         MakeModifiedFieldName(FieldName, Modifier),
         MakeShared<FJsonValueNull>());
@@ -532,6 +718,10 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicStringArrayField
     const TArray<FString>& Value,
     const EOpenPocketBaseFieldModifier Modifier)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
     GetOrCreateBodyObject(*this)->SetArrayField(
         MakeModifiedFieldName(FieldName, Modifier),
         StringValues(Value));
@@ -542,6 +732,10 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicDateField(
     const FString& FieldName,
     const FDateTime& Value)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
     GetOrCreateBodyObject(*this)->SetStringField(FieldName, OpenPocketBase::Date::Format(Value));
     return *this;
 }
@@ -550,12 +744,18 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicJsonField(
     const FString& FieldName,
     const FOpenPocketBaseJsonValue& Value)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
     const TSharedPtr<FJsonValue> JsonValue = Value.ToJsonValue();
     if (!JsonValue.IsValid())
     {
         bValid = false;
         ErrorMessage = Value.ErrorMessage.IsEmpty()
-            ? TEXT("A valid JSON value is required.")
+            ? FString::Printf(
+                  TEXT("Dynamic JSON field '%s' requires a valid JSON value. Build the value before setting the field."),
+                  *FieldName)
             : Value.ErrorMessage;
         return *this;
     }
@@ -567,11 +767,15 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicGeoPointField(
     const FString& FieldName,
     const FOpenPocketBaseGeoPoint& Value)
 {
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
     if (!Value.IsValid())
     {
-        bValid = false;
-        ErrorMessage = TEXT("Valid latitude and longitude values are required.");
-        return *this;
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Dynamic geo field '%s' requires finite coordinates with latitude from -90 to 90 and longitude from -180 to 180."),
+            *FieldName));
     }
     GetOrCreateBodyObject(*this)->SetObjectField(FieldName, GeoPointValue(Value));
     return *this;

@@ -57,7 +57,7 @@ FOpenPocketBaseJsonValue FOpenPocketBaseJsonValue::FromJsonValue(
 {
     if (!Value.IsValid())
     {
-        return Invalid(TEXT("A valid JSON value is required."));
+        return Invalid(TEXT("The JSON value is empty or invalid. Build it with a JSON value node before adding it to a record body."));
     }
 
     FOpenPocketBaseJsonValue Result;
@@ -72,7 +72,7 @@ FOpenPocketBaseJsonValue FOpenPocketBaseJsonValue::FromJsonValue(
         WrappedJson.Len() < 2 || WrappedJson[0] != TEXT('[') ||
         WrappedJson[WrappedJson.Len() - 1] != TEXT(']'))
     {
-        return Invalid(TEXT("The JSON value could not be serialized."));
+        return Invalid(TEXT("The JSON value could not be serialized into a supported object, array, string, number, Boolean, or null value. Rebuild the value before using it."));
     }
     Result.Json = WrappedJson.Mid(1, WrappedJson.Len() - 2);
     return Result;

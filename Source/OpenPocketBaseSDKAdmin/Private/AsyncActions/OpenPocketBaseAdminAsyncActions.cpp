@@ -6,7 +6,7 @@ FOpenPocketBaseError MakeAdminClientNotReadyError()
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-    Error.ServerMessage = TEXT("A ready privileged PocketBase client is required.");
+    Error.Message = TEXT("The privileged PocketBase client is missing or has already shut down. Create or retrieve an active admin client before starting this operation.");
     return Error;
 }
 }
@@ -45,6 +45,7 @@ FOpenPocketBaseError UOpenPocketBaseAdminAsyncActionBase::MakeCancelledError()
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::Cancelled;
+    Error.Message = TEXT("The privileged PocketBase operation was cancelled by the caller.");
     return Error;
 }
 
@@ -924,7 +925,7 @@ void UOpenPocketBaseAdminImpersonateAsyncAction::Activate()
                     {
                         FOpenPocketBaseError Error;
                         Error.Kind = EOpenPocketBaseErrorKind::Internal;
-                        Error.ServerMessage = TEXT("The impersonated client could not be wrapped.");
+                        Error.Message = TEXT("The impersonation succeeded, but the SDK could not create the Blueprint client wrapper. Confirm the admin client and owning game instance are still active, then retry.");
                         Action->Failed.Broadcast(nullptr, FOpenPocketBaseRecord(), Error);
                     }
                 }

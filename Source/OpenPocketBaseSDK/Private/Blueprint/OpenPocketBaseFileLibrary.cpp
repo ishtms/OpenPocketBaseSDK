@@ -75,7 +75,7 @@ bool UOpenPocketBaseFileLibrary::TryBuildFileUrl(
         Url.Reset();
         Error = FOpenPocketBaseError();
         Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-        Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+        Error.Message = TEXT("The PocketBase collection has no active client. Create or retrieve the client again before building a file URL.");
         return false;
     }
 

@@ -17,7 +17,7 @@ TSharedRef<FJsonObject> MakeRecordObject(const FOpenPocketBaseRecord& Record);
 TOpenPocketBaseResult<FOpenPocketBaseRecord> ParseRecordResponse(
     const FOpenPocketBaseHttpResponse& Response);
 
-TOpenPocketBaseResult<FOpenPocketBaseRecordPage> ParseRecordPageResponse(
+OPENPOCKETBASESDK_API TOpenPocketBaseResult<FOpenPocketBaseRecordPage> ParseRecordPageResponse(
     const FOpenPocketBaseHttpResponse& Response);
 
 TOpenPocketBaseResult<FOpenPocketBaseAuthResult> ParseAuthResponse(

@@ -6,7 +6,7 @@ FOpenPocketBaseError MakeRealtimeEntryError(const TCHAR* Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-    Error.ServerMessage = Message;
+    Error.Message = Message;
     return Error;
 }
 
@@ -23,7 +23,7 @@ bool SetSubscriptionResult(
     }
     if (!OutError.IsSet())
     {
-        OutError = MakeRealtimeEntryError(TEXT("The realtime subscription could not be started."));
+        OutError = MakeRealtimeEntryError(TEXT("The realtime subscription did not start and no lower-level error was returned. Check the collection, topic, and client state."));
     }
     return false;
 }
@@ -39,7 +39,7 @@ bool UOpenPocketBaseRealtimeLibrary::SubscribeToRecords(
     Error = {};
     if (!Collection.IsValid())
     {
-        Error = MakeRealtimeEntryError(TEXT("A valid PocketBase collection is required."));
+        Error = MakeRealtimeEntryError(TEXT("The collection is missing, stale, or belongs to an inactive client. Choose the collection again before subscribing."));
         return false;
     }
     return SetSubscriptionResult(
@@ -59,7 +59,7 @@ bool UOpenPocketBaseRealtimeLibrary::SubscribeToRecord(
     Error = {};
     if (!Collection.IsValid())
     {
-        Error = MakeRealtimeEntryError(TEXT("A valid PocketBase collection is required."));
+        Error = MakeRealtimeEntryError(TEXT("The collection is missing, stale, or belongs to an inactive client. Choose the collection again before subscribing to a record."));
         return false;
     }
     return SetSubscriptionResult(
@@ -83,7 +83,7 @@ bool UOpenPocketBaseRealtimeLibrary::DynamicSubscribeToTopic(
     Error = {};
     if (PocketBaseClient == nullptr)
     {
-        Error = MakeRealtimeEntryError(TEXT("A ready PocketBase client is required."));
+        Error = MakeRealtimeEntryError(TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before subscribing to a dynamic topic."));
         return false;
     }
     return SetSubscriptionResult(

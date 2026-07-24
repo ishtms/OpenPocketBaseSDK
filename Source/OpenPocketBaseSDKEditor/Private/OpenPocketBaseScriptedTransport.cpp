@@ -208,7 +208,7 @@ FOpenPocketBaseTransportHandle FOpenPocketBaseScriptedTransport::Send(
     FOpenPocketBaseTransportScript Script;
     if (!State->Dequeue(Script))
     {
-        Script.Response.ErrorMessage = TEXT("No scripted response was queued.");
+        Script.Response.ErrorMessage = TEXT("The scripted transport received a request with no queued response. Queue the expected response before starting the SDK operation in this test.");
     }
 
     if (Script.Response.RequestId.IsEmpty())

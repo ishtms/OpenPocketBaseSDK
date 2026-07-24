@@ -8,12 +8,12 @@ namespace
 {
 FOpenPocketBaseError MakeDownloadError(
     const EOpenPocketBaseErrorKind Kind,
-    const TCHAR* Message,
+    const FString& Message,
     const FString& RequestId = {})
 {
     FOpenPocketBaseError Error;
     Error.Kind = Kind;
-    Error.ServerMessage = Message;
+    Error.Message = Message;
     Error.RequestId = RequestId;
     return Error;
 }
@@ -94,13 +94,24 @@ TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> FOpenPocketBaseDown
     const FString& RequestedFileName,
     FOpenPocketBaseError& OutError)
 {
-    if (Options.MaxBytes < 1 || Options.MaxBytes > 16LL * 1024 * 1024 * 1024 ||
-        (Options.Target == EOpenPocketBaseFileDownloadTarget::Memory &&
-            Options.MaxBytes > MAX_int32))
+    if (Options.MaxBytes < 1 || Options.MaxBytes > 16LL * 1024 * 1024 * 1024)
     {
         OutError = MakeDownloadError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The download byte bound is invalid for its destination."));
+            FString::Printf(
+                TEXT("Max Bytes is %lld. File downloads require a value from 1 to 17179869184 bytes."),
+                Options.MaxBytes));
+        return nullptr;
+    }
+    if (Options.Target == EOpenPocketBaseFileDownloadTarget::Memory &&
+        Options.MaxBytes > MAX_int32)
+    {
+        OutError = MakeDownloadError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(
+                TEXT("Max Bytes is %lld, but memory downloads support at most %d bytes. Lower Max Bytes or download to a file."),
+                Options.MaxBytes,
+                MAX_int32));
         return nullptr;
     }
 
@@ -130,15 +141,39 @@ TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> FOpenPocketBaseDown
     const FString ParentPath = FPaths::GetPath(DestinationPath);
     const FString TempPath = DestinationPath + TEXT(".tmp");
     IFileManager& FileManager = IFileManager::Get();
-    if (FPaths::GetCleanFilename(DestinationPath).IsEmpty() ||
-        !FileManager.DirectoryExists(*ParentPath) ||
-        FileManager.DirectoryExists(*DestinationPath) ||
-        FileManager.FileExists(*TempPath) ||
-        (!Options.bReplaceExisting && FileManager.FileExists(*DestinationPath)))
+    if (FPaths::GetCleanFilename(DestinationPath).IsEmpty())
     {
         OutError = MakeDownloadError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The download destination is unavailable or already exists."));
+            TEXT("Destination Path must include a file name."));
+        return nullptr;
+    }
+    if (!FileManager.DirectoryExists(*ParentPath))
+    {
+        OutError = MakeDownloadError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("The parent directory for Destination Path does not exist. Create the directory before starting the download."));
+        return nullptr;
+    }
+    if (FileManager.DirectoryExists(*DestinationPath))
+    {
+        OutError = MakeDownloadError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Destination Path points to a directory. Choose a full file path instead."));
+        return nullptr;
+    }
+    if (FileManager.FileExists(*TempPath))
+    {
+        OutError = MakeDownloadError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A temporary download file already exists at Destination Path. Remove the stale .tmp file and try again."));
+        return nullptr;
+    }
+    if (!Options.bReplaceExisting && FileManager.FileExists(*DestinationPath))
+    {
+        OutError = MakeDownloadError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("A file already exists at Destination Path. Enable Replace Existing or choose another destination."));
         return nullptr;
     }
 
@@ -149,7 +184,7 @@ TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> FOpenPocketBaseDown
     {
         OutError = MakeDownloadError(
             EOpenPocketBaseErrorKind::Transport,
-            TEXT("The temporary download file could not be opened."));
+            TEXT("The temporary download file could not be opened. Check that the destination directory is writable and try again."));
         return nullptr;
     }
 
@@ -221,7 +256,9 @@ void FOpenPocketBaseDownloadSink::Receive(const TArrayView<const uint8> Chunk)
     {
         Failure = MakeDownloadError(
             EOpenPocketBaseErrorKind::Transport,
-            TEXT("The file download exceeded its configured byte bound."));
+            FString::Printf(
+                TEXT("The download would exceed Max Bytes of %lld. Increase Max Bytes if the file size is expected."),
+                MaxBytes));
         return;
     }
 
@@ -236,7 +273,7 @@ void FOpenPocketBaseDownloadSink::Receive(const TArrayView<const uint8> Chunk)
         {
             Failure = MakeDownloadError(
                 EOpenPocketBaseErrorKind::Transport,
-                TEXT("The temporary download file could not be written."));
+                TEXT("The temporary download file could not be written. Check available disk space and directory permissions."));
             return;
         }
     }
@@ -286,7 +323,10 @@ bool FOpenPocketBaseDownloadSink::Finalize(
         {
             Failure = MakeDownloadError(
                 EOpenPocketBaseErrorKind::Transport,
-                TEXT("The file download ended before its declared content length."));
+                *FString::Printf(
+                    TEXT("The response declared %lld bytes, but the download received %lld bytes. Retry the download and check the server or proxy if it repeats."),
+                    DeclaredContentLength,
+                    TransferredBytes));
         }
         if (Failure.IsSet())
         {
@@ -321,7 +361,7 @@ bool FOpenPocketBaseDownloadSink::Finalize(
         IFileManager::Get().Delete(*TempPath, false, true, true);
         OutError = MakeDownloadError(
             EOpenPocketBaseErrorKind::Transport,
-            TEXT("The completed download could not be published to its destination."),
+            TEXT("The completed download could not replace or move to Destination Path. Check file permissions and whether another process is using the file."),
             Response.RequestId);
         return false;
     }

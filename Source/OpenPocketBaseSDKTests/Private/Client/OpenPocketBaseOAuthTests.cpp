@@ -160,7 +160,7 @@ void BeginExpiryCheck(const TSharedRef<FOAuthTestState, ESPMode::ThreadSafe>& St
                 {
                     State->bExpiredRejected = !Expired.IsSuccess() &&
                         Expired.GetError().Kind == EOpenPocketBaseErrorKind::Authentication &&
-                        !Expired.GetError().ServerMessage.Contains(TEXT("expired-secret-code"));
+                        !Expired.GetError().Message.Contains(TEXT("expired-secret-code"));
                     BeginTeardownCheck(State);
                 });
         });
@@ -192,7 +192,7 @@ void BeginTeardownCheck(const TSharedRef<FOAuthTestState, ESPMode::ThreadSafe>& 
                 {
                     State->bTeardownRejected = !Teardown.IsSuccess() &&
                         Teardown.GetError().Kind == EOpenPocketBaseErrorKind::Cancelled &&
-                        !Teardown.GetError().ServerMessage.Contains(TEXT("teardown-secret-code"));
+                        !Teardown.GetError().Message.Contains(TEXT("teardown-secret-code"));
                     State->bCompleted = true;
                 });
         });
@@ -369,7 +369,7 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
                 {
                     State->bWrongOriginRejected = !Origin.IsSuccess() &&
                         Origin.GetError().Kind == EOpenPocketBaseErrorKind::Authentication &&
-                        !Origin.GetError().ServerMessage.Contains(TEXT("origin-secret-code"));
+                        !Origin.GetError().Message.Contains(TEXT("origin-secret-code"));
 
                     FOpenPocketBaseOAuth2Callback WrongState;
                     WrongState.TransactionId = State->Authorization.TransactionId;
@@ -381,7 +381,7 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
                         {
                             State->bWrongStateRejected = !Mismatch.IsSuccess() &&
                                 Mismatch.GetError().Kind == EOpenPocketBaseErrorKind::Authentication &&
-                                !Mismatch.GetError().ServerMessage.Contains(TEXT("state-secret-code"));
+                                !Mismatch.GetError().Message.Contains(TEXT("state-secret-code"));
 
                             FOpenPocketBaseOAuth2Callback Valid;
                             Valid.TransactionId = State->Authorization.TransactionId;
@@ -442,7 +442,7 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
                                             State->bDuplicateRejected = !Duplicate.IsSuccess() &&
                                                 Duplicate.GetError().Kind ==
                                                     EOpenPocketBaseErrorKind::Authentication &&
-                                                !Duplicate.GetError().ServerMessage.Contains(
+                                                !Duplicate.GetError().Message.Contains(
                                                     TEXT("valid-secret-code"));
                                             BeginExpiryCheck(State);
                                         });

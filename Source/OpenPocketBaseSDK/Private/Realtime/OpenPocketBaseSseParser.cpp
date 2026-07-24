@@ -75,9 +75,21 @@ bool FSseParser::Feed(
     TArray<FSseEvent>& OutEvents,
     FOpenPocketBaseError& OutError)
 {
-    if (bFinished || bFailed || !bLimitsValid)
+    if (!bLimitsValid)
     {
-        return Fail(TEXT("The SSE parser is not available for more input."), OutError);
+        return Fail(FString::Printf(
+            TEXT("Realtime parser limits are invalid. Max Line Characters must be 1 to 1048576, Max Event Data Characters must be 1 to 16777216, and Max Events Per Feed must be 1 to 16384. Received %d, %d, and %d."),
+            Limits.MaxLineCharacters,
+            Limits.MaxEventDataCharacters,
+            Limits.MaxEventsPerFeed), OutError);
+    }
+    if (bFinished)
+    {
+        return Fail(TEXT("Realtime data was supplied after the SSE stream had already finished. Create a new parser for the next connection."), OutError);
+    }
+    if (bFailed)
+    {
+        return Fail(TEXT("Realtime data was supplied after the SSE parser had already failed. Reconnect and create a new parser."), OutError);
     }
 
     int32 EventsProduced = 0;
@@ -92,7 +104,7 @@ bool FSseParser::Feed(
         }
         if (DecodeResult == EUtf8DecodeResult::Invalid)
         {
-            return Fail(TEXT("The SSE stream contains malformed UTF-8."), OutError);
+            return Fail(TEXT("The realtime stream contains malformed UTF-8 and cannot be decoded. Reconnect, and inspect any custom proxy that may be modifying the response bytes."), OutError);
         }
 
         PendingUtf8.Reset();
@@ -108,13 +120,23 @@ bool FSseParser::Feed(
 
 bool FSseParser::Finish(FOpenPocketBaseError& OutError)
 {
-    if (bFinished || bFailed || !bLimitsValid)
+    if (!bLimitsValid)
     {
-        return Fail(TEXT("The SSE parser cannot finish in its current state."), OutError);
+        return Fail(TEXT("The SSE parser cannot finish because its configured limits are invalid. Create it again using valid positive limits."), OutError);
+    }
+    if (bFinished)
+    {
+        return Fail(TEXT("The SSE parser was finished more than once. Finish each realtime response only once."), OutError);
+    }
+    if (bFailed)
+    {
+        return Fail(TEXT("The SSE parser cannot finish after a parsing failure. Reconnect and use a new parser."), OutError);
     }
     if (!PendingUtf8.IsEmpty())
     {
-        return Fail(TEXT("The SSE stream ended inside a UTF-8 character."), OutError);
+        return Fail(FString::Printf(
+            TEXT("The realtime stream ended with %d byte(s) of an incomplete UTF-8 character. Reconnect, and check whether a proxy truncated the response."),
+            PendingUtf8.Num()), OutError);
     }
 
     if (!PendingLine.IsEmpty())
@@ -244,7 +266,9 @@ bool FSseParser::AppendCodepoint(
     AppendCodepointToString(Codepoint, PendingLine);
     if (PendingLine.Len() > Limits.MaxLineCharacters)
     {
-        return Fail(TEXT("An SSE line exceeded its configured character bound."), OutError);
+        return Fail(FString::Printf(
+            TEXT("A realtime SSE line exceeded Max Line Characters of %d. Increase the limit only if this server payload is expected."),
+            Limits.MaxLineCharacters), OutError);
     }
     return true;
 }
@@ -262,7 +286,9 @@ bool FSseParser::ProcessLine(
         {
             if (InOutEventsProduced >= Limits.MaxEventsPerFeed)
             {
-                return Fail(TEXT("An SSE chunk produced too many events."), OutError);
+                return Fail(FString::Printf(
+                    TEXT("One realtime input chunk produced more than Max Events Per Feed of %d. Feed smaller chunks or raise the limit if this burst is expected."),
+                    Limits.MaxEventsPerFeed), OutError);
             }
             FSseEvent Event;
             Event.Event = EventName.IsEmpty() ? TEXT("message") : MoveTemp(EventName);
@@ -309,7 +335,9 @@ bool FSseParser::ProcessLine(
         if (Value.Len() > Limits.MaxEventDataCharacters ||
             EventDataCharacters > Limits.MaxEventDataCharacters - Value.Len() - SeparatorCharacters)
         {
-            return Fail(TEXT("An SSE event exceeded its configured data bound."), OutError);
+            return Fail(FString::Printf(
+                TEXT("A realtime event exceeded Max Event Data Characters of %d. Reduce the event payload or raise the limit if this payload is expected."),
+                Limits.MaxEventDataCharacters), OutError);
         }
         EventDataCharacters += Value.Len() + SeparatorCharacters;
         DataLines.Add(MoveTemp(Value));
@@ -329,12 +357,12 @@ bool FSseParser::ProcessLine(
     return true;
 }
 
-bool FSseParser::Fail(const TCHAR* Message, FOpenPocketBaseError& OutError)
+bool FSseParser::Fail(FString Message, FOpenPocketBaseError& OutError)
 {
     bFailed = true;
     OutError = FOpenPocketBaseError();
     OutError.Kind = EOpenPocketBaseErrorKind::Serialization;
-    OutError.ServerMessage = Message;
+    OutError.Message = MoveTemp(Message);
     return false;
 }
 }

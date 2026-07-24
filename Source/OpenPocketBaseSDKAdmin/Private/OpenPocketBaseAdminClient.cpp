@@ -13,11 +13,11 @@ namespace
 {
 FOpenPocketBaseError MakeAdminError(
     const EOpenPocketBaseErrorKind Kind,
-    const TCHAR* Message)
+    const FString& Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = Kind;
-    Error.ServerMessage = Message;
+    Error.Message = Message;
     return Error;
 }
 
@@ -25,15 +25,15 @@ FOpenPocketBaseError MakeAdminCancelledError()
 {
     return MakeAdminError(
         EOpenPocketBaseErrorKind::Cancelled,
-        TEXT("The privileged request was cancelled."));
+        TEXT("The privileged PocketBase request was cancelled by the caller."));
 }
 
 FOpenPocketBaseError SanitizeSensitiveError(
     FOpenPocketBaseError Error,
     const TCHAR* Message)
 {
-    Error.ServerCode.Reset();
-    Error.ServerMessage = Message;
+    Error.Code.Reset();
+    Error.Message = Message;
     Error.FieldErrors.Reset();
     return Error;
 }
@@ -134,16 +134,41 @@ bool ValidatePolicy(
     const FOpenPocketBaseAdminPolicy& Policy,
     FOpenPocketBaseError& OutError)
 {
-    if (!Policy.bEnablePrivilegedRequests || Policy.MaxPageSize < 1 ||
-        Policy.MaxPageSize > 500 || Policy.MaxRequestBytes < 1024 ||
-        Policy.MaxRequestBytes > 64LL * 1024 * 1024 ||
-        Policy.MaxResponseBytes < 1024 || Policy.MaxResponseBytes > 64LL * 1024 * 1024 ||
-        Policy.MaxBackupBytes < 1024 || Policy.MaxBackupBytes > 64LL * 1024 * 1024 ||
-        Policy.MaxSqlRows < 1 || Policy.MaxSqlRows > 1000)
+    if (!Policy.bEnablePrivilegedRequests)
     {
         OutError = MakeAdminError(
             EOpenPocketBaseErrorKind::Unsupported,
-            TEXT("Privileged requests require an explicit bounded runtime policy."));
+            TEXT("Privileged Requests is disabled in the admin policy. Enable it explicitly before creating an admin client."));
+        return false;
+    }
+    if (Policy.MaxPageSize < 1 || Policy.MaxPageSize > 500)
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin policy Max Page Size is %d. Use a value from 1 to 500."), Policy.MaxPageSize));
+        return false;
+    }
+    if (Policy.MaxRequestBytes < 1024 || Policy.MaxRequestBytes > 64LL * 1024 * 1024)
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin policy Max Request Bytes is %lld. Use a value from 1024 to 67108864 bytes."), Policy.MaxRequestBytes));
+        return false;
+    }
+    if (Policy.MaxResponseBytes < 1024 || Policy.MaxResponseBytes > 64LL * 1024 * 1024)
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin policy Max Response Bytes is %lld. Use a value from 1024 to 67108864 bytes."), Policy.MaxResponseBytes));
+        return false;
+    }
+    if (Policy.MaxBackupBytes < 1024 || Policy.MaxBackupBytes > 64LL * 1024 * 1024)
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin policy Max Backup Bytes is %lld. Use a value from 1024 to 67108864 bytes."), Policy.MaxBackupBytes));
+        return false;
+    }
+    if (Policy.MaxSqlRows < 1 || Policy.MaxSqlRows > 1000)
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin policy Max SQL Rows is %d. Use a value from 1 to 1000."), Policy.MaxSqlRows));
         return false;
     }
 #if UE_BUILD_SHIPPING && !OPENPOCKETBASESDK_ADMIN_SHIPPING_ENABLED
@@ -269,31 +294,55 @@ bool TryMakeListQueryValues(
     TMap<FString, FString>& OutQuery,
     FOpenPocketBaseError& OutError)
 {
-    if (Page < 1 || PerPage < 1 || PerPage > Policy.MaxPageSize ||
-        !IsBoundedAdminText(Filter, 8192) || Sort.Num() > 32 || Fields.Num() > 64)
+    if (Page < 1)
     {
-        OutError = MakeAdminError(
-            EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("Privileged list options exceed their configured bounds."));
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin list Page is %d. Use page 1 or greater."), Page));
         return false;
     }
-    for (const FString& Value : Sort)
+    if (PerPage < 1 || PerPage > Policy.MaxPageSize)
     {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin list Per Page is %d. Use a value from 1 to the policy Max Page Size of %d."), PerPage, Policy.MaxPageSize));
+        return false;
+    }
+    if (!IsBoundedAdminText(Filter, 8192))
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Admin list Filter exceeds 8192 characters or contains a control character."));
+        return false;
+    }
+    if (Sort.Num() > 32)
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin list Sort contains %d entries. Use at most 32."), Sort.Num()));
+        return false;
+    }
+    if (Fields.Num() > 64)
+    {
+        OutError = MakeAdminError(EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(TEXT("Admin list Fields contains %d entries. Use at most 64."), Fields.Num()));
+        return false;
+    }
+    for (int32 SortIndex = 0; SortIndex < Sort.Num(); ++SortIndex)
+    {
+        const FString& Value = Sort[SortIndex];
         if (!IsBoundedAdminText(Value, 255) || Value.IsEmpty())
         {
             OutError = MakeAdminError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A privileged sort term is invalid."));
+                FString::Printf(TEXT("Admin list Sort entry %d is empty, exceeds 255 characters, or contains a control character."), SortIndex + 1));
             return false;
         }
     }
-    for (const FString& Value : Fields)
+    for (int32 FieldIndex = 0; FieldIndex < Fields.Num(); ++FieldIndex)
     {
+        const FString& Value = Fields[FieldIndex];
         if (!IsBoundedAdminText(Value, 255) || Value.IsEmpty())
         {
             OutError = MakeAdminError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A privileged field projection is invalid."));
+                FString::Printf(TEXT("Admin list Fields entry %d is empty, exceeds 255 characters, or contains a control character."), FieldIndex + 1));
             return false;
         }
     }
@@ -319,7 +368,9 @@ bool TryMakeListQuery(
     {
         OutError = MakeAdminError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The collection filter is invalid."));
+            Options.Filter.ErrorMessage.IsEmpty()
+                ? TEXT("Admin collection Filter is invalid. Rebuild it with the admin collection filter nodes.")
+                : FString::Printf(TEXT("Admin collection Filter is invalid. %s"), *Options.Filter.ErrorMessage));
         return false;
     }
     TArray<FString> Sort;
@@ -355,7 +406,9 @@ bool TryMakeListQuery(
     {
         OutError = MakeAdminError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The log filter is invalid."));
+            Options.Filter.ErrorMessage.IsEmpty()
+                ? TEXT("Admin log Filter is invalid. Rebuild it with the admin log filter nodes.")
+                : FString::Printf(TEXT("Admin log Filter is invalid. %s"), *Options.Filter.ErrorMessage));
         return false;
     }
     TArray<FString> Sort;
@@ -746,7 +799,7 @@ FOpenPocketBaseCustomRouteRequest MakeAdminJsonRequest(
 template <typename ValueType>
 FOpenPocketBaseAdminRequestHandle FailAdminRequest(
     TUniqueFunction<void(TOpenPocketBaseResult<ValueType>&&)> OnComplete,
-    const TCHAR* Message,
+    const FString& Message,
     const EOpenPocketBaseErrorKind Kind = EOpenPocketBaseErrorKind::InvalidArgument)
 {
     DispatchAdminFailure<ValueType>(
@@ -894,12 +947,23 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::AuthenticateSuperu
     FOpenPocketBaseAdminIdentityCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!CoreClient.IsValid() || CoreClient->IsShutdown() || Email.IsEmpty() ||
-        Email.Len() > 320 || Password.IsEmpty() || Password.Len() > 1024)
+    if (!CoreClient.IsValid() || CoreClient->IsShutdown())
     {
         return FailAdminRequest<FOpenPocketBaseAdminIdentity>(
             MoveTemp(OnComplete),
-            TEXT("A ready privileged client and bounded credentials are required."));
+            TEXT("The privileged PocketBase client is missing or has already shut down. Create an active admin client before logging in."));
+    }
+    if (Email.IsEmpty() || Email.Len() > 320 || !IsBoundedAdminText(Email, 320))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminIdentity>(
+            MoveTemp(OnComplete),
+            TEXT("Superuser Email is empty, exceeds 320 characters, or contains a control character."));
+    }
+    if (Password.IsEmpty() || Password.Len() > 1024 || !IsBoundedAdminText(Password, 1024))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminIdentity>(
+            MoveTemp(OnComplete),
+            TEXT("Superuser Password is empty, exceeds 1024 characters, or contains a control character."));
     }
     const TSharedRef<TAdminCompletion<FOpenPocketBaseAdminIdentity>, ESPMode::ThreadSafe>
         Completion = MakeShared<TAdminCompletion<FOpenPocketBaseAdminIdentity>, ESPMode::ThreadSafe>(
@@ -925,7 +989,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::AuthenticateSuperu
                         return TOpenPocketBaseResult<FOpenPocketBaseAdminIdentity>::Failure(
                             SanitizeSensitiveError(
                                 Result.GetError(),
-                                TEXT("Superuser authentication failed.")));
+                                TEXT("Superuser authentication failed. Check the email and password, and confirm the account exists in the _superusers collection.")));
                     }
                     if (Result.GetValue().Status !=
                             EOpenPocketBaseAuthAttemptStatus::Authenticated ||
@@ -935,7 +999,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::AuthenticateSuperu
                         return TOpenPocketBaseResult<FOpenPocketBaseAdminIdentity>::Failure(
                             MakeAdminError(
                                 EOpenPocketBaseErrorKind::Authentication,
-                                TEXT("PocketBase did not return a superuser session.")));
+                                TEXT("PocketBase accepted the auth request but did not return an authenticated _superusers record. Check the server version and auth collection.")));
                     }
                     FOpenPocketBaseAdminIdentity Value;
                     Value.Id = Result.GetValue().Authentication.Record.Id;
@@ -965,7 +1029,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListCollections(
     if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminPage>(
-            MoveTemp(OnComplete), TEXT("A superuser session is required."),
+            MoveTemp(OnComplete), TEXT("Log in as a PocketBase superuser before listing collections."),
             EOpenPocketBaseErrorKind::Authentication);
     }
     FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
@@ -991,7 +1055,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListCollections(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Success(MoveTemp(Page))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid collection page.")));
+                        TEXT("PocketBase collection list response must contain valid page, perPage, totalItems, totalPages, and items fields, and items cannot exceed the admin policy page bound. Check the PocketBase version and any response hook.")));
         });
 }
 
@@ -1002,7 +1066,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicListCollect
     if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminPage>(
-            MoveTemp(OnComplete), TEXT("A superuser session is required."),
+            MoveTemp(OnComplete), TEXT("Log in as a PocketBase superuser before listing collections."),
             EOpenPocketBaseErrorKind::Authentication);
     }
     FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
@@ -1028,7 +1092,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicListCollect
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Success(MoveTemp(Page))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid collection page.")));
+                        TEXT("PocketBase collection list response must contain valid page, perPage, totalItems, totalPages, and items fields, and items cannot exceed the admin policy page bound. Check the PocketBase version and any response hook.")));
         });
 }
 
@@ -1041,7 +1105,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::GetCollection(
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(
             MoveTemp(OnComplete),
-            TEXT("A valid schema collection reference is required."));
+            TEXT("Collection is missing or stale. Choose a collection from the current imported schema."));
     }
     return DynamicGetCollection(
         MoveTemp(Collection.Name), MoveTemp(OnComplete), MoveTemp(Options));
@@ -1052,10 +1116,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicGetCollecti
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeAdminSegment(Collection))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
-            TEXT("A superuser session and valid collection are required."));
+            TEXT("Log in as a PocketBase superuser before getting a collection."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeAdminSegment(Collection))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
+            TEXT("Collection Name is empty, exceeds 255 characters, or contains an unsafe path character."));
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocument>(
         CoreClient,
@@ -1069,7 +1139,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicGetCollecti
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Success(MoveTemp(Document))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid collection.")));
+                        TEXT("PocketBase collection response must be a JSON object. Check the server version and collection endpoint.")));
         });
 }
 
@@ -1078,10 +1148,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::CreateCollection(
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !Body.Data.JsonObject.IsValid())
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
-            TEXT("A superuser session and collection document are required."));
+            TEXT("Log in as a PocketBase superuser before creating a collection."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Body.Data.JsonObject.IsValid())
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
+            TEXT("Collection Document has no valid JSON object. Build the collection definition before creating it."));
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocument>(
         CoreClient,
@@ -1095,7 +1171,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::CreateCollection(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Success(MoveTemp(Document))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid created collection.")));
+                        TEXT("PocketBase create-collection response must contain the created collection as a JSON object.")));
         });
 }
 
@@ -1109,7 +1185,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UpdateCollection(
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(
             MoveTemp(OnComplete),
-            TEXT("A valid schema collection reference is required."));
+            TEXT("Collection is missing or stale. Choose a collection from the current imported schema."));
     }
     return DynamicUpdateCollection(
         MoveTemp(Collection.Name),
@@ -1124,11 +1200,21 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicUpdateColle
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeAdminSegment(Collection) ||
-        !Body.Data.JsonObject.IsValid())
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
-            TEXT("A superuser session, collection, and document are required."));
+            TEXT("Log in as a PocketBase superuser before updating a collection."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeAdminSegment(Collection))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
+            TEXT("Collection Name is empty, exceeds 255 characters, or contains an unsafe path character."));
+    }
+    if (!Body.Data.JsonObject.IsValid())
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
+            TEXT("Collection Document has no valid JSON object. Build the update document before sending it."));
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocument>(
         CoreClient,
@@ -1143,7 +1229,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicUpdateColle
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Success(MoveTemp(Document))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid updated collection.")));
+                        TEXT("PocketBase update-collection response must contain the updated collection as a JSON object.")));
         });
 }
 
@@ -1164,7 +1250,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DeleteCollection(
     {
         return FailAdminRequest<bool>(
             MoveTemp(OnComplete),
-            TEXT("A valid schema collection reference is required."));
+            TEXT("Collection is missing or stale. Choose a collection from the current imported schema."));
     }
     return DynamicDeleteCollection(
         MoveTemp(Collection.Name), MoveTemp(OnComplete), MoveTemp(Options));
@@ -1175,10 +1261,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicDeleteColle
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeAdminSegment(Collection))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("A superuser session and valid collection are required."));
+            TEXT("Log in as a PocketBase superuser before deleting a collection."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeAdminSegment(Collection))
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Collection Name is empty, exceeds 255 characters, or contains an unsafe path character."));
     }
     return SendAdminRequest<bool>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Delete,
@@ -1193,14 +1285,34 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ImportCollections(
 {
     const TArray<TSharedPtr<FJsonValue>>* Collections = nullptr;
     bool bDeleteMissing = false;
-    if (!IsAuthenticated() || !Body.Data.JsonObject.IsValid() ||
-        !Body.Data.JsonObject->TryGetArrayField(TEXT("collections"), Collections) ||
-        Collections == nullptr || Collections->IsEmpty() || Collections->Num() > 500 ||
-        (Body.Data.JsonObject->TryGetBoolField(TEXT("deleteMissing"), bDeleteMissing) &&
-            bDeleteMissing && !Policy.bAllowDestructiveCollectionImport))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("Collection import is invalid or disabled by policy."));
+            TEXT("Log in as a PocketBase superuser before importing collections."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Body.Data.JsonObject.IsValid())
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Collection Import Document has no valid JSON object."));
+    }
+    if (!Body.Data.JsonObject->TryGetArrayField(TEXT("collections"), Collections) ||
+        Collections == nullptr)
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Collection Import Document must contain a collections array."));
+    }
+    if (Collections->IsEmpty() || Collections->Num() > 500)
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            FString::Printf(TEXT("Collection Import contains %d collections. Use from 1 to 500 collections."), Collections->Num()));
+    }
+    if (Body.Data.JsonObject->TryGetBoolField(TEXT("deleteMissing"), bDeleteMissing) &&
+        bDeleteMissing && !Policy.bAllowDestructiveCollectionImport)
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Collection Import requests deleteMissing, but destructive collection import is disabled by the admin policy."),
+            EOpenPocketBaseErrorKind::Unsupported);
     }
     return SendAdminRequest<bool>(CoreClient,
         MakeAdminJsonRequest(EOpenPocketBaseCustomRouteMethod::Put,
@@ -1215,7 +1327,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::GetSettings(
     if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
-            TEXT("A superuser session is required."), EOpenPocketBaseErrorKind::Authentication);
+            TEXT("Log in as a PocketBase superuser before reading server settings."), EOpenPocketBaseErrorKind::Authentication);
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocument>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Get,
@@ -1229,7 +1341,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::GetSettings(
                     SanitizeSettingsDocument(Document.Data))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned invalid redacted settings.")));
+                        TEXT("PocketBase settings response must be a JSON object before sensitive values can be redacted.")));
         });
 }
 
@@ -1238,10 +1350,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UpdateSettings(
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !Body.Data.JsonObject.IsValid())
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
-            TEXT("A superuser session and settings document are required."));
+            TEXT("Log in as a PocketBase superuser before updating server settings."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Body.Data.JsonObject.IsValid())
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
+            TEXT("Settings Document has no valid JSON object. Build the settings update before sending it."));
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocument>(CoreClient,
         MakeAdminJsonRequest(EOpenPocketBaseCustomRouteMethod::Patch,
@@ -1255,7 +1373,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UpdateSettings(
                     SanitizeSettingsDocument(Document.Data))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned invalid redacted settings.")));
+                        TEXT("PocketBase update-settings response must be a JSON object before sensitive values can be redacted.")));
         });
 }
 
@@ -1264,10 +1382,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::TestS3(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !Body.Data.JsonObject.IsValid())
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("A superuser session and S3 test document are required."));
+            TEXT("Log in as a PocketBase superuser before testing S3 settings."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Body.Data.JsonObject.IsValid())
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("S3 Test Document has no valid JSON object. Supply the bounded S3 test settings."));
     }
     return SendAdminRequest<bool>(CoreClient,
         MakeAdminJsonRequest(EOpenPocketBaseCustomRouteMethod::Post,
@@ -1280,10 +1404,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::TestEmail(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !Body.Data.JsonObject.IsValid())
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("A superuser session and email test document are required."));
+            TEXT("Log in as a PocketBase superuser before testing email settings."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Body.Data.JsonObject.IsValid())
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Email Test Document has no valid JSON object. Supply the bounded email test settings."));
     }
     return SendAdminRequest<bool>(CoreClient,
         MakeAdminJsonRequest(EOpenPocketBaseCustomRouteMethod::Post,
@@ -1298,7 +1428,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListLogs(
     if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminPage>(MoveTemp(OnComplete),
-            TEXT("A superuser session is required."), EOpenPocketBaseErrorKind::Authentication);
+            TEXT("Log in as a PocketBase superuser before listing logs."), EOpenPocketBaseErrorKind::Authentication);
     }
     FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
         EOpenPocketBaseCustomRouteMethod::Get, TEXT("/api/logs"),
@@ -1319,7 +1449,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListLogs(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Success(MoveTemp(Page))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid log page.")));
+                        TEXT("PocketBase log list response must contain valid page, perPage, totalItems, totalPages, and items fields, and items cannot exceed the admin policy page bound. Check the PocketBase version and any response hook.")));
         });
 }
 
@@ -1330,7 +1460,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicListLogs(
     if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminPage>(MoveTemp(OnComplete),
-            TEXT("A superuser session is required."), EOpenPocketBaseErrorKind::Authentication);
+            TEXT("Log in as a PocketBase superuser before listing logs."), EOpenPocketBaseErrorKind::Authentication);
     }
     FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
         EOpenPocketBaseCustomRouteMethod::Get, TEXT("/api/logs"),
@@ -1351,7 +1481,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicListLogs(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Success(MoveTemp(Page))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminPage>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid log page.")));
+                        TEXT("PocketBase log list response must contain valid page, perPage, totalItems, totalPages, and items fields, and items cannot exceed the admin policy page bound. Check the PocketBase version and any response hook.")));
         });
 }
 
@@ -1360,10 +1490,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::GetLog(
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeAdminSegment(LogId))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
-            TEXT("A superuser session and valid log ID are required."));
+            TEXT("Log in as a PocketBase superuser before getting a log entry."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeAdminSegment(LogId))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
+            TEXT("Log ID is empty, exceeds 255 characters, or contains an unsafe path character."));
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocument>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Get,
@@ -1376,7 +1512,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::GetLog(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Success(MoveTemp(Document))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid log entry.")));
+                        TEXT("PocketBase log response must contain the log entry as a JSON object.")));
         });
 }
 
@@ -1387,7 +1523,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListBackups(
     if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminBackupList>(MoveTemp(OnComplete),
-            TEXT("A superuser session is required."), EOpenPocketBaseErrorKind::Authentication);
+            TEXT("Log in as a PocketBase superuser before listing backups."), EOpenPocketBaseErrorKind::Authentication);
     }
     return SendAdminRequest<FOpenPocketBaseAdminBackupList>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Get,
@@ -1400,7 +1536,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListBackups(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminBackupList>::Success(MoveTemp(List))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminBackupList>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid backup list.")));
+                        TEXT("PocketBase backup list response must be a bounded JSON array of backup entries with valid keys and sizes.")));
         });
 }
 
@@ -1409,10 +1545,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::CreateBackup(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeBackupKey(Name))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("A superuser session and valid unique backup name are required."));
+            TEXT("Log in as a PocketBase superuser before creating a backup."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeBackupKey(Name))
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Backup Name must be 5 to 150 characters, end with .zip, and use only lowercase letters, numbers, underscores, or hyphens before the extension."));
     }
     FOpenPocketBaseAdminDocument Body;
     Body.Data.JsonObject = MakeShared<FJsonObject>();
@@ -1428,16 +1570,22 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UploadBackup(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !Backup.IsValid())
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("A superuser session and bounded ZIP backup file are required."));
+            TEXT("Log in as a PocketBase superuser before uploading a backup."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Backup.IsValid())
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Backup Input must contain a non-empty .zip file name and either a file path or inline bytes."));
     }
     FOpenPocketBaseFileInput File = MoveTemp(Backup).ToFileInput();
     if (!IsSafeBackupKey(File.FileName))
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("The backup ZIP file name is invalid."));
+            TEXT("Backup File Name must be 5 to 150 characters, end with .zip, and use only lowercase letters, numbers, underscores, or hyphens before the extension."));
     }
     FOpenPocketBaseCustomRouteRequest Request = MakeAdminRequest(
         EOpenPocketBaseCustomRouteMethod::Post,
@@ -1459,10 +1607,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DownloadBackup(
     FOpenPocketBaseAdminBackupDownloadCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeBackupKey(Key))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminBackupDownload>(MoveTemp(OnComplete),
-            TEXT("A superuser session and valid backup key are required."));
+            TEXT("Log in as a PocketBase superuser before downloading a backup."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeBackupKey(Key))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminBackupDownload>(MoveTemp(OnComplete),
+            TEXT("Backup Key must be 5 to 150 characters, end with .zip, and use only lowercase letters, numbers, underscores, or hyphens before the extension."));
     }
     const TSharedRef<TAdminCompletion<FOpenPocketBaseAdminBackupDownload>, ESPMode::ThreadSafe>
         Completion =
@@ -1494,9 +1648,9 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DownloadBackup(
             {
                 FOpenPocketBaseError Error = TokenResult.IsSuccess()
                     ? MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid backup file token."))
+                        TEXT("PocketBase backup token response must contain a non-empty token no longer than 4096 characters."))
                     : SanitizeSensitiveError(TokenResult.GetError(),
-                        TEXT("The backup file token request failed."));
+                        TEXT("The backup file token request failed. Check the error kind, HTTP status, and request ID without logging the token."));
                 State->TryComplete([Completion, Error = MoveTemp(Error)]() mutable
                 {
                     Completion->Invoke(
@@ -1525,7 +1679,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DownloadBackup(
                         {
                             return TOpenPocketBaseResult<FOpenPocketBaseAdminBackupDownload>::Failure(
                                 SanitizeSensitiveError(Result.GetError(),
-                                    TEXT("The backup download failed.")));
+                                    TEXT("The backup download failed. Check the error kind, HTTP status, and request ID without logging the token or backup contents.")));
                         }
                         FOpenPocketBaseAdminBackupDownload Value;
                         Value.Bytes = MoveTemp(Result.GetValue().Body);
@@ -1550,10 +1704,22 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RestoreBackup(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !Policy.bAllowBackupRestore || !IsSafeBackupKey(Key))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("Backup restore is invalid or disabled by policy."));
+            TEXT("Log in as a PocketBase superuser before restoring a backup."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Policy.bAllowBackupRestore)
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Backup Restore is disabled by the admin policy. Enable Allow Backup Restore explicitly before using it."),
+            EOpenPocketBaseErrorKind::Unsupported);
+    }
+    if (!IsSafeBackupKey(Key))
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Backup Key must be 5 to 150 characters, end with .zip, and use only lowercase letters, numbers, underscores, or hyphens before the extension."));
     }
     return SendAdminRequest<bool>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Post,
@@ -1566,10 +1732,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DeleteBackup(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeBackupKey(Key))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("A superuser session and valid backup key are required."));
+            TEXT("Log in as a PocketBase superuser before deleting a backup."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeBackupKey(Key))
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Backup Key must be 5 to 150 characters, end with .zip, and use only lowercase letters, numbers, underscores, or hyphens before the extension."));
     }
     return SendAdminRequest<bool>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Delete,
@@ -1584,7 +1756,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListCrons(
     if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocumentList>(MoveTemp(OnComplete),
-            TEXT("A superuser session is required."), EOpenPocketBaseErrorKind::Authentication);
+            TEXT("Log in as a PocketBase superuser before listing cron jobs."), EOpenPocketBaseErrorKind::Authentication);
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocumentList>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Get,
@@ -1597,7 +1769,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::ListCrons(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminDocumentList>::Success(MoveTemp(List))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminDocumentList>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid cron list.")));
+                        TEXT("PocketBase cron response must be a bounded JSON array of cron job objects.")));
         });
 }
 
@@ -1606,10 +1778,16 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RunCron(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !IsSafeAdminSegment(CronId))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<bool>(MoveTemp(OnComplete),
-            TEXT("A superuser session and valid cron ID are required."));
+            TEXT("Log in as a PocketBase superuser before running a cron job."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!IsSafeAdminSegment(CronId))
+    {
+        return FailAdminRequest<bool>(MoveTemp(OnComplete),
+            TEXT("Cron ID is empty, exceeds 255 characters, or contains an unsafe path character."));
     }
     return SendAdminRequest<bool>(CoreClient,
         MakeAdminRequest(EOpenPocketBaseCustomRouteMethod::Post,
@@ -1624,11 +1802,22 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RunSql(
 {
     FString Trimmed = Query;
     Trimmed.TrimStartAndEndInline();
-    if (!IsAuthenticated() || Trimmed.IsEmpty() || Trimmed.Len() > 5000 ||
-        (!Policy.bAllowSqlWrites && !IsConservativeReadOnlySql(Trimmed)))
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminSqlResult>(MoveTemp(OnComplete),
-            TEXT("The raw SQL request is invalid or disabled by policy."));
+            TEXT("Log in as a PocketBase superuser before running SQL."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (Trimmed.IsEmpty() || Trimmed.Len() > 5000)
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminSqlResult>(MoveTemp(OnComplete),
+            FString::Printf(TEXT("SQL Query contains %d characters after trimming. Use from 1 to 5000 characters."), Trimmed.Len()));
+    }
+    if (!Policy.bAllowSqlWrites && !IsConservativeReadOnlySql(Trimmed))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminSqlResult>(MoveTemp(OnComplete),
+            TEXT("SQL Query is not recognized as a single read-only statement, and SQL writes are disabled by the admin policy."),
+            EOpenPocketBaseErrorKind::Unsupported);
     }
     FOpenPocketBaseAdminDocument Body;
     Body.Data.JsonObject = MakeShared<FJsonObject>();
@@ -1647,7 +1836,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RunSql(
                 OnComplete(TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>::Failure(
                     SanitizeSensitiveError(
                         Result.GetError(),
-                        TEXT("The SQL request failed without exposing query or result material."))));
+                        TEXT("The SQL request failed. Check the error kind, HTTP status, and request ID. Query text and result data were removed from this error."))));
                 return;
             }
             OnComplete(MoveTemp(Result));
@@ -1663,7 +1852,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::RunSql(
                 ? TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>::Success(MoveTemp(Result))
                 : TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid bounded SQL result.")));
+                        TEXT("PocketBase SQL response exceeds Max SQL Rows or does not contain a valid columns-and-rows result.")));
         });
 }
 
@@ -1678,7 +1867,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::Impersonate(
     {
         return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(
             MoveTemp(OnComplete),
-            TEXT("A valid auth collection reference is required."));
+            TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it from the current imported schema."));
     }
     return DynamicImpersonate(
         MoveTemp(AuthCollection.Name),
@@ -1695,12 +1884,32 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicImpersonate
     FOpenPocketBaseAdminImpersonationCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!IsAuthenticated() || !Policy.bAllowImpersonation ||
-        !IsSafeAdminSegment(AuthCollection) || !IsSafeAdminSegment(RecordId) ||
-        DurationSeconds < 0 || DurationSeconds > 365LL * 24 * 60 * 60)
+    if (!IsAuthenticated())
     {
         return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(MoveTemp(OnComplete),
-            TEXT("Impersonation is invalid or disabled by policy."));
+            TEXT("Log in as a PocketBase superuser before impersonating a user."),
+            EOpenPocketBaseErrorKind::Authentication);
+    }
+    if (!Policy.bAllowImpersonation)
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(MoveTemp(OnComplete),
+            TEXT("Impersonation is disabled by the admin policy. Enable Allow Impersonation explicitly before using it."),
+            EOpenPocketBaseErrorKind::Unsupported);
+    }
+    if (!IsSafeAdminSegment(AuthCollection))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(MoveTemp(OnComplete),
+            TEXT("Auth Collection is empty, exceeds 255 characters, or contains an unsafe path character."));
+    }
+    if (!IsSafeAdminSegment(RecordId))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(MoveTemp(OnComplete),
+            TEXT("Record ID is empty, exceeds 255 characters, or contains an unsafe path character."));
+    }
+    if (DurationSeconds < 0 || DurationSeconds > 365LL * 24 * 60 * 60)
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(MoveTemp(OnComplete),
+            FString::Printf(TEXT("Impersonation Duration Seconds is %lld. Use a value from 0 to 31536000 seconds."), DurationSeconds));
     }
     FOpenPocketBaseAdminDocument Body;
     Body.Data.JsonObject = MakeShared<FJsonObject>();
@@ -1727,7 +1936,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicImpersonate
             {
                 return TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>::Failure(
                     MakeAdminError(EOpenPocketBaseErrorKind::Serialization,
-                        TEXT("PocketBase returned an invalid impersonation session.")));
+                        TEXT("PocketBase impersonation response must contain a token and auth record for the requested user.")));
             }
             FOpenPocketBaseClientDependencies Dependencies;
             Dependencies.Transport = CapturedTransport;
@@ -1742,7 +1951,7 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicImpersonate
             {
                 return TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>::Failure(
                     SanitizeSensitiveError(ClientResult.GetError(),
-                        TEXT("The impersonated client could not be created.")));
+                        TEXT("PocketBase returned an impersonation session, but the SDK could not create its client. Check the error kind and confirm the returned auth collection still exists.")));
             }
             FOpenPocketBaseAdminImpersonationResult Result;
             Result.Client = ClientResult.TakeValue();

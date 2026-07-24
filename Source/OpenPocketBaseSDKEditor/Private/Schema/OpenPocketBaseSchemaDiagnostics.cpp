@@ -328,28 +328,30 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
         AddDiagnostic(
             Report,
             EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-            TEXT("Schema ID is missing."));
+            TEXT("Schema ID is missing. Reimport or refresh this schema asset before using schema-driven nodes."));
     }
     if (Schema.Source.IsEmpty())
     {
         AddDiagnostic(
             Report,
             EOpenPocketBaseSchemaDiagnosticSeverity::Warning,
-            TEXT("Source file is not set."));
+            TEXT("Schema Source file is not set. Reimport the asset from a PocketBase schema JSON file to enable Refresh Schema."));
     }
     else if (!IFileManager::Get().FileExists(*Schema.Source))
     {
         AddDiagnostic(
             Report,
             EOpenPocketBaseSchemaDiagnosticSeverity::Warning,
-            FString::Printf(TEXT("Source file is missing: %s"), *Schema.Source));
+            FString::Printf(
+                TEXT("Schema Source file no longer exists at '%s'. Restore it or reimport the asset from its new location."),
+                *Schema.Source));
     }
     if (Schema.Fingerprint.IsEmpty())
     {
         AddDiagnostic(
             Report,
             EOpenPocketBaseSchemaDiagnosticSeverity::Warning,
-            TEXT("Schema fingerprint is missing."));
+            TEXT("Schema fingerprint is missing. Refresh or reimport the asset so schema changes can be compared safely."));
     }
 
     TSet<FString> CollectionIds;
@@ -361,14 +363,14 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
             AddDiagnostic(
                 Report,
                 EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                FString::Printf(TEXT("Collection '%s' has no stable ID."), *Collection.Name));
+                FString::Printf(TEXT("Collection '%s' has no stable ID. Re-export the schema from PocketBase and reimport it."), *Collection.Name));
         }
         else if (CollectionIds.Contains(Collection.Id))
         {
             AddDiagnostic(
                 Report,
                 EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                FString::Printf(TEXT("Duplicate collection ID: %s"), *Collection.Id));
+                FString::Printf(TEXT("Duplicate collection ID '%s' appears more than once. Remove the duplicate in PocketBase, then refresh the schema."), *Collection.Id));
         }
         else
         {
@@ -380,14 +382,14 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
             AddDiagnostic(
                 Report,
                 EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                FString::Printf(TEXT("Collection '%s' has no name."), *Collection.Id));
+                FString::Printf(TEXT("Collection with ID '%s' has no name. Give it a name in PocketBase, then refresh the schema."), *Collection.Id));
         }
         else if (CollectionNames.Contains(Collection.Name))
         {
             AddDiagnostic(
                 Report,
                 EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                FString::Printf(TEXT("Duplicate collection name: %s"), *Collection.Name));
+                FString::Printf(TEXT("Collection name '%s' appears more than once. Rename one collection in PocketBase, then refresh the schema."), *Collection.Name));
         }
         else
         {
@@ -399,7 +401,7 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
             AddDiagnostic(
                 Report,
                 EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                FString::Printf(TEXT("Collection '%s' has an unknown type."), *Collection.Name));
+                FString::Printf(TEXT("Collection '%s' has an unknown type. Update the plugin if PocketBase introduced a new type, or re-export the schema if the file was edited."), *Collection.Name));
         }
 
         TSet<FString> FieldIds;
@@ -415,7 +417,7 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
                 AddDiagnostic(
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                    FieldPath + TEXT(" has no stable field ID."));
+                    FieldPath + TEXT(" has no stable field ID. Re-export the schema from PocketBase and refresh this asset."));
             }
             else if (FieldIds.Contains(Field.Id))
             {
@@ -423,7 +425,7 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
                     FString::Printf(
-                        TEXT("Collection '%s' has duplicate field ID: %s"),
+                        TEXT("Collection '%s' has duplicate field ID '%s'. Remove the duplicate in PocketBase, then refresh the schema."),
                         *Collection.Name,
                         *Field.Id));
             }
@@ -437,7 +439,7 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
                 AddDiagnostic(
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                    FString::Printf(TEXT("Collection '%s' has a field with no name."), *Collection.Name));
+                    FString::Printf(TEXT("Collection '%s' has a field with no name. Name the field in PocketBase, then refresh the schema."), *Collection.Name));
             }
             else if (FieldNames.Contains(Field.Name))
             {
@@ -445,7 +447,7 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
                     FString::Printf(
-                        TEXT("Collection '%s' has duplicate field name: %s"),
+                        TEXT("Collection '%s' has duplicate field name '%s'. Rename one field in PocketBase, then refresh the schema."),
                         *Collection.Name,
                         *Field.Name));
             }
@@ -459,14 +461,14 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
                 AddDiagnostic(
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                    FieldPath + TEXT(" has an unknown field type."));
+                    FieldPath + TEXT(" has an unknown field type. Update the plugin if PocketBase introduced a new type, or re-export the schema if it was edited."));
             }
             if (Field.bHasMin && Field.bHasMax && Field.Min > Field.Max)
             {
                 AddDiagnostic(
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                    FieldPath + TEXT(" has a minimum greater than its maximum."));
+                    FieldPath + TEXT(" has a minimum greater than its maximum. Correct the field limits in PocketBase, then refresh the schema."));
             }
             if (Field.MinSelect < 0 || Field.MaxSelect < 0 ||
                 (Field.MaxSelect > 0 && Field.MinSelect > Field.MaxSelect))
@@ -474,14 +476,14 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
                 AddDiagnostic(
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                    FieldPath + TEXT(" has invalid selection limits."));
+                    FieldPath + TEXT(" has invalid selection limits. Min Select and Max Select must be non-negative, and Min Select cannot exceed Max Select."));
             }
             if (Field.MaxSizeBytes < 0)
             {
                 AddDiagnostic(
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
-                    FieldPath + TEXT(" has a negative file size limit."));
+                    FieldPath + TEXT(" has a negative file size limit. Set a non-negative Max Size in PocketBase, then refresh the schema."));
             }
         }
     }
@@ -498,7 +500,7 @@ FOpenPocketBaseSchemaValidationReport FOpenPocketBaseSchemaDiagnostics::Validate
                     Report,
                     EOpenPocketBaseSchemaDiagnosticSeverity::Error,
                     FString::Printf(
-                        TEXT("Relation '%s.%s' targets a missing collection."),
+                        TEXT("Relation '%s.%s' targets a collection that is missing from this schema. Restore the related collection or update the relation in PocketBase, then refresh."),
                         *Collection.Name,
                         *Field.Name));
             }
@@ -516,7 +518,7 @@ bool FOpenPocketBaseSchemaDiagnostics::LoadSourcePreview(
     OutError = FText::GetEmpty();
     if (Schema.Source.IsEmpty())
     {
-        OutError = FText::FromString(TEXT("This schema asset has no source file."));
+        OutError = FText::FromString(TEXT("This schema asset has no Source file. Reimport it from a PocketBase schema JSON file before previewing changes."));
         return false;
     }
 
@@ -524,7 +526,7 @@ bool FOpenPocketBaseSchemaDiagnostics::LoadSourcePreview(
     if (!FFileHelper::LoadFileToString(Json, *Schema.Source))
     {
         OutError = FText::FromString(FString::Printf(
-            TEXT("Could not read the schema source file: %s"),
+            TEXT("Could not read the schema Source file '%s'. Check that it exists, is readable, and is not locked by another process."),
             *Schema.Source));
         return false;
     }

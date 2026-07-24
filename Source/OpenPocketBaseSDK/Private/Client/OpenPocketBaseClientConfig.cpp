@@ -118,11 +118,11 @@ bool IsValidProfileName(const FString& Value)
     return true;
 }
 
-bool FailNormalization(FOpenPocketBaseError& OutError, const TCHAR* Message)
+bool FailNormalization(FOpenPocketBaseError& OutError, const FString& Message)
 {
     OutError = FOpenPocketBaseError();
     OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-    OutError.ServerMessage = Message;
+    OutError.Message = Message;
     return false;
 }
 }
@@ -134,9 +134,17 @@ bool FOpenPocketBaseClientConfig::TryGetNormalizedBaseUrl(
     OutBaseUrl.Reset();
     OutError = FOpenPocketBaseError();
 
+    if (ProfileName.Len() > 64)
+    {
+        return FailNormalization(
+            OutError,
+            FString::Printf(
+                TEXT("Profile Name is %d characters. Use at most 64 characters."),
+                ProfileName.Len()));
+    }
     if (!IsValidProfileName(ProfileName))
     {
-        return FailNormalization(OutError, TEXT("Profile name contains invalid characters."));
+        return FailNormalization(OutError, TEXT("Profile Name can contain only letters, numbers, periods, hyphens, and underscores."));
     }
 
     FString Candidate = BaseUrl.TrimStartAndEnd();
@@ -149,25 +157,25 @@ bool FOpenPocketBaseClientConfig::TryGetNormalizedBaseUrl(
     const bool bUsesHttp = Candidate.StartsWith(TEXT("http://"), ESearchCase::IgnoreCase);
     if (!bUsesHttps && !bUsesHttp)
     {
-        return FailNormalization(OutError, TEXT("Base URL must use HTTP or HTTPS."));
+        return FailNormalization(OutError, TEXT("Base URL must start with http:// or https://, for example http://127.0.0.1:8090."));
     }
 
     const int32 SchemeLength = bUsesHttps ? 8 : 7;
     FString Authority = Candidate.Mid(SchemeLength);
-    if (!IsValidAuthority(Authority))
-    {
-        return FailNormalization(OutError, TEXT("Base URL must contain a valid host."));
-    }
-
     if (Authority.Contains(TEXT("@")))
     {
-        return FailNormalization(OutError, TEXT("Base URL must not contain credentials."));
+        return FailNormalization(OutError, TEXT("Base URL must not contain a username or password. Configure authentication through the PocketBase client instead."));
     }
 
     if (Authority.Contains(TEXT("/")) || Authority.Contains(TEXT("\\")) ||
         Authority.Contains(TEXT("?")) || Authority.Contains(TEXT("#")))
     {
-        return FailNormalization(OutError, TEXT("Base URL must be an origin without a path, query, or fragment."));
+        return FailNormalization(OutError, TEXT("Base URL must contain only the server origin, for example https://pb.example.com. Remove paths such as /api, query parameters, and fragments."));
+    }
+
+    if (!IsValidAuthority(Authority))
+    {
+        return FailNormalization(OutError, TEXT("Base URL must contain a valid host and an optional port from 1 to 65535."));
     }
 
     Authority.ToLowerInline();

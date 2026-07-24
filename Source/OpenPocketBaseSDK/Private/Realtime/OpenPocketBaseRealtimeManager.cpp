@@ -28,12 +28,12 @@ FString JoinQueryValues(const TArray<ValueType>& Values)
 
 FOpenPocketBaseError MakeRealtimeError(
     const EOpenPocketBaseErrorKind Kind,
-    const TCHAR* Message,
+    const FString& Message,
     const FString& RequestId = {})
 {
     FOpenPocketBaseError Error;
     Error.Kind = Kind;
-    Error.ServerMessage = Message;
+    Error.Message = Message;
     Error.RequestId = RequestId;
     Error.bMayRetry = Kind == EOpenPocketBaseErrorKind::Transport ||
         Kind == EOpenPocketBaseErrorKind::Timeout || Kind == EOpenPocketBaseErrorKind::Http;
@@ -126,14 +126,14 @@ FOpenPocketBaseError ErrorFromResponse(const FOpenPocketBaseHttpResponse& Respon
     {
         return MakeRealtimeError(
             EOpenPocketBaseErrorKind::Timeout,
-            TEXT("The realtime connection timed out."),
+            TEXT("PocketBase did not open the realtime stream before the request timeout. Check server availability or increase the request timeout."),
             Response.RequestId);
     }
     if (!Response.bTransportSucceeded)
     {
         return MakeRealtimeError(
             EOpenPocketBaseErrorKind::Transport,
-            TEXT("The realtime connection was interrupted."),
+            TEXT("The realtime stream ended because the connection was interrupted. The SDK will reconnect while listeners remain active."),
             Response.RequestId);
     }
     if (Response.HttpStatus >= 200 && Response.HttpStatus < 300)
@@ -146,7 +146,9 @@ FOpenPocketBaseError ErrorFromResponse(const FOpenPocketBaseHttpResponse& Respon
 
     FOpenPocketBaseError Error = MakeRealtimeError(
         EOpenPocketBaseErrorKind::Http,
-        TEXT("PocketBase rejected the realtime operation."),
+        FString::Printf(
+            TEXT("PocketBase rejected the realtime request with HTTP %d. Check collection rules and the current authentication state."),
+            Response.HttpStatus),
         Response.RequestId);
     Error.HttpStatus = Response.HttpStatus;
     return Error;
@@ -333,8 +335,8 @@ FOpenPocketBaseSubscriptionHandle FConnectionManager::Subscribe(
             OutError = MakeRealtimeError(
                 bShutdown ? EOpenPocketBaseErrorKind::Cancelled : EOpenPocketBaseErrorKind::InvalidArgument,
                 bShutdown
-                    ? TEXT("The client has shut down.")
-                    : TEXT("The realtime listener limit was reached."));
+                    ? TEXT("The PocketBase client has shut down, so it cannot create another realtime subscription. Create or retrieve an active client first.")
+                    : TEXT("The client already has 256 realtime listeners. Unsubscribe an existing listener before adding another one."));
             return {};
         }
 
@@ -530,13 +532,95 @@ bool FConnectionManager::BuildWireTopic(
     FString& OutWireTopic,
     FOpenPocketBaseError& OutError) const
 {
-    if (Topic.IsEmpty() || !IsSafeValue(Topic, 2048) || Options.QueryParameters.Num() > 32 ||
-        Options.Headers.Num() > 32 || !Options.IsValid() ||
-        !IsSafeValue(Options.Filter.ToString(), 4096))
+    if (Topic.IsEmpty())
     {
         OutError = MakeRealtimeError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The realtime topic or options are invalid."));
+            TEXT("Realtime Topic is empty. Use a collection name, collection record topic, or another PocketBase realtime topic."));
+        return false;
+    }
+    if (Topic.Len() > 2048)
+    {
+        OutError = MakeRealtimeError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(
+                TEXT("Realtime Topic is %d characters. Use at most 2048 characters."),
+                Topic.Len()));
+        return false;
+    }
+    if (!IsSafeValue(Topic, 2048))
+    {
+        OutError = MakeRealtimeError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Realtime Topic contains a control character. Remove line breaks and other control characters."));
+        return false;
+    }
+    if (Options.QueryParameters.Num() > 32)
+    {
+        OutError = MakeRealtimeError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(
+                TEXT("Realtime Options contains %d Query Parameters. Use at most 32."),
+                Options.QueryParameters.Num()));
+        return false;
+    }
+    if (Options.Headers.Num() > 32)
+    {
+        OutError = MakeRealtimeError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(
+                TEXT("Realtime Options contains %d Headers. Use at most 32."),
+                Options.Headers.Num()));
+        return false;
+    }
+    if (!Options.Filter.IsValid())
+    {
+        OutError = MakeRealtimeError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            Options.Filter.ErrorMessage.IsEmpty()
+                ? TEXT("Realtime Filter is invalid. Rebuild it with the schema-driven filter nodes.")
+                : FString::Printf(TEXT("Realtime Filter is invalid. %s"), *Options.Filter.ErrorMessage));
+        return false;
+    }
+    for (int32 ExpandIndex = 0; ExpandIndex < Options.Expand.Num(); ++ExpandIndex)
+    {
+        if (!Options.Expand[ExpandIndex].IsSet())
+        {
+            OutError = MakeRealtimeError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("Realtime Expand entry %d is empty. Remove it or choose a relation field."),
+                    ExpandIndex + 1));
+            return false;
+        }
+    }
+    for (int32 FieldIndex = 0; FieldIndex < Options.Fields.Num(); ++FieldIndex)
+    {
+        if (!Options.Fields[FieldIndex].IsSet())
+        {
+            OutError = MakeRealtimeError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("Realtime Fields entry %d is empty. Remove it or choose a field."),
+                    FieldIndex + 1));
+            return false;
+        }
+    }
+    const FString FilterExpression = Options.Filter.ToString();
+    if (FilterExpression.Len() > 4096)
+    {
+        OutError = MakeRealtimeError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            FString::Printf(
+                TEXT("Realtime Filter is %d characters after formatting. Use at most 4096 characters."),
+                FilterExpression.Len()));
+        return false;
+    }
+    if (!IsSafeValue(FilterExpression, 4096))
+    {
+        OutError = MakeRealtimeError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Realtime Filter contains a control character. Rebuild it with the schema-driven filter nodes."));
         return false;
     }
 
@@ -557,11 +641,20 @@ bool FConnectionManager::BuildWireTopic(
     const TSharedRef<FJsonObject> QueryObject = MakeShared<FJsonObject>();
     for (const TPair<FString, FString>& Pair : Query)
     {
-        if (!IsValidName(Pair.Key) || !IsSafeValue(Pair.Value, 4096))
+        if (!IsValidName(Pair.Key))
         {
             OutError = MakeRealtimeError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A realtime query option is invalid."));
+                TEXT("A realtime Query Parameter has an invalid name. Use an HTTP token name without spaces or control characters."));
+            return false;
+        }
+        if (!IsSafeValue(Pair.Value, 4096))
+        {
+            OutError = MakeRealtimeError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("Realtime Query Parameter '%s' exceeds 4096 characters or contains a control character."),
+                    *Pair.Key));
             return false;
         }
         QueryObject->SetStringField(Pair.Key, Pair.Value);
@@ -570,11 +663,29 @@ bool FConnectionManager::BuildWireTopic(
     const TSharedRef<FJsonObject> HeaderObject = MakeShared<FJsonObject>();
     for (const TPair<FString, FString>& Pair : Options.Headers)
     {
-        if (!IsValidName(Pair.Key) || IsProtectedHeader(Pair.Key) || !IsSafeValue(Pair.Value, 4096))
+        if (!IsValidName(Pair.Key))
         {
             OutError = MakeRealtimeError(
                 EOpenPocketBaseErrorKind::InvalidArgument,
-                TEXT("A realtime per-topic header is invalid or protected."));
+                TEXT("A realtime Header has an invalid name. Use an HTTP header token without spaces or control characters."));
+            return false;
+        }
+        if (IsProtectedHeader(Pair.Key))
+        {
+            OutError = MakeRealtimeError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("Realtime Header '%s' is managed by the SDK and cannot be overridden."),
+                    *Pair.Key));
+            return false;
+        }
+        if (!IsSafeValue(Pair.Value, 4096))
+        {
+            OutError = MakeRealtimeError(
+                EOpenPocketBaseErrorKind::InvalidArgument,
+                FString::Printf(
+                    TEXT("Realtime Header '%s' exceeds 4096 characters or contains a control character."),
+                    *Pair.Key));
             return false;
         }
         HeaderObject->SetStringField(Pair.Key, Pair.Value);
@@ -599,7 +710,9 @@ bool FConnectionManager::BuildWireTopic(
     {
         OutError = MakeRealtimeError(
             EOpenPocketBaseErrorKind::InvalidArgument,
-            TEXT("The serialized realtime topic exceeds the supported bound."));
+            FString::Printf(
+                TEXT("The realtime topic is %d characters after encoding. Use fewer query parameters, headers, fields, or expands to stay within 8192 characters."),
+                OutWireTopic.Len()));
         return false;
     }
     OutError = FOpenPocketBaseError();
@@ -810,7 +923,7 @@ void FConnectionManager::HandleSseEvent(const uint64 Generation, const FSseEvent
     {
         QueueError(MakeRealtimeError(
             EOpenPocketBaseErrorKind::Serialization,
-            TEXT("A realtime event contained malformed JSON.")));
+            TEXT("A realtime event contains malformed JSON. The SDK requested a resync, so reconnect and check any proxy or server hook that modifies realtime payloads.")));
         QueueResyncRequired();
         return;
     }
@@ -828,7 +941,7 @@ void FConnectionManager::HandleSseEvent(const uint64 Generation, const FSseEvent
         {
             QueueError(MakeRealtimeError(
                 EOpenPocketBaseErrorKind::Serialization,
-                TEXT("A realtime record event contained an invalid record.")));
+                TEXT("A realtime record event contains a record with no valid ID or an invalid date. The SDK requested a resync, so check any realtime response hook before reconnecting.")));
             QueueResyncRequired();
             return;
         }

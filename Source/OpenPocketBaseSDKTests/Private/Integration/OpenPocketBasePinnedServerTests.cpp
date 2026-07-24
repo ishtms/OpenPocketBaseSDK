@@ -104,8 +104,8 @@ FString DescribeIntegrationError(const TCHAR* Operation, const FOpenPocketBaseEr
         Operation,
         static_cast<int32>(Error.Kind),
         Error.HttpStatus,
-        *Error.ServerCode,
-        *Error.ServerMessage,
+        *Error.Code,
+        *Error.Message,
         *Error.RequestId);
 }
 
@@ -340,7 +340,7 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
     State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The integration client is created"), State->Client.Get()))
     {
-        AddError(Error.ServerMessage);
+        AddError(Error.Message);
         return false;
     }
 
@@ -514,7 +514,7 @@ bool FOpenPocketBasePinnedRemainingAuthTest::RunTest(const FString& Parameters)
     State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The remaining-auth integration client is created"), State->Client.Get()))
     {
-        AddError(Error.ServerMessage);
+        AddError(Error.Message);
         return false;
     }
 
@@ -835,7 +835,7 @@ bool FOpenPocketBasePinnedAccountOperationsTest::RunTest(const FString& Paramete
         !TestNotNull(TEXT("The anonymous integration client is created"),
             State->AnonymousClient.Get()))
     {
-        AddError(Error.ServerMessage);
+        AddError(Error.Message);
         return false;
     }
 
@@ -1056,7 +1056,7 @@ bool FOpenPocketBasePinnedUploadTest::RunTest(const FString& Parameters)
     if (!TestNotNull(TEXT("The upload client is created"), State->Client.Get()))
     {
         IFileManager::Get().Delete(*State->TempFile, false, true);
-        AddError(Error.ServerMessage);
+        AddError(Error.Message);
         return false;
     }
 
@@ -1252,7 +1252,7 @@ bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
     State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The realtime integration client is created"), State->Client.Get()))
     {
-        AddError(Error.ServerMessage);
+        AddError(Error.Message);
         return false;
     }
 
@@ -1446,7 +1446,7 @@ bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
     State->Client = CreateOpenPocketBaseTestClient(Config, Error);
     if (!TestNotNull(TEXT("The realtime chaos client is created"), State->Client.Get()))
     {
-        AddError(Error.ServerMessage);
+        AddError(Error.Message);
         return false;
     }
 

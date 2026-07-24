@@ -165,7 +165,7 @@ public:
         Test->TestEqual(
             TEXT("The missing bound is explained directly"),
             State->ErrorMessage,
-            FString(TEXT("Set Max Items or Max Pages before starting full-list traversal.")));
+            FString(TEXT("Max Items and Max Pages are both 0. Set at least one limit so full-list traversal has an explicit stopping bound.")));
         Test->TestEqual(TEXT("Invalid traversal never reaches transport"), State->Transport->GetRequestCount(), 0);
         State->Client->Shutdown();
         return true;
@@ -373,7 +373,7 @@ bool FOpenPocketBaseRejectUnboundedFullListTest::RunTest(const FString& Paramete
             if (!Result.IsSuccess())
             {
                 State->ErrorKind = Result.GetError().Kind;
-                State->ErrorMessage = Result.GetError().ServerMessage;
+                State->ErrorMessage = Result.GetError().Message;
             }
             State->bCompleted = true;
         });

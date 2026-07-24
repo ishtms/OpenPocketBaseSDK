@@ -466,7 +466,7 @@ private:
             [Self, Index](TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>&& Result)
             {
                 const bool bRejected = !Result.IsSuccess() &&
-                    Result.GetError().Kind == EOpenPocketBaseErrorKind::InvalidArgument;
+                    Result.GetError().Kind == EOpenPocketBaseErrorKind::Unsupported;
                 Self->Continue(bRejected, TEXT("Reject SQL Write Policy Bypass"));
                 if (!bRejected)
                 {
@@ -486,7 +486,7 @@ private:
             [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>&& Result)
             {
                 Self->State->bSqlErrorSanitized = !Result.IsSuccess() &&
-                    !Result.GetError().ServerMessage.Contains(TEXT("secret_password"));
+                    !Result.GetError().Message.Contains(TEXT("secret_password"));
                 Self->Continue(Self->State->bSqlErrorSanitized,
                     TEXT("Sanitize SQL Failure"));
                 if (!Result.IsSuccess()) Self->Impersonate();
@@ -684,7 +684,7 @@ bool FOpenPocketBaseAdminClientTest::RunTest(const FString& Parameters)
         FOpenPocketBaseAdminClient::Create(CoreConfig, Policy, MoveTemp(Dependencies));
     if (!TestTrue(TEXT("The privileged client is created"), ClientResult.IsSuccess()))
     {
-        AddError(ClientResult.GetError().ServerMessage);
+        AddError(ClientResult.GetError().Message);
         return false;
     }
     State->Client = ClientResult.TakeValue();

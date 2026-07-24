@@ -306,12 +306,12 @@ bool FOpenPocketBaseSchemaCodeGenerator::GenerateHeader(
     OutError = FText::GetEmpty();
     if (!Schema.SchemaId.IsValid())
     {
-        OutError = LOCTEXT("MissingSchemaId", "The schema needs a stable schema ID before C++ accessors can be generated.");
+        OutError = LOCTEXT("MissingSchemaId", "The schema asset has no stable Schema ID. Reimport or refresh the schema asset before generating C++ accessors.");
         return false;
     }
     if (!IsValidNamespace(RootNamespace))
     {
-        OutError = LOCTEXT("InvalidNamespace", "Enter a valid C++ namespace, such as MyGame::PocketBase.");
+        OutError = LOCTEXT("InvalidNamespace", "C++ Namespace is invalid. Use identifiers separated by double colons, such as MyGame::PocketBase.");
         return false;
     }
 
@@ -539,7 +539,7 @@ bool FOpenPocketBaseSchemaCodeGenerator::WriteHeader(
     }
     if (OutputPath.IsEmpty())
     {
-        OutError = LOCTEXT("MissingOutputPath", "Choose an output header path.");
+        OutError = LOCTEXT("MissingOutputPath", "Output Header Path is empty. Choose a .h file inside the project's Source directory.");
         return false;
     }
 
@@ -555,13 +555,13 @@ bool FOpenPocketBaseSchemaCodeGenerator::WriteHeader(
     FPaths::NormalizeDirectoryName(SourceDirectory);
     if (!FPaths::IsUnderDirectory(FPaths::GetPath(OutAbsolutePath), SourceDirectory))
     {
-        OutError = LOCTEXT("OutputOutsideSource", "The generated header must be inside the project's Source directory.");
+        OutError = LOCTEXT("OutputOutsideSource", "Output Header Path is outside the project's Source directory. Choose a path inside a game C++ module.");
         OutAbsolutePath.Reset();
         return false;
     }
     if (!OutAbsolutePath.EndsWith(TEXT(".h"), ESearchCase::IgnoreCase))
     {
-        OutError = LOCTEXT("OutputNotHeader", "The generated accessor path must end with .h.");
+        OutError = LOCTEXT("OutputNotHeader", "Output Header Path must end with .h. Choose a header file path inside a game C++ module.");
         OutAbsolutePath.Reset();
         return false;
     }
@@ -578,7 +578,7 @@ bool FOpenPocketBaseSchemaCodeGenerator::WriteHeader(
             FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
     {
         OutError = FText::Format(
-            LOCTEXT("WriteFailed", "Could not write the generated header to {0}."),
+            LOCTEXT("WriteFailed", "Could not write the generated header to {0}. Check that the directory exists, the file is writable, and no other process has locked it."),
             FText::FromString(OutAbsolutePath));
         OutAbsolutePath.Reset();
         return false;

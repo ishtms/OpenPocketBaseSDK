@@ -4,11 +4,11 @@
 
 namespace
 {
-bool FailSettings(FOpenPocketBaseError& OutError, const TCHAR* Message)
+bool FailSettings(FOpenPocketBaseError& OutError, const FString& Message)
 {
     OutError = FOpenPocketBaseError();
     OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-    OutError.ServerMessage = Message;
+    OutError.Message = Message;
     return false;
 }
 
@@ -69,7 +69,7 @@ bool UOpenPocketBaseProjectSettings::TryResolveProfileInternal(
 
     if (Profiles.IsEmpty())
     {
-        return FailSettings(OutError, TEXT("At least one project profile is required."));
+        return FailSettings(OutError, TEXT("No PocketBase project profile exists. Add a profile in Project Settings under Open Pocket Base before creating a client."));
     }
 
     TSet<FName> ProfileNames;
@@ -77,18 +77,22 @@ bool UOpenPocketBaseProjectSettings::TryResolveProfileInternal(
     const FName RequestedProfile = Profile.IsNone() ? DefaultProfile : Profile;
     if (RequestedProfile.IsNone())
     {
-        return FailSettings(OutError, TEXT("A default project profile is required."));
+        return FailSettings(OutError, TEXT("Default Profile is None. Choose one of the configured PocketBase project profiles as the default."));
     }
 
     for (const FOpenPocketBaseProjectProfile& Candidate : Profiles)
     {
         if (Candidate.Name.IsNone())
         {
-            return FailSettings(OutError, TEXT("Every project profile requires a name."));
+            return FailSettings(OutError, TEXT("A project profile has no Name. Give every profile a unique Name before creating a client."));
         }
         if (ProfileNames.Contains(Candidate.Name))
         {
-            return FailSettings(OutError, TEXT("Project profile names must be unique."));
+            return FailSettings(
+                OutError,
+                FString::Printf(
+                    TEXT("Project profile '%s' appears more than once. Profile names must be unique."),
+                    *Candidate.Name.ToString()));
         }
         ProfileNames.Add(Candidate.Name);
 
@@ -98,18 +102,30 @@ bool UOpenPocketBaseProjectSettings::TryResolveProfileInternal(
         FString NormalizedCandidateUrl;
         if (!CandidateConfig.TryGetNormalizedBaseUrl(NormalizedCandidateUrl, OutError))
         {
-            OutError.ServerMessage = TEXT("A project profile contains an invalid base URL or name.");
+            OutError.Message = FString::Printf(
+                TEXT("Project profile '%s' is invalid. %s"),
+                *Candidate.Name.ToString(),
+                *OutError.Message);
             return false;
         }
         if (ContainsHeaderControlCharacter(Candidate.AcceptLanguage))
         {
-            return FailSettings(OutError, TEXT("A project profile contains an invalid language value."));
+            return FailSettings(
+                OutError,
+                FString::Printf(
+                    TEXT("Project profile '%s' has an invalid Accept Language value. Remove line breaks from the value."),
+                    *Candidate.Name.ToString()));
         }
         if (!FMath::IsFinite(Candidate.AuthRefreshLeadTimeSeconds) ||
             Candidate.AuthRefreshLeadTimeSeconds < 0.0 ||
             Candidate.AuthRefreshLeadTimeSeconds > 3600.0)
         {
-            return FailSettings(OutError, TEXT("A project profile contains an invalid auth refresh lead time."));
+            return FailSettings(
+                OutError,
+                FString::Printf(
+                    TEXT("Project profile '%s' has Auth Refresh Lead Time Seconds set to %g. Use a finite value from 0 to 3600 seconds."),
+                    *Candidate.Name.ToString(),
+                    Candidate.AuthRefreshLeadTimeSeconds));
         }
 
         if (Candidate.Name == RequestedProfile)
@@ -120,7 +136,11 @@ bool UOpenPocketBaseProjectSettings::TryResolveProfileInternal(
 
     if (ResolvedProfile == nullptr)
     {
-        return FailSettings(OutError, TEXT("The requested project profile does not exist."));
+        return FailSettings(
+            OutError,
+            FString::Printf(
+                TEXT("Project profile '%s' does not exist. Add it in Project Settings or choose an existing profile."),
+                *RequestedProfile.ToString()));
     }
 
     OutConfig.BaseUrl = OverrideBaseUrl == nullptr
@@ -141,7 +161,10 @@ bool UOpenPocketBaseProjectSettings::TryResolveProfileInternal(
     {
         OutConfig = FOpenPocketBaseClientConfig();
         OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-        OutError.ServerMessage = TEXT("The project profile origin override is invalid.");
+        OutError.Message = FString::Printf(
+            TEXT("Base URL override for project profile '%s' is invalid. %s"),
+            *ResolvedProfile->Name.ToString(),
+            *OutError.Message);
         return false;
     }
 

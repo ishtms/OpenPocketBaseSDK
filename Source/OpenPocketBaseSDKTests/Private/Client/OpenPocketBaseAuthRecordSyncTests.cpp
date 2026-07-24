@@ -47,7 +47,7 @@ public:
         {
             OutError = FOpenPocketBaseError();
             OutError.Kind = EOpenPocketBaseErrorKind::SecureStorage;
-            OutError.ServerMessage = TEXT("The injected store rejected the auth-record update.");
+            OutError.Message = TEXT("The injected store rejected the auth-record update.");
             return false;
         }
         Stored.Reset(Value.Num());

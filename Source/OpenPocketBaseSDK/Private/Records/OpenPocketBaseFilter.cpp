@@ -91,11 +91,11 @@ FString EncodeArray(WriteValuesType&& WriteValues)
     return EncodeString(Json);
 }
 
-FOpenPocketBaseError MakeBindingError(const TCHAR* Message)
+FOpenPocketBaseError MakeBindingError(FString Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-    Error.ServerMessage = Message;
+    Error.Message = MoveTemp(Message);
     return Error;
 }
 
@@ -133,7 +133,8 @@ FOpenPocketBaseFilter MakeDynamicComparison(
     Field.TrimStartAndEndInline();
     if (!IsValidField(Field))
     {
-        return MakeInvalidFilter(TEXT("Dynamic filter fields must be valid collection field paths."));
+        return MakeInvalidFilter(
+            TEXT("Dynamic filter Field is empty or is not a valid dot-separated PocketBase field path. Use letters, numbers, and underscores in each path segment."));
     }
 
     FOpenPocketBaseFilter Filter;
@@ -240,7 +241,7 @@ FOpenPocketBaseFilter CombineFilters(
     if (A.SchemaId.IsValid() && B.SchemaId.IsValid() &&
         (A.SchemaId != B.SchemaId || A.CollectionId != B.CollectionId))
     {
-        return MakeInvalidFilter(TEXT("Filters from different collections cannot be combined."));
+        return MakeInvalidFilter(TEXT("These filters target different collections. Build every part of an AND or OR filter from fields in the same collection."));
     }
 
     FOpenPocketBaseFilter Filter;
@@ -253,7 +254,9 @@ FOpenPocketBaseFilter CombineFilters(
     Filter.CollectionId = !A.CollectionId.IsEmpty() ? A.CollectionId : B.CollectionId;
     if (Filter.Expression.Len() > 64 * 1024)
     {
-        return MakeInvalidFilter(TEXT("The combined filter exceeds the supported length."));
+        return MakeInvalidFilter(FString::Printf(
+            TEXT("The combined filter is %d characters, but the maximum is 65536. Remove filter terms or split the request."),
+            Filter.Expression.Len()));
     }
     return Filter;
 }
@@ -423,7 +426,7 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Number(
 {
     if (!FMath::IsFinite(Value))
     {
-        return MakeInvalidFilter(TEXT("Filter numbers must be finite."));
+        return MakeInvalidFilter(TEXT("Filter Value must be a finite number. NaN and infinity cannot be sent to PocketBase."));
     }
     if (!FOpenPocketBaseNumberFieldRef::Accepts(Field))
     {
@@ -532,7 +535,7 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicNumber(
 {
     if (!FMath::IsFinite(Value))
     {
-        return MakeInvalidFilter(TEXT("Filter numbers must be finite."));
+        return MakeInvalidFilter(TEXT("Dynamic filter Value must be a finite number. NaN and infinity cannot be sent to PocketBase."));
     }
     return MakeDynamicComparison(MoveTemp(Field), NumberOperator(Comparison), EncodeNumber(Value));
 }
@@ -571,7 +574,9 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::DynamicRaw(FString InExpression)
     InExpression.TrimStartAndEndInline();
     if (InExpression.Len() > 64 * 1024)
     {
-        return MakeInvalidFilter(TEXT("The filter expression exceeds the supported length."));
+        return MakeInvalidFilter(FString::Printf(
+            TEXT("The raw filter is %d characters, but the maximum is 65536. Shorten the expression or split the request."),
+            InExpression.Len()));
     }
 
     FOpenPocketBaseFilter Filter;
@@ -620,7 +625,9 @@ bool FOpenPocketBaseFilter::TryBindDynamic(
     OutError = {};
     if (InExpression.Len() > 64 * 1024)
     {
-        OutError = MakeBindingError(TEXT("The filter expression exceeds the supported length."));
+        OutError = MakeBindingError(FString::Printf(
+            TEXT("The filter template is %d characters, but the maximum is 65536. Shorten the expression before binding parameters."),
+            InExpression.Len()));
         return false;
     }
 
@@ -648,7 +655,9 @@ bool FOpenPocketBaseFilter::TryBindDynamic(
             PlaceholderStart + 2);
         if (PlaceholderEnd == INDEX_NONE)
         {
-            OutError = MakeBindingError(TEXT("The filter contains an unclosed parameter placeholder."));
+            OutError = MakeBindingError(FString::Printf(
+                TEXT("The filter parameter placeholder beginning at character %d has no closing brace. Close it using the form {:parameterName}."),
+                PlaceholderStart));
             return false;
         }
 
@@ -656,9 +665,18 @@ bool FOpenPocketBaseFilter::TryBindDynamic(
             PlaceholderStart + 2,
             PlaceholderEnd - PlaceholderStart - 2);
         const FString* EncodedValue = Params.EncodedValues.Find(Name);
-        if (!IsValidParameterName(Name) || EncodedValue == nullptr)
+        if (!IsValidParameterName(Name))
         {
-            OutError = MakeBindingError(TEXT("The filter contains an unknown parameter placeholder."));
+            OutError = MakeBindingError(FString::Printf(
+                TEXT("Filter parameter name '%s' is invalid. Start with a letter or underscore and use only letters, numbers, and underscores."),
+                *Name));
+            return false;
+        }
+        if (EncodedValue == nullptr)
+        {
+            OutError = MakeBindingError(FString::Printf(
+                TEXT("Filter parameter '%s' has no bound value. Add that parameter before binding the filter."),
+                *Name));
             return false;
         }
 
@@ -669,12 +687,24 @@ bool FOpenPocketBaseFilter::TryBindDynamic(
 
     if (UsedParameters.Num() != Params.EncodedValues.Num())
     {
-        OutError = MakeBindingError(TEXT("The filter contains unused parameters."));
+        TArray<FString> UnusedParameters;
+        Params.EncodedValues.GetKeys(UnusedParameters);
+        UnusedParameters.RemoveAll(
+            [&UsedParameters](const FString& Name)
+            {
+                return UsedParameters.Contains(Name);
+            });
+        UnusedParameters.Sort();
+        OutError = MakeBindingError(FString::Printf(
+            TEXT("The following bound filter parameters are not used by the expression: %s. Remove them or add matching placeholders."),
+            *FString::Join(UnusedParameters, TEXT(", "))));
         return false;
     }
     if (Bound.Len() > 64 * 1024)
     {
-        OutError = MakeBindingError(TEXT("The bound filter exceeds the supported length."));
+        OutError = MakeBindingError(FString::Printf(
+            TEXT("The bound filter is %d characters, but the maximum is 65536. Shorten the expression or its values."),
+            Bound.Len()));
         return false;
     }
 

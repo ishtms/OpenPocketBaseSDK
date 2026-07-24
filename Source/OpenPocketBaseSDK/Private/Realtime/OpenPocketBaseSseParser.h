@@ -50,7 +50,7 @@ private:
         TArray<FSseEvent>& OutEvents,
         int32& InOutEventsProduced,
         FOpenPocketBaseError& OutError);
-    bool Fail(const TCHAR* Message, FOpenPocketBaseError& OutError);
+    bool Fail(FString Message, FOpenPocketBaseError& OutError);
 
     FSseLimits Limits;
     TArray<uint8> PendingUtf8;

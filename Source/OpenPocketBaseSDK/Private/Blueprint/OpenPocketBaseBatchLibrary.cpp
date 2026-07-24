@@ -12,7 +12,8 @@ enum class EResolvedBatchCollection : uint8
 EResolvedBatchCollection ResolveBatchCollection(
     FOpenPocketBaseBatchRequest& Batch,
     const FOpenPocketBaseCollection& Collection,
-    FOpenPocketBaseWritableCollectionRef& OutCollection)
+    FOpenPocketBaseWritableCollectionRef& OutCollection,
+    const TCHAR* Operation)
 {
     Batch.BindClient(Collection.Client);
     if (!Batch.IsValid())
@@ -23,14 +24,18 @@ EResolvedBatchCollection ResolveBatchCollection(
     {
         if (!Collection.Reference.ResolveCurrentAs(OutCollection))
         {
-            Batch.Invalidate(TEXT("Choose a writable PocketBase collection for every batch operation."));
+            Batch.Invalidate(FString::Printf(
+                TEXT("Batch %s Collection is stale, missing, or read-only. Choose a current writable collection from the imported schema."),
+                Operation));
             return EResolvedBatchCollection::Invalid;
         }
         return EResolvedBatchCollection::Typed;
     }
     if (Collection.Reference.Name.IsEmpty())
     {
-        Batch.Invalidate(TEXT("Choose a PocketBase collection for every batch operation."));
+        Batch.Invalidate(FString::Printf(
+            TEXT("Batch %s has no Collection. Connect the Collection output from Use Collection."),
+            Operation));
         return EResolvedBatchCollection::Invalid;
     }
     return EResolvedBatchCollection::Dynamic;
@@ -79,7 +84,8 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithCreate(
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(
+        Batch, Collection, Current, TEXT("Create"));
     if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddCreate(MoveTemp(Current), MoveTemp(Body), MoveTemp(ResponseOptions));
@@ -103,7 +109,8 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpdate(
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(
+        Batch, Collection, Current, TEXT("Update"));
     if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddUpdate(
@@ -132,7 +139,8 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithUpsert(
     FOpenPocketBaseRecordOptions ResponseOptions)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(
+        Batch, Collection, Current, TEXT("Upsert"));
     if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddUpsert(MoveTemp(Current), RecordId, MoveTemp(Body), MoveTemp(ResponseOptions));
@@ -175,7 +183,8 @@ FOpenPocketBaseBatchRequest UOpenPocketBaseBatchLibrary::WithDelete(
     const FString& RecordId)
 {
     FOpenPocketBaseWritableCollectionRef Current;
-    const EResolvedBatchCollection Resolved = ResolveBatchCollection(Batch, Collection, Current);
+    const EResolvedBatchCollection Resolved = ResolveBatchCollection(
+        Batch, Collection, Current, TEXT("Delete"));
     if (Resolved == EResolvedBatchCollection::Typed)
     {
         Batch.AddDelete(MoveTemp(Current), RecordId);

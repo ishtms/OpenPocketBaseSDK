@@ -19,7 +19,7 @@ FOpenPocketBaseError MakeProbeError(const TCHAR* Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::Internal;
-    Error.ServerMessage = Message;
+    Error.Message = Message;
     return Error;
 }
 }
@@ -92,10 +92,10 @@ void UOpenPocketBasePackageProbeGameInstance::Init()
     if (!bSecureRoundTrip)
     {
         SecureStore->Delete(SecureKey, SecureError);
-        if (!UnavailableReason.IsEmpty() && SecureError.ServerMessage.IsEmpty())
+        if (!UnavailableReason.IsEmpty() && SecureError.Message.IsEmpty())
         {
             SecureError.Kind = EOpenPocketBaseErrorKind::SecureStorage;
-            SecureError.ServerMessage = UnavailableReason;
+            SecureError.Message = UnavailableReason;
         }
         FinishTlsProbe(false, SecureError);
         return;
@@ -414,7 +414,7 @@ void UOpenPocketBasePackageProbeGameInstance::FinishTransferProbe(
             static_cast<int32>(Error.Kind),
             Error.HttpStatus,
             *Error.RequestId,
-            *Error.ServerMessage);
+            *Error.Message);
     }
     if (bSucceeded)
     {
@@ -534,7 +534,7 @@ void UOpenPocketBasePackageProbeGameInstance::FinishRealtimeManagerProbe(
             static_cast<int32>(Error.Kind),
             Error.HttpStatus,
             *Error.RequestId,
-            *Error.ServerMessage);
+            *Error.Message);
     }
     if (Client.IsValid())
     {

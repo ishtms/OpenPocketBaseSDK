@@ -13,6 +13,29 @@ class OPENPOCKETBASESDK_API UOpenPocketBaseClientLibrary final : public UBluepri
 
 public:
     UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Errors",
+        meta = (DisplayName = "Break Open Pocket Base Error", NativeBreakFunc))
+    static void BreakError(
+        const FOpenPocketBaseError& Error,
+        EOpenPocketBaseErrorKind& Kind,
+        int32& HttpStatus,
+        FString& Code,
+        FString& Message,
+        TMap<FString, FOpenPocketBaseFieldError>& FieldErrors,
+        bool& bMayRetry,
+        FString& RequestId);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Errors",
+        meta = (ReturnDisplayName = "Found"))
+    static bool TryGetFieldError(
+        const FOpenPocketBaseError& Error,
+        const FString& FieldName,
+        FOpenPocketBaseFieldError& FieldError);
+
+    UFUNCTION(
         BlueprintCallable,
         Category = "Open PocketBase|Client",
         meta = (

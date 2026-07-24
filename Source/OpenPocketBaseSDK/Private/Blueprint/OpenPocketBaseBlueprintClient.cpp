@@ -219,8 +219,8 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecords(
     if (!IsReady())
     {
         OutError = FOpenPocketBaseError();
-        OutError.Kind = EOpenPocketBaseErrorKind::Cancelled;
-        OutError.ServerMessage = TEXT("The PocketBase client is not ready.");
+        OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+        OutError.Message = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before subscribing to records.");
         return nullptr;
     }
 
@@ -248,8 +248,8 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::SubscribeToRecord(
     if (!IsReady())
     {
         OutError = FOpenPocketBaseError();
-        OutError.Kind = EOpenPocketBaseErrorKind::Cancelled;
-        OutError.ServerMessage = TEXT("The PocketBase client is not ready.");
+        OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+        OutError.Message = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before subscribing to a record.");
         return nullptr;
     }
 
@@ -279,8 +279,8 @@ UOpenPocketBaseSubscription* UOpenPocketBaseClient::DynamicSubscribeToTopic(
     if (!IsReady())
     {
         OutError = FOpenPocketBaseError();
-        OutError.Kind = EOpenPocketBaseErrorKind::Cancelled;
-        OutError.ServerMessage = TEXT("The PocketBase client is not ready.");
+        OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+        OutError.Message = TEXT("The PocketBase client is missing or has already shut down. Create or retrieve an active client before subscribing to a dynamic topic.");
         return nullptr;
     }
 

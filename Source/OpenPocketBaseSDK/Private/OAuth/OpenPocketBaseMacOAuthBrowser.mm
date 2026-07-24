@@ -33,11 +33,18 @@ public:
         const FString& Url,
         FOpenPocketBaseError& OutError) override
     {
-        if (!IsInGameThread() || !IsBoundedHttpsUrl(Url))
+        if (!IsInGameThread())
         {
             OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            OutError.ServerMessage =
-                TEXT("A bounded HTTPS OAuth URL must be opened from the game thread.");
+            OutError.Message =
+                TEXT("The macOS OAuth browser must be opened from Unreal's game thread. Start the OAuth action from gameplay or Blueprint execution instead of a worker thread.");
+            return false;
+        }
+        if (!IsBoundedHttpsUrl(Url))
+        {
+            OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            OutError.Message =
+                TEXT("The OAuth authorization URL must use HTTPS, contain no backslashes, and be no longer than 8192 characters. Use the URL returned by Start OAuth2.");
             return false;
         }
 
@@ -47,7 +54,7 @@ public:
         if (ParsedUrl == nil || ![[NSWorkspace sharedWorkspace] openURL:ParsedUrl])
         {
             OutError.Kind = EOpenPocketBaseErrorKind::Transport;
-            OutError.ServerMessage = TEXT("The external OAuth browser could not be opened.");
+            OutError.Message = TEXT("macOS could not open the OAuth authorization URL in the default browser. Check that a default browser is configured, then retry the login.");
             return false;
         }
 

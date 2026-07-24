@@ -66,7 +66,7 @@ public:
         if (bFailSave)
         {
             OutError.Kind = EOpenPocketBaseErrorKind::SecureStorage;
-            OutError.ServerMessage = TEXT("The injected secure store rejected the save.");
+            OutError.Message = TEXT("The injected secure store rejected the save.");
             return false;
         }
         StoredKey = Key;
@@ -293,7 +293,7 @@ bool FOpenPocketBaseUnavailableSecureStoreTest::RunTest(const FString& Parameter
 
     TestFalse(TEXT("RequireSecureStorage rejects unavailable storage"), Client.IsValid());
     TestEqual(TEXT("The failure is classified as secure storage"), Error.Kind, EOpenPocketBaseErrorKind::SecureStorage);
-    TestTrue(TEXT("The failure explains unavailability"), Error.ServerMessage.Contains(TEXT("No test secure store")));
+    TestTrue(TEXT("The failure explains unavailability"), Error.Message.Contains(TEXT("No test secure store")));
     TestEqual(TEXT("Client creation performs no HTTP work"), Transport->GetRequestCount(), 0);
     return true;
 }
@@ -808,7 +808,7 @@ bool FOpenPocketBaseAppleKeychainProbeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Apple Keychain saves a bounded probe"), bSaved);
     if (!bSaved)
     {
-        AddError(Error.ServerMessage);
+        AddError(Error.Message);
         return false;
     }
 

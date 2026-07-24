@@ -126,7 +126,7 @@ public:
         if (bFailSave)
         {
             OutError.Kind = EOpenPocketBaseErrorKind::SecureStorage;
-            OutError.ServerMessage = TEXT("The account test secure store rejected the save.");
+            OutError.Message = TEXT("The account test secure store rejected the save.");
             return false;
         }
         Stored.Reset(Value.Num());

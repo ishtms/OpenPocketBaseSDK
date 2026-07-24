@@ -179,7 +179,7 @@ public:
         Test->TestTrue(
             TEXT("The timeout error names the invalid setting"),
             State->ValidationMessages.Contains(
-                TEXT("Total Timeout must be greater than 0 and no more than 120 seconds.")));
+                TEXT("Batch Total Timeout is 121.000 seconds. Use a value greater than 0 and no more than 120 seconds.")));
         Test->TestEqual(TEXT("Invalid batches never reach the transport"), State->Transport->GetRequestCount(), 0);
         State->Client->Shutdown();
         return true;
@@ -434,7 +434,7 @@ bool FOpenPocketBaseBatchBoundsTest::RunTest(const FString& Parameters)
         if (!Result.IsSuccess() && Result.GetError().Kind == EOpenPocketBaseErrorKind::InvalidArgument)
         {
             ++State->ValidationFailureCount;
-            State->ValidationMessages.Add(Result.GetError().ServerMessage);
+            State->ValidationMessages.Add(Result.GetError().Message);
         }
         ++State->CallbackCount;
     };

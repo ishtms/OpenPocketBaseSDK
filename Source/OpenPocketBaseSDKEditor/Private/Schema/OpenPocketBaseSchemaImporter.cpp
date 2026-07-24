@@ -105,7 +105,7 @@ bool ReadRequiredString(
     }
 
     OutError = FText::Format(
-        LOCTEXT("MissingRequiredProperty", "{0} is missing a non-empty '{1}' value."),
+        LOCTEXT("MissingRequiredProperty", "{0} is missing a non-empty '{1}' value. Export the schema again from PocketBase instead of editing the JSON by hand."),
         FText::FromString(Context),
         FText::FromString(Property));
     return false;
@@ -240,7 +240,7 @@ bool ParseCollection(
     if (!Object->TryGetArrayField(TEXT("fields"), Fields) || Fields == nullptr)
     {
         OutError = FText::Format(
-            LOCTEXT("MissingFields", "Collection '{0}' is missing its fields array."),
+            LOCTEXT("MissingFields", "Collection '{0}' is missing its 'fields' array. Export the schema again from PocketBase and reimport that file."),
             FText::FromString(OutCollection.Name));
         return false;
     }
@@ -253,7 +253,7 @@ bool ParseCollection(
         if (!FieldValue.IsValid() || !FieldValue->TryGetObject(FieldObject) || FieldObject == nullptr)
         {
             OutError = FText::Format(
-                LOCTEXT("InvalidField", "Collection '{0}' contains a field that is not an object."),
+                LOCTEXT("InvalidField", "Collection '{0}' contains a field entry that is not a JSON object. Export the schema again from PocketBase."),
                 FText::FromString(OutCollection.Name));
             return false;
         }
@@ -267,7 +267,7 @@ bool ParseCollection(
         if (FieldIds.Contains(Field.Id) || FieldNames.Contains(Field.Name))
         {
             OutError = FText::Format(
-                LOCTEXT("DuplicateField", "Collection '{0}' contains duplicate field ID or name '{1}'."),
+                LOCTEXT("DuplicateField", "Collection '{0}' contains duplicate field ID or name '{1}'. Remove the duplicate in PocketBase, export the schema again, and reimport it."),
                 FText::FromString(OutCollection.Name),
                 FText::FromString(Field.Name));
             return false;
@@ -369,7 +369,7 @@ bool ReadCollectionsRoot(
 {
     if (!Root.IsValid())
     {
-        OutError = LOCTEXT("EmptyJson", "The schema JSON is empty.");
+        OutError = LOCTEXT("EmptyJson", "The schema JSON is empty. Choose a non-empty schema export from PocketBase.");
         return false;
     }
 
@@ -381,7 +381,7 @@ bool ReadCollectionsRoot(
 
     if (Root->Type != EJson::Object)
     {
-        OutError = LOCTEXT("InvalidRoot", "PocketBase schema JSON must be an array or object.");
+        OutError = LOCTEXT("InvalidRoot", "PocketBase schema JSON must be a collection array or an object containing an 'items' or 'collections' array. Export the schema again from PocketBase.");
         return false;
     }
 
@@ -393,7 +393,7 @@ bool ReadCollectionsRoot(
     {
         OutError = LOCTEXT(
             "MissingCollections",
-            "PocketBase schema JSON must contain an 'items' or 'collections' array.");
+            "PocketBase schema JSON must contain an 'items' or 'collections' array. Choose a PocketBase schema export, not a single collection response.");
         return false;
     }
 
@@ -414,7 +414,7 @@ bool FOpenPocketBaseSchemaImporter::ImportJson(
     if (!FJsonSerializer::Deserialize(Reader, Root))
     {
         OutError = FText::Format(
-            LOCTEXT("JsonParseFailed", "PocketBase schema JSON could not be parsed: {0}"),
+            LOCTEXT("JsonParseFailed", "PocketBase schema JSON could not be parsed. Check that the file is complete and valid JSON. Parser details - {0}"),
             FText::FromString(Reader->GetErrorMessage()));
         return false;
     }
@@ -437,7 +437,7 @@ bool FOpenPocketBaseSchemaImporter::ImportJson(
             !CollectionValue->TryGetObject(CollectionObject) ||
             CollectionObject == nullptr)
         {
-            OutError = LOCTEXT("InvalidCollection", "The schema contains a collection that is not an object.");
+            OutError = LOCTEXT("InvalidCollection", "The schema contains a collection entry that is not a JSON object. Export the schema again from PocketBase.");
             return false;
         }
 
@@ -449,7 +449,7 @@ bool FOpenPocketBaseSchemaImporter::ImportJson(
         if (CollectionIds.Contains(Collection.Id) || CollectionNames.Contains(Collection.Name))
         {
             OutError = FText::Format(
-                LOCTEXT("DuplicateCollection", "The schema contains duplicate collection ID or name '{0}'."),
+                LOCTEXT("DuplicateCollection", "The schema contains duplicate collection ID or name '{0}'. Remove the duplicate in PocketBase, export the schema again, and reimport it."),
                 FText::FromString(Collection.Name));
             return false;
         }
@@ -462,7 +462,7 @@ bool FOpenPocketBaseSchemaImporter::ImportJson(
     const FString Fingerprint = BuildFingerprint(Version, Collections);
     if (Fingerprint.IsEmpty())
     {
-        OutError = LOCTEXT("FingerprintFailed", "The imported schema fingerprint could not be created.");
+        OutError = LOCTEXT("FingerprintFailed", "The imported schema fingerprint could not be created. Re-export the schema and verify every collection and field has a valid ID and name.");
         return false;
     }
 

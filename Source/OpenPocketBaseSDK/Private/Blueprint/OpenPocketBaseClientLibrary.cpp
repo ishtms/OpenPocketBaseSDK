@@ -7,11 +7,11 @@
 
 namespace
 {
-FOpenPocketBaseError MakeClientEntryError(const TCHAR* Message)
+FOpenPocketBaseError MakeClientEntryError(FString Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-    Error.ServerMessage = Message;
+    Error.Message = MoveTemp(Message);
     return Error;
 }
 
@@ -43,7 +43,7 @@ bool GetOrCreateClient(
     UOpenPocketBaseSubsystem* Subsystem = GetPocketBaseSubsystem(WorldContextObject);
     if (Subsystem == nullptr)
     {
-        OutError = MakeClientEntryError(TEXT("A game instance is required to initialize PocketBase."));
+        OutError = MakeClientEntryError(TEXT("Initialize PocketBase needs a valid gameplay World Context with a Game Instance. Call it from a Level Blueprint, Actor, Component, Widget, or other object that belongs to the running game."));
         return false;
     }
 
@@ -61,13 +61,51 @@ bool GetOrCreateClient(
             return true;
         }
         OutError = MakeClientEntryError(
-            TEXT("A PocketBase client with this name is already initialized for another server."));
+            ClientName.IsNone()
+                ? TEXT("The default PocketBase client is already initialized for another Base URL. Shut it down before connecting the default client to a different server.")
+                : FString::Printf(
+                      TEXT("PocketBase client '%s' is already initialized for another Base URL. Remove that named client before reusing its name for a different server."),
+                      *ClientName.ToString()));
         return false;
     }
 
     OutClient = Subsystem->CreateClient(ClientName, Config, OutError);
     return OutClient != nullptr;
 }
+}
+
+void UOpenPocketBaseClientLibrary::BreakError(
+    const FOpenPocketBaseError& Error,
+    EOpenPocketBaseErrorKind& Kind,
+    int32& HttpStatus,
+    FString& Code,
+    FString& Message,
+    TMap<FString, FOpenPocketBaseFieldError>& FieldErrors,
+    bool& bMayRetry,
+    FString& RequestId)
+{
+    Kind = Error.Kind;
+    HttpStatus = Error.HttpStatus;
+    Code = Error.Code;
+    Message = Error.Message;
+    FieldErrors = Error.FieldErrors;
+    bMayRetry = Error.bMayRetry;
+    RequestId = Error.RequestId;
+}
+
+bool UOpenPocketBaseClientLibrary::TryGetFieldError(
+    const FOpenPocketBaseError& Error,
+    const FString& FieldName,
+    FOpenPocketBaseFieldError& FieldError)
+{
+    FieldError = {};
+    const FOpenPocketBaseFieldError* Found = Error.FieldErrors.Find(FieldName);
+    if (Found == nullptr)
+    {
+        return false;
+    }
+    FieldError = *Found;
+    return true;
 }
 
 bool UOpenPocketBaseClientLibrary::InitializePocketBase(
@@ -107,7 +145,7 @@ bool UOpenPocketBaseClientLibrary::CreateNamedPocketBaseClient(
     if (ClientName.IsNone())
     {
         Client = nullptr;
-        Error = MakeClientEntryError(TEXT("Named PocketBase clients require a name."));
+        Error = MakeClientEntryError(TEXT("Client Name is None. Enter a non-empty name when creating an additional PocketBase client, or use Initialize PocketBase for the default client."));
         return false;
     }
     return GetOrCreateClient(WorldContextObject, ClientName, Config, Client, Error);

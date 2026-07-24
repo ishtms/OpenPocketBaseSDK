@@ -77,7 +77,7 @@ const TCHAR* SeverityName(const EOpenPocketBaseEditorValidationSeverity Severity
 void AddIssue(
     FOpenPocketBaseEditorValidationReport& Report,
     const EOpenPocketBaseEditorValidationCode Code,
-    const TCHAR* Message,
+    const FString& Message,
     FStringView Context = FStringView())
 {
     FOpenPocketBaseEditorValidationIssue Issue;
@@ -256,7 +256,8 @@ void ScanDirectory(
             AddIssue(
                 OutReport,
                 EOpenPocketBaseEditorValidationCode::ScanLimitReached,
-                TEXT("Project credential scanning stopped at its configured safety limit."));
+                TEXT("Credential scanning stopped after reaching its file or byte safety limit. "
+                     "Remove unnecessary source files from the scan or review the remaining files manually."));
             return;
         }
 
@@ -342,7 +343,9 @@ FOpenPocketBaseEditorValidationReport FOpenPocketBaseEditorValidator::ValidateSe
         AddIssue(
             Report,
             EOpenPocketBaseEditorValidationCode::InvalidProjectSettings,
-            TEXT("Open PocketBase project profiles are invalid."));
+            FString::Printf(
+                TEXT("Open PocketBase project settings are invalid. %s"),
+                *Error.Message));
     }
 
     bool bRequiresSecurePersistence = false;
@@ -360,42 +363,47 @@ FOpenPocketBaseEditorValidationReport FOpenPocketBaseEditorValidator::ValidateSe
         AddIssue(
             Report,
             EOpenPocketBaseEditorValidationCode::StreamingUnavailable,
-            TEXT("The configured project requires incremental HTTP streaming, but it is unavailable."));
+            TEXT("Realtime or assisted OAuth requires incremental HTTP streaming, but this target doesn't provide it. "
+                 "Disable the dependent feature for this target or add a transport that supports streaming."));
     }
     if (bRequiresSecurePersistence && !Environment.bSecurePersistenceAvailable)
     {
         AddIssue(
             Report,
             EOpenPocketBaseEditorValidationCode::SecurePersistenceUnavailable,
-            TEXT("A profile requires secure persistence, but no supported secure store is available."));
+            TEXT("A profile requires secure session persistence, but this target has no supported secure store. "
+                 "Add a secure-store implementation or change that profile's Session Persistence setting."));
     }
     if (bRequiresOAuthCallback && !Environment.bOAuthCallbackAvailable)
     {
         AddIssue(
             Report,
             EOpenPocketBaseEditorValidationCode::OAuthCallbackUnavailable,
-            TEXT("A profile enables assisted OAuth, but its packaged callback flow is not validated."));
+            TEXT("A profile enables assisted OAuth, but this target has no validated callback handler. "
+                 "Add a platform callback bridge or disable Assisted OAuth for that profile."));
     }
     if (Settings.bRequireOfflineModule && !Environment.bOfflineModuleAvailable)
     {
         AddIssue(
             Report,
             EOpenPocketBaseEditorValidationCode::MissingOfflineModule,
-            TEXT("Project policy requires the optional offline module, but it is unavailable."));
+            TEXT("Require Offline Module is enabled, but OpenPocketBaseSDKOffline isn't loaded. "
+                 "Enable that plugin module or turn off the requirement in Project Settings."));
     }
     if (Settings.bRequirePrivilegedModule && !Environment.bPrivilegedModuleAvailable)
     {
         AddIssue(
             Report,
             EOpenPocketBaseEditorValidationCode::MissingPrivilegedModule,
-            TEXT("Project policy requires the privileged module, but it is unavailable."));
+            TEXT("Require Privileged Module is enabled, but OpenPocketBaseSDKAdmin isn't loaded. "
+                 "Enable that plugin module for trusted targets or turn off the requirement."));
     }
     if (Settings.bRequirePrivilegedModule && !Environment.bPrivilegedShippingGatePresent)
     {
         AddIssue(
             Report,
             EOpenPocketBaseEditorValidationCode::MissingPrivilegedShippingGate,
-            TEXT("The privileged module is not excluded from Shipping targets."));
+            TEXT("OpenPocketBaseSDKAdmin can be loaded by a Shipping target. Exclude the module from Shipping before packaging."));
     }
     return Report;
 }
@@ -450,7 +458,8 @@ void FOpenPocketBaseEditorValidator::ScanCommandLine(
             AddIssue(
                 OutReport,
                 EOpenPocketBaseEditorValidationCode::EmbeddedSuperuserCredential,
-                TEXT("A superuser password was supplied on the process command line."),
+                TEXT("A PocketBase superuser password is present on the process command line, where other processes may read it. "
+                     "Remove the argument and supply the password from a process-local prompt or secret provider."),
                 TEXT("process command line"));
             return;
         }
@@ -473,8 +482,8 @@ void FOpenPocketBaseEditorValidator::ScanTextArtifact(
         OutReport,
         EOpenPocketBaseEditorValidationCode::EmbeddedSuperuserCredential,
         Kind == EOpenPocketBaseEditorArtifactKind::Config
-            ? TEXT("A superuser password appears to be embedded in an ordinary config file.")
-            : TEXT("A superuser password appears to be embedded in a source default or literal call."),
+            ? TEXT("A PocketBase superuser password appears in a config file. Remove it and load the value from a secret provider at runtime.")
+            : TEXT("A PocketBase superuser password appears in a source default or literal call. Remove it and supply the value at runtime."),
         Identifier);
 }
 
@@ -523,7 +532,7 @@ void FOpenPocketBaseEditorValidator::ScanBlueprint(
         AddIssue(
             OutReport,
             EOpenPocketBaseEditorValidationCode::EmbeddedSuperuserCredential,
-            TEXT("A privileged PocketBase password is embedded in an asset default."),
+            TEXT("A PocketBase superuser password is stored in this Blueprint asset. Clear the Password pin default and supply it at runtime."),
             Blueprint.GetPathName());
     }
 }

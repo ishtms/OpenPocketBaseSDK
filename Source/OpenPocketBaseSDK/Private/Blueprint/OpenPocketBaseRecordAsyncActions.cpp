@@ -35,6 +35,15 @@ FOpenPocketBaseError UOpenPocketBaseAsyncActionBase::MakeCancelledError()
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::Cancelled;
+    Error.Message = TEXT("The PocketBase operation was cancelled by the caller.");
+    return Error;
+}
+
+FOpenPocketBaseError UOpenPocketBaseAsyncActionBase::MakeClientUnavailableError()
+{
+    FOpenPocketBaseError Error;
+    Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+    Error.Message = TEXT("The PocketBase client is missing or has already shut down. Initialize the client before starting this operation.");
     return Error;
 }
 
@@ -58,9 +67,7 @@ void UOpenPocketBaseHealthAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseHealthResult(), Error);
         }
         Finish();
@@ -122,9 +129,7 @@ void UOpenPocketBaseCustomRouteAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseCustomRouteResponse(), Error);
         }
         Finish();
@@ -187,9 +192,7 @@ void UOpenPocketBaseGetRecordAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
@@ -254,9 +257,7 @@ void UOpenPocketBaseGetFirstRecordAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
@@ -321,9 +322,7 @@ void UOpenPocketBaseCreateRecordAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
@@ -390,16 +389,45 @@ void UOpenPocketBaseRegisterUserAsyncAction::Activate()
     const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     FOpenPocketBaseAuthCollectionRef CurrentCollection;
-    if (!NativeClient.IsValid() || NativeClient->IsShutdown() ||
-        !AuthCollection.ResolveCurrentAs(CurrentCollection) ||
-        !UserFields.IsValid() || !UserFields.BelongsTo(CurrentCollection) ||
-        Password.IsEmpty() || Password != ConfirmPassword)
+    FString ValidationMessage;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        ValidationMessage = MakeClientUnavailableError().Message;
+    }
+    else if (!AuthCollection.ResolveCurrentAs(CurrentCollection))
+    {
+        ValidationMessage = TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose an auth collection from the current schema.");
+    }
+    else if (!UserFields.IsValid())
+    {
+        ValidationMessage = UserFields.ErrorMessage.IsEmpty()
+            ? TEXT("User Fields is invalid. Start with New Record Body using the selected Auth Collection.")
+            : FString::Printf(TEXT("User Fields is invalid. %s"), *UserFields.ErrorMessage);
+    }
+    else if (!UserFields.BelongsTo(CurrentCollection))
+    {
+        ValidationMessage = TEXT("User Fields was built for another collection. Rebuild it from the selected Auth Collection.");
+    }
+    else if (Password.IsEmpty())
+    {
+        ValidationMessage = TEXT("Password is empty. Enter the new user's password.");
+    }
+    else if (ConfirmPassword.IsEmpty())
+    {
+        ValidationMessage = TEXT("Confirm Password is empty. Enter the same password again.");
+    }
+    else if (Password != ConfirmPassword)
+    {
+        ValidationMessage = TEXT("Password and Confirm Password do not match.");
+    }
+
+    if (!ValidationMessage.IsEmpty())
     {
         if (TryBeginTerminal())
         {
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready auth collection, valid user fields, and matching passwords are required.");
+            Error.Message = MoveTemp(ValidationMessage);
             Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
@@ -474,9 +502,7 @@ void UOpenPocketBaseCreateRecordWithFilesAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(
                 FOpenPocketBaseRecord(),
                 FOpenPocketBaseTransferProgress(),
@@ -571,9 +597,7 @@ void UOpenPocketBaseUpdateRecordAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
@@ -647,9 +671,7 @@ void UOpenPocketBaseUpdateRecordWithFilesAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(
                 FOpenPocketBaseRecord(),
                 FOpenPocketBaseTransferProgress(),
@@ -743,9 +765,7 @@ void UOpenPocketBaseDeleteRecordAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(Error);
         }
         Finish();
@@ -808,9 +828,7 @@ void UOpenPocketBaseListRecordsAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseRecordPage(), Error);
         }
         Finish();
@@ -872,9 +890,7 @@ void UOpenPocketBaseGetFullListAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseFullListResult(), Error);
         }
         Finish();
@@ -935,9 +951,7 @@ void UOpenPocketBaseRefreshAuthAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseAuthResult(), Error);
         }
         Finish();
@@ -1001,9 +1015,7 @@ void UOpenPocketBaseRestoreSessionAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseSessionRestoreResult(), Error);
         }
         Finish();
@@ -1068,9 +1080,7 @@ void UOpenPocketBaseListAuthMethodsAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseAuthMethods(), Error);
         }
         Finish();
@@ -1133,9 +1143,7 @@ void UOpenPocketBaseRequestOtpAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseOtpRequest(), Error);
         }
         Finish();
@@ -1203,9 +1211,7 @@ void UOpenPocketBaseOtpAuthAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(
                 FOpenPocketBaseAuthResult(),
                 FOpenPocketBaseMfaContinuation(),
@@ -1293,9 +1299,7 @@ void UOpenPocketBaseBeginOAuth2AsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseOAuth2Authorization(), Error);
         }
         Finish();
@@ -1358,9 +1362,7 @@ void UOpenPocketBaseCompleteOAuth2AsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(
                 FOpenPocketBaseAuthResult(),
                 FOpenPocketBaseMfaContinuation(),
@@ -1446,9 +1448,7 @@ void UOpenPocketBaseAssistedOAuth2AsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(
                 FOpenPocketBaseAuthResult(),
                 FOpenPocketBaseMfaContinuation(),
@@ -1643,9 +1643,7 @@ void UOpenPocketBaseAccountAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(Error);
         }
         Finish();
@@ -1752,9 +1750,7 @@ void UOpenPocketBaseListExternalAuthsAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseExternalAuthList(), Error);
         }
         Finish();
@@ -1822,9 +1818,7 @@ void UOpenPocketBasePasswordAuthAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(
                 FOpenPocketBaseAuthResult(),
                 FOpenPocketBaseMfaContinuation(),

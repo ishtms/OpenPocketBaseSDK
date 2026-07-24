@@ -364,7 +364,7 @@ bool FOpenPocketBaseScriptedRedirectsTest::RunTest(const FString& Parameters)
             if (!Result.IsSuccess())
             {
                 State->CrossOriginErrorKind = Result.GetError().Kind;
-                State->CrossOriginErrorMessage = Result.GetError().ServerMessage;
+                State->CrossOriginErrorMessage = Result.GetError().Message;
             }
         },
         Options);

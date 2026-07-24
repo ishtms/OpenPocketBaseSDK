@@ -9,7 +9,11 @@ UOpenPocketBaseClient* UOpenPocketBaseSubsystem::CreateClient(
     {
         OutError = FOpenPocketBaseError();
         OutError.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-        OutError.ServerMessage = TEXT("A PocketBase client with this name already exists.");
+        OutError.Message = ClientName.IsNone()
+            ? TEXT("The default PocketBase client already exists. Retrieve or remove it before creating another default client.")
+            : FString::Printf(
+                TEXT("PocketBase client '%s' already exists. Retrieve it or remove it before reusing that name."),
+                *ClientName.ToString());
         return nullptr;
     }
 

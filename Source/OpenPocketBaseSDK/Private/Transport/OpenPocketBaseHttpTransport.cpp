@@ -94,7 +94,7 @@ public:
                 FOpenPocketBaseHttpResponse Result;
                 Result.RequestId = Request.RequestId;
                 Result.EffectiveUrl = Request.Url;
-                Result.ErrorMessage = TEXT("Unreal HTTP could not attach the request body stream.");
+                Result.ErrorMessage = TEXT("Unreal HTTP could not attach the request body stream. Confirm the stream is open and readable before sending the request.");
                 Callbacks->Complete(MoveTemp(Result));
                 return {};
             }
@@ -153,7 +153,7 @@ public:
                 }
                 else
                 {
-                    Result.ErrorMessage = TEXT("Unreal HTTP did not return a response.");
+                    Result.ErrorMessage = TEXT("Unreal HTTP did not return a response. Check the server URL, confirm PocketBase is running, and verify network access.");
                 }
 
                 Callbacks->Complete(MoveTemp(Result));
@@ -164,7 +164,7 @@ public:
             FOpenPocketBaseHttpResponse Result;
             Result.RequestId = RequestId;
             Result.EffectiveUrl = RequestUrl;
-            Result.ErrorMessage = TEXT("Unreal HTTP could not start the request.");
+            Result.ErrorMessage = TEXT("Unreal HTTP could not start the request. Check the URL, request headers, body stream, and platform HTTP support.");
             Callbacks->Complete(MoveTemp(Result));
         }
 

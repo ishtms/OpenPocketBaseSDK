@@ -34,7 +34,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFieldError
     FString Message;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(
+    BlueprintType,
+    meta = (HasNativeBreak = "/Script/OpenPocketBaseSDK.OpenPocketBaseClientLibrary.BreakError"))
 struct OPENPOCKETBASESDK_API FOpenPocketBaseError
 {
     GENERATED_BODY()
@@ -46,10 +48,10 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseError
     int32 HttpStatus = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase")
-    FString ServerCode;
+    FString Code;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase")
-    FString ServerMessage;
+    FString Message;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase")
     TMap<FString, FOpenPocketBaseFieldError> FieldErrors;

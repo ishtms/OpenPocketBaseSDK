@@ -21,9 +21,7 @@ void UOpenPocketBaseGetFileTokenAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(FOpenPocketBaseFileToken(), Error);
         }
         Finish();
@@ -92,9 +90,7 @@ void UOpenPocketBaseDownloadFileAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = TEXT("A ready PocketBase client is required.");
+            const FOpenPocketBaseError Error = MakeClientUnavailableError();
             Failed.Broadcast(
                 FOpenPocketBaseFileDownloadResult(),
                 FOpenPocketBaseTransferProgress(),

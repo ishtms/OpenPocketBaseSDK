@@ -20,11 +20,16 @@ void UOpenPocketBaseSendBatchAsyncAction::Activate()
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error;
-            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-            Error.ServerMessage = Batch.IsValid()
-                ? TEXT("A ready PocketBase client is required.")
-                : Batch.ErrorMessage;
+            FOpenPocketBaseError Error = Batch.IsValid()
+                ? MakeClientUnavailableError()
+                : FOpenPocketBaseError();
+            if (!Batch.IsValid())
+            {
+                Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+                Error.Message = Batch.ErrorMessage.IsEmpty()
+                    ? TEXT("The batch request is invalid. Start with New Batch and add at least one valid operation.")
+                    : Batch.ErrorMessage;
+            }
             Failed.Broadcast(FOpenPocketBaseBatchResult(), Error);
         }
         Finish();

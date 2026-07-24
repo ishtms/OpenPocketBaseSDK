@@ -52,7 +52,7 @@ FOpenPocketBaseError MakeEnvelopeError(const TCHAR* Message)
 {
     FOpenPocketBaseError Error;
     Error.Kind = EOpenPocketBaseErrorKind::SecureStorage;
-    Error.ServerMessage = Message;
+    Error.Message = Message;
     return Error;
 }
 }
@@ -69,10 +69,19 @@ bool Serialize(
     FOpenPocketBaseError& OutError)
 {
     OutBytes.Reset();
-    if (!IsSafeCollection(AuthCollection) || !IsTokenShapeValid(Token) ||
-        !Record.Data.JsonObject.IsValid())
+    if (!IsSafeCollection(AuthCollection))
     {
-        OutError = MakeEnvelopeError(TEXT("The authenticated session cannot be serialized safely."));
+        OutError = MakeEnvelopeError(TEXT("The session cannot be saved because Auth Collection is empty or contains an unsafe path character."));
+        return false;
+    }
+    if (!IsTokenShapeValid(Token))
+    {
+        OutError = MakeEnvelopeError(TEXT("The session cannot be saved because the auth token is not a valid three-part PocketBase token."));
+        return false;
+    }
+    if (!Record.Data.JsonObject.IsValid())
+    {
+        OutError = MakeEnvelopeError(TEXT("The session cannot be saved because the authenticated record has no valid JSON data."));
         return false;
     }
 
@@ -84,10 +93,19 @@ bool Serialize(
     Root->SetStringField(TEXT("token"), Token);
     Root->SetObjectField(TEXT("record"), OpenPocketBase::Json::MakeRecordObject(Record));
     OutBytes = OpenPocketBase::Json::SerializeObject(Root);
-    if (OutBytes.IsEmpty() || OutBytes.Num() > MaxEnvelopeBytes)
+    if (OutBytes.IsEmpty())
     {
+        OutError = MakeEnvelopeError(TEXT("The session could not be converted to JSON for secure storage. Fetch the authenticated record again and avoid unsupported custom JSON values before saving the session."));
+        return false;
+    }
+    if (OutBytes.Num() > MaxEnvelopeBytes)
+    {
+        const int32 ActualBytes = OutBytes.Num();
         OutBytes.Reset();
-        OutError = MakeEnvelopeError(TEXT("The secure session envelope exceeds its size bound."));
+        OutError = MakeEnvelopeError(*FString::Printf(
+            TEXT("The saved session is %d bytes, but secure session storage accepts at most %d bytes. Reduce fields returned on the authenticated record."),
+            ActualBytes,
+            MaxEnvelopeBytes));
         return false;
     }
 

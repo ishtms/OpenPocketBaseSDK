@@ -124,7 +124,7 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::NewRecordBody(
         if (!Collection.IsValid())
         {
             Body.bValid = false;
-            Body.ErrorMessage = TEXT("Choose a valid collection before building its record body.");
+            Body.ErrorMessage = TEXT("New Record Body has no active Collection. Connect the Collection output from Use Collection before adding fields.");
         }
         return Body;
     }
@@ -134,7 +134,7 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::NewRecordBody(
         !FOpenPocketBaseWritableCollectionRef::Accepts(Current))
     {
         Body.bValid = false;
-        Body.ErrorMessage = TEXT("Choose a writable collection before building its record body.");
+        Body.ErrorMessage = TEXT("The selected Collection is stale, missing, or read-only. Choose a current base or auth collection from the imported schema.");
         return Body;
     }
     Body.SchemaId = Current.SchemaId;

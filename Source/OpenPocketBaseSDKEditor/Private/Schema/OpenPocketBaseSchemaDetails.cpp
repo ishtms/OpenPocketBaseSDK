@@ -227,7 +227,11 @@ FReply FOpenPocketBaseSchemaDetails::RefreshSchema()
             false,
             false))
     {
-        ShowNotification(LOCTEXT("SchemaRefreshFailed", "PocketBase schema refresh failed."), false);
+        ShowNotification(
+            LOCTEXT(
+                "SchemaRefreshFailed",
+                "PocketBase schema refresh failed. Check that the Source file still exists and contains a valid schema export, then review the Output Log for the importer error."),
+            false);
         return FReply::Handled();
     }
 

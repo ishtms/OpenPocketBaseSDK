@@ -211,7 +211,10 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecord
         {
             OutError = FOpenPocketBaseError();
             OutError.Kind = EOpenPocketBaseErrorKind::Serialization;
-            OutError.ServerMessage = TEXT("Record data does not contain a parsed JSON object.");
+            OutError.Message = FString::Printf(
+                TEXT("Record '%s' from collection '%s' has no parsed Data object. Fetch the record again before converting it to a struct."),
+                *Id,
+                *CollectionName);
             return false;
         }
 
@@ -226,7 +229,11 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecord
         {
             OutError = FOpenPocketBaseError();
             OutError.Kind = EOpenPocketBaseErrorKind::Serialization;
-            OutError.ServerMessage = FailureReason.ToString();
+            OutError.Message = FString::Printf(
+                TEXT("Record '%s' from collection '%s' could not be converted to the requested struct. %s"),
+                *Id,
+                *CollectionName,
+                *FailureReason.ToString());
             return false;
         }
 
