@@ -591,4 +591,77 @@ bool FOpenPocketBaseRecordMutationErrorTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseAuthCreateIgnoresServerManagedFieldsTest,
+    "OpenPocketBase.Client.Records.AuthCreateIgnoresServerManagedFields",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseAuthCreateIgnoresServerManagedFieldsTest::RunTest(
+    const FString& Parameters)
+{
+    const TSharedRef<FCrudTransport, ESPMode::ThreadSafe> Transport =
+        MakeShared<FCrudTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseHttpResponse Response;
+    Response.bTransportSucceeded = true;
+    Response.HttpStatus = 200;
+    Response.Body = ToUtf8(
+        TEXT("{\"id\":\"user123\",\"collectionId\":\"users_id\",")
+        TEXT("\"collectionName\":\"users\",\"email\":\"new-user@example.com\"}"));
+    Transport->Responses.Add(MoveTemp(Response));
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError CreateError;
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
+        CreateOpenPocketBaseTestClient(Config, Transport, CreateError);
+    if (!TestNotNull(TEXT("The client is created"), Client.Get()))
+    {
+        return false;
+    }
+
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    Schema->SchemaId = FGuid(233, 144, 89, 55);
+    FOpenPocketBaseSchemaCollection Users;
+    Users.Id = TEXT("users_id");
+    Users.Name = TEXT("users");
+    Users.Type = EOpenPocketBaseCollectionType::Auth;
+
+    FOpenPocketBaseSchemaField Email;
+    Email.Id = TEXT("email_id");
+    Email.Name = TEXT("email");
+    Email.Type = EOpenPocketBaseFieldType::Email;
+    Email.bRequired = true;
+    Email.bSystem = true;
+
+    FOpenPocketBaseSchemaField TokenKey;
+    TokenKey.Id = TEXT("token_key_id");
+    TokenKey.Name = TEXT("tokenKey");
+    TokenKey.Type = EOpenPocketBaseFieldType::Text;
+    TokenKey.bRequired = true;
+    TokenKey.bSystem = true;
+    TokenKey.bHidden = true;
+    Users.Fields = {Email, TokenKey};
+    Schema->Collections = {Users};
+
+    FOpenPocketBaseAuthCollectionRef UsersRef;
+    TestTrue(
+        TEXT("The auth collection reference is created"),
+        Schema->MakeTypedCollectionRef(Users.Id, UsersRef));
+
+    FOpenPocketBaseRecordBody Body;
+    Body.SetDynamicStringField(TEXT("email"), TEXT("new-user@example.com"));
+    Body.SetDynamicStringField(TEXT("password"), TEXT("correct-horse-battery"));
+    Body.SetDynamicStringField(TEXT("passwordConfirm"), TEXT("correct-horse-battery"));
+
+    Client->AuthCollection(UsersRef).Create(
+        MoveTemp(Body),
+        [](TOpenPocketBaseResult<FOpenPocketBaseRecord>&&) {});
+
+    TestEqual(
+        TEXT("Server-managed hidden fields do not block the request"),
+        Transport->Requests.Num(),
+        1);
+    Client->Shutdown();
+    return true;
+}
+
 #endif

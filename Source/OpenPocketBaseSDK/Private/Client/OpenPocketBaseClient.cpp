@@ -5751,6 +5751,7 @@ bool FOpenPocketBaseWritableCollectionService::ValidateCreateBody(
     for (const FOpenPocketBaseSchemaField& Field : SchemaCollection->Fields)
     {
         if (!Field.bRequired || Field.bReadOnly ||
+            (Field.bSystem && Field.bHidden) ||
             Field.Storage != EOpenPocketBaseFieldStorage::Data)
         {
             continue;
