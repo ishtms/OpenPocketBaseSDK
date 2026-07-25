@@ -390,6 +390,9 @@ void UOpenPocketBaseRegisterUserAsyncAction::Activate()
         Client != nullptr ? Client->GetNativeClient() : nullptr;
     FOpenPocketBaseAuthCollectionRef CurrentCollection;
     FString ValidationMessage;
+    FString ValidationField;
+    FString ValidationCode;
+    FString ValidationFieldMessage;
     if (!NativeClient.IsValid() || NativeClient->IsShutdown())
     {
         ValidationMessage = MakeClientUnavailableError().Message;
@@ -411,14 +414,23 @@ void UOpenPocketBaseRegisterUserAsyncAction::Activate()
     else if (Password.IsEmpty())
     {
         ValidationMessage = TEXT("Password is empty. Enter the new user's password.");
+        ValidationField = TEXT("password");
+        ValidationCode = TEXT("validation_required");
+        ValidationFieldMessage = TEXT("Enter the new user's password.");
     }
     else if (ConfirmPassword.IsEmpty())
     {
         ValidationMessage = TEXT("Confirm Password is empty. Enter the same password again.");
+        ValidationField = TEXT("passwordConfirm");
+        ValidationCode = TEXT("validation_required");
+        ValidationFieldMessage = TEXT("Enter the same password again.");
     }
     else if (Password != ConfirmPassword)
     {
         ValidationMessage = TEXT("Password and Confirm Password do not match.");
+        ValidationField = TEXT("passwordConfirm");
+        ValidationCode = TEXT("validation_mismatch");
+        ValidationFieldMessage = TEXT("Must match Password.");
     }
 
     if (!ValidationMessage.IsEmpty())
@@ -428,6 +440,13 @@ void UOpenPocketBaseRegisterUserAsyncAction::Activate()
             FOpenPocketBaseError Error;
             Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
             Error.Message = MoveTemp(ValidationMessage);
+            if (!ValidationField.IsEmpty())
+            {
+                FOpenPocketBaseFieldError FieldError;
+                FieldError.Code = MoveTemp(ValidationCode);
+                FieldError.Message = MoveTemp(ValidationFieldMessage);
+                Error.FieldErrors.Add(MoveTemp(ValidationField), MoveTemp(FieldError));
+            }
             Failed.Broadcast(FOpenPocketBaseRecord(), Error);
         }
         Finish();
