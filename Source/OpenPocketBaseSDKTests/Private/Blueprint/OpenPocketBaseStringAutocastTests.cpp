@@ -421,6 +421,24 @@ bool FOpenPocketBaseDebugStringFormattingTest::RunTest(const FString& Parameters
     TestFalse(TEXT("Sensitive values are not printed"), ConfigOutput.Contains(TEXT("secret-value")));
     TestTrue(TEXT("Sensitive values are marked as redacted"), ConfigOutput.Contains(TEXT("<redacted>")));
 
+    FOpenPocketBaseAuthMethods AuthMethods;
+    AuthMethods.Password.bEnabled = true;
+    AuthMethods.Password.IdentityFields.Add(TEXT("email"));
+    const FString AuthMethodsOutput =
+        UOpenPocketBaseStringLibrary::Conv_OpenPocketBaseAuthMethodsToString(AuthMethods);
+    TestTrue(
+        TEXT("Password authentication configuration remains readable"),
+        AuthMethodsOutput.Contains(TEXT("\"password\":")) &&
+            !AuthMethodsOutput.Contains(TEXT("\"password\": \"<redacted>\"")) &&
+            AuthMethodsOutput.Contains(TEXT("\"identityFields\":")) &&
+            AuthMethodsOutput.Contains(TEXT("\"email\"")));
+    TestTrue(
+        TEXT("OAuth2 authentication configuration uses PocketBase casing"),
+        AuthMethodsOutput.Contains(
+            TEXT("\"oauth2\":"), ESearchCase::CaseSensitive) &&
+            !AuthMethodsOutput.Contains(
+                TEXT("\"oAuth2\":"), ESearchCase::CaseSensitive));
+
     FOpenPocketBaseFileDownloadResult Download;
     Download.Bytes.SetNumZeroed(32);
     const FString DownloadOutput =

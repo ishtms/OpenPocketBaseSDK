@@ -9,6 +9,11 @@ namespace
 bool IsSensitiveProperty(const FProperty* Property)
 {
     const FString Name = Property->GetName();
+    if (Property->GetOwnerStruct() == FOpenPocketBaseAuthMethods::StaticStruct() &&
+        Name.Equals(TEXT("Password"), ESearchCase::CaseSensitive))
+    {
+        return false;
+    }
     return Name.Contains(TEXT("Password"), ESearchCase::IgnoreCase) ||
         Name.Contains(TEXT("Secret"), ESearchCase::IgnoreCase) ||
         Name.Contains(TEXT("Token"), ESearchCase::IgnoreCase) ||
@@ -124,6 +129,13 @@ FString UOpenPocketBaseStringLibrary::FormatStruct(
     {
         TSet<const UStruct*> VisitedTypes;
         NormalizeBooleanPropertyNames(StructType, Json, VisitedTypes);
+        if (StructType == FOpenPocketBaseAuthMethods::StaticStruct())
+        {
+            Json.ReplaceInline(
+                TEXT("\"oAuth2\""),
+                TEXT("\"oauth2\""),
+                ESearchCase::CaseSensitive);
+        }
     }
 
     return FString::Printf(
