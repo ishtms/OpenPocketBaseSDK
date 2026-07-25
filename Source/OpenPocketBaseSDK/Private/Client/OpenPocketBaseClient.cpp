@@ -1082,9 +1082,28 @@ bool TryValidateOAuthCallback(
     }
     if (Values.Contains(TEXT("error")))
     {
+        FString ProviderCode = Values.FindRef(TEXT("error"));
+        if (!IsSafeOAuthValue(ProviderCode, 256))
+        {
+            ProviderCode = TEXT("oauth_provider_error");
+        }
+        FString ProviderDescription = Values.FindRef(TEXT("error_description"));
+        if (!ProviderDescription.IsEmpty() &&
+            !IsSafeOAuthValue(ProviderDescription, 2048))
+        {
+            ProviderDescription.Reset();
+        }
         OutError = MakeLocalError(
             EOpenPocketBaseErrorKind::Authentication,
-            TEXT("The OAuth provider returned an error instead of an authorization code. Restart the login and check the provider permissions and redirect URL."));
+            ProviderDescription.IsEmpty()
+                ? FString::Printf(
+                    TEXT("The OAuth provider returned '%s' instead of an authorization code. Restart the login and check the provider permissions and redirect URL."),
+                    *ProviderCode)
+                : FString::Printf(
+                    TEXT("The OAuth provider returned '%s': %s"),
+                    *ProviderCode,
+                    *ProviderDescription));
+        OutError.Code = MoveTemp(ProviderCode);
         return false;
     }
     OutCode = Values.FindRef(TEXT("code"));

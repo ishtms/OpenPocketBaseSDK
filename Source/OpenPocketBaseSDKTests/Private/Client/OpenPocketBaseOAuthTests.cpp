@@ -123,6 +123,7 @@ struct FOAuthTestState
     bool bCompleted = false;
     bool bWrongOriginRejected = false;
     bool bWrongStateRejected = false;
+    bool bProviderErrorPreserved = false;
     bool bExchangeSucceeded = false;
     bool bExchangeRequestShapeValid = false;
     bool bDuplicateRejected = false;
@@ -221,6 +222,8 @@ public:
         }
         Test->TestTrue(TEXT("Wrong callback origin is rejected"), State->bWrongOriginRejected);
         Test->TestTrue(TEXT("Mismatched OAuth state is rejected"), State->bWrongStateRejected);
+        Test->TestTrue(TEXT("Provider callback error is preserved"),
+            State->bProviderErrorPreserved);
         Test->TestTrue(TEXT("A valid callback exchanges the code"), State->bExchangeSucceeded);
         Test->TestTrue(TEXT("The OAuth exchange uses the pinned route and body"),
             State->bExchangeRequestShapeValid);
@@ -382,6 +385,23 @@ bool FOpenPocketBaseOAuthFlowTest::RunTest(const FString& Parameters)
                             State->bWrongStateRejected = !Mismatch.IsSuccess() &&
                                 Mismatch.GetError().Kind == EOpenPocketBaseErrorKind::Authentication &&
                                 !Mismatch.GetError().Message.Contains(TEXT("state-secret-code"));
+
+                            FOpenPocketBaseOAuth2Callback ProviderError;
+                            ProviderError.TransactionId = State->Authorization.TransactionId;
+                            ProviderError.CallbackUrl = State->Authorization.RedirectUrl +
+                                TEXT("?state=") + State->Authorization.State +
+                                TEXT("&error=access_denied&error_description=User%20cancelled%20the%20login");
+                            Auth.CompleteOAuth2(
+                                MoveTemp(ProviderError),
+                                [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& Failure)
+                                {
+                                    State->bProviderErrorPreserved = !Failure.IsSuccess() &&
+                                        Failure.GetError().Kind ==
+                                            EOpenPocketBaseErrorKind::Authentication &&
+                                        Failure.GetError().Code == TEXT("access_denied") &&
+                                        Failure.GetError().Message.Contains(
+                                            TEXT("User cancelled the login"));
+                                });
 
                             FOpenPocketBaseOAuth2Callback Valid;
                             Valid.TransactionId = State->Authorization.TransactionId;
