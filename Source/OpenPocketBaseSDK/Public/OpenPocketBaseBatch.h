@@ -129,7 +129,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseBatchOperationResult
     int32 HttpStatus = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
-    bool bHasRecord = false;
+    bool bHasReturnedRecord = false;
 
     UPROPERTY(BlueprintReadOnly, Category = "Open PocketBase|Records|Batch")
     FOpenPocketBaseRecord Record;

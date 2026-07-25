@@ -105,6 +105,6 @@ public:
         const FOpenPocketBaseBatchOperationResult& Result,
         EOpenPocketBaseBatchOperation& Operation,
         int32& HttpStatus,
-        bool& bHasRecord,
+        bool& bHasReturnedRecord,
         FOpenPocketBaseRecord& Record);
 };

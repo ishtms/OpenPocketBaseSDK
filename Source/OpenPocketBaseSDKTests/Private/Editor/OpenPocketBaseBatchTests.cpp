@@ -62,11 +62,15 @@ public:
         if (State->BatchResult.Results.Num() == 4)
         {
             Test->TestEqual(TEXT("Create result is typed"), State->BatchResult.Results[0].Operation, EOpenPocketBaseBatchOperation::Create);
-            Test->TestTrue(TEXT("Create returns a record"), State->BatchResult.Results[0].bHasRecord);
+            Test->TestTrue(
+                TEXT("Create returns a record"),
+                State->BatchResult.Results[0].bHasReturnedRecord);
             Test->TestEqual(TEXT("Update result is typed"), State->BatchResult.Results[1].Operation, EOpenPocketBaseBatchOperation::Update);
             Test->TestEqual(TEXT("Upsert result is typed"), State->BatchResult.Results[2].Operation, EOpenPocketBaseBatchOperation::Upsert);
             Test->TestEqual(TEXT("Delete result is typed"), State->BatchResult.Results[3].Operation, EOpenPocketBaseBatchOperation::Delete);
-            Test->TestFalse(TEXT("Delete has no record body"), State->BatchResult.Results[3].bHasRecord);
+            Test->TestFalse(
+                TEXT("Delete has no record body"),
+                State->BatchResult.Results[3].bHasReturnedRecord);
         }
 
         FOpenPocketBaseHttpRequest Request;

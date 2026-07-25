@@ -2924,7 +2924,7 @@ struct FOpenPocketBaseClient::FImpl
                 }
                 continue;
             }
-            if (OperationResult.bHasRecord && OperationResult.Record.Id == CurrentRecordId)
+            if (OperationResult.bHasReturnedRecord && OperationResult.Record.Id == CurrentRecordId)
             {
                 bool bUpdated = false;
                 return TryStoreCurrentAuthRecord(

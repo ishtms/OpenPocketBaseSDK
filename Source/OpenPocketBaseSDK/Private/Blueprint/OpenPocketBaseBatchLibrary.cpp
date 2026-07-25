@@ -180,12 +180,12 @@ void UOpenPocketBaseBatchLibrary::BreakBatchOperationResult(
     const FOpenPocketBaseBatchOperationResult& Result,
     EOpenPocketBaseBatchOperation& Operation,
     int32& HttpStatus,
-    bool& bHasRecord,
+    bool& bHasReturnedRecord,
     FOpenPocketBaseRecord& Record)
 {
     Operation = Result.Operation;
     HttpStatus = Result.HttpStatus;
-    bHasRecord = Result.bHasRecord;
+    bHasReturnedRecord = Result.bHasReturnedRecord;
     Record = Result.Record;
 }
 

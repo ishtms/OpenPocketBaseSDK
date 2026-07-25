@@ -125,6 +125,14 @@ bool FOpenPocketBaseBlueprintValueApiTest::RunTest(const FString& Parameters)
     TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("WithUpsert"));
     TestPureFunction(UOpenPocketBaseBatchLibrary::StaticClass(), TEXT("WithDelete"));
 
+    TestNotNull(
+        TEXT("Batch operation results say whether a record was returned"),
+        FOpenPocketBaseBatchOperationResult::StaticStruct()->FindPropertyByName(
+            TEXT("bHasReturnedRecord")));
+    TestNull(
+        TEXT("The ambiguous batch result record flag is removed"),
+        FOpenPocketBaseBatchOperationResult::StaticStruct()->FindPropertyByName(TEXT("bHasRecord")));
+
     TestNull(
         TEXT("The mutable filter accumulator is no longer exposed"),
         UOpenPocketBaseFilterLibrary::StaticClass()->FindFunctionByName(TEXT("AddBooleanParameter")));

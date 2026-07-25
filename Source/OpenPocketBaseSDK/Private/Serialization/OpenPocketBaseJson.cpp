@@ -731,7 +731,7 @@ TOpenPocketBaseResult<FOpenPocketBaseBatchResult> ParseBatchResponse(
                             TEXT("PocketBase batch result %d for a create or update operation must contain a valid record object in 'body'."),
                             Index)));
             }
-            OperationResult.bHasRecord = true;
+            OperationResult.bHasReturnedRecord = true;
         }
         else if (BodyValue != nullptr && BodyValue->IsValid() && !(*BodyValue)->IsNull())
         {
