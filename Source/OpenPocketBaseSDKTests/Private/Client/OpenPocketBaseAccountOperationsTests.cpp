@@ -479,6 +479,49 @@ private:
     TSharedRef<FAccountVerificationPersistenceState, ESPMode::ThreadSafe> State;
     FAutomationTestBase* Test;
 };
+
+struct FPasswordResetValidationState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    FOpenPocketBaseError Error;
+    bool bCompleted = false;
+};
+
+class FVerifyPasswordResetValidation final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPasswordResetValidation(
+        TSharedRef<FPasswordResetValidationState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        Test->TestEqual(TEXT("A password mismatch is an invalid argument"),
+            State->Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
+        Test->TestTrue(TEXT("The error identifies Password Confirm"),
+            State->Error.FieldErrors.Contains(TEXT("passwordConfirm")));
+        if (const FOpenPocketBaseFieldError* FieldError =
+                State->Error.FieldErrors.Find(TEXT("passwordConfirm")))
+        {
+            Test->TestEqual(TEXT("The field error identifies a mismatch"),
+                FieldError->Code, FString(TEXT("validation_mismatch")));
+        }
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPasswordResetValidationState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -539,6 +582,43 @@ bool FOpenPocketBaseAccountOperationsTest::RunTest(const FString& Parameters)
         MakeShared<FAccountOperationsFlow, ESPMode::ThreadSafe>(State);
     Flow->Start();
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyAccountOperations(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePasswordResetValidationTest,
+    "OpenPocketBase.Client.Authentication.PasswordResetMismatchNamesField",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePasswordResetValidationTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FPasswordResetValidationState, ESPMode::ThreadSafe> State =
+        MakeShared<FPasswordResetValidationState, ESPMode::ThreadSafe>();
+    const TSharedRef<FAccountOperationsTransport, ESPMode::ThreadSafe> Transport =
+        MakeShared<FAccountOperationsTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseError CreateError;
+    State->Client = CreateOpenPocketBaseTestClient(Config, Transport, CreateError);
+    if (!TestTrue(TEXT("The validation client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+
+    State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmPasswordReset(
+        TEXT("valid-reset-token"),
+        TEXT("first-valid-password"),
+        TEXT("second-valid-password"),
+        [State](TOpenPocketBaseResult<bool>&& Result)
+        {
+            if (!Result.IsSuccess())
+            {
+                State->Error = Result.GetError();
+            }
+            State->bCompleted = true;
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPasswordResetValidation(State, this));
     return true;
 }
 

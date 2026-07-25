@@ -7426,29 +7426,49 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmPasswo
     FOpenPocketBaseRequestOptions Options) const
 {
     FString ValidationMessage;
+    FString ValidationField;
+    FString ValidationCode;
+    FString ValidationFieldMessage;
     if (!IsSafeOAuthValue(Token, 8192))
     {
         ValidationMessage = TEXT("Password Reset Token is empty, exceeds 8192 characters, or contains a control character. Use the token from the reset link.");
+        ValidationField = TEXT("token");
+        ValidationCode = TEXT("validation_invalid");
+        ValidationFieldMessage = TEXT("Use the token from the password-reset link.");
     }
     else if (!IsSafeOAuthValue(Password, 4096))
     {
         ValidationMessage = TEXT("New Password is empty, exceeds 4096 characters, or contains a control character.");
+        ValidationField = TEXT("password");
+        ValidationCode = TEXT("validation_invalid");
+        ValidationFieldMessage = TEXT("Enter a non-empty password without control characters.");
     }
     else if (PasswordConfirm.IsEmpty())
     {
         ValidationMessage = TEXT("Password Confirm is empty. Enter the new password again.");
+        ValidationField = TEXT("passwordConfirm");
+        ValidationCode = TEXT("validation_required");
+        ValidationFieldMessage = TEXT("Enter the new password again.");
     }
     else if (Password != PasswordConfirm)
     {
         ValidationMessage = TEXT("New Password and Password Confirm do not match.");
+        ValidationField = TEXT("passwordConfirm");
+        ValidationCode = TEXT("validation_mismatch");
+        ValidationFieldMessage = TEXT("Must match New Password.");
     }
     if (!ValidationMessage.IsEmpty())
     {
+        FOpenPocketBaseError Error = MakeLocalError(
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            ValidationMessage);
+        FOpenPocketBaseFieldError FieldError;
+        FieldError.Code = MoveTemp(ValidationCode);
+        FieldError.Message = MoveTemp(ValidationFieldMessage);
+        Error.FieldErrors.Add(MoveTemp(ValidationField), MoveTemp(FieldError));
         DispatchFailure<bool>(
             MoveTemp(OnComplete),
-            MakeLocalError(
-                EOpenPocketBaseErrorKind::InvalidArgument,
-                ValidationMessage));
+            MoveTemp(Error));
         return {};
     }
     TMap<FString, FString> Body;
