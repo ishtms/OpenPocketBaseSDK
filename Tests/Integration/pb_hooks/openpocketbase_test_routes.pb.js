@@ -16,6 +16,13 @@ routerAdd("GET", "/api/openpocketbase-test/stall", (event) => {
   event.flush();
 });
 
+routerAdd("GET", "/api/openpocketbase-test/large-response", (event) => {
+  event.response.header().set("Content-Type", "application/octet-stream");
+  event.response.writeHeader(200);
+  event.response.write(toBytes("x".repeat(4096)));
+  event.flush();
+});
+
 routerAdd("POST", "/api/openpocketbase-test/retry/reset", (event) => {
   try {
     for (const id of ["retryread000001", "retrywrite00001"]) {
