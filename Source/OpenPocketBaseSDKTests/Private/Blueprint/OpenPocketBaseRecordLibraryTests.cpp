@@ -271,6 +271,12 @@ bool FOpenPocketBaseRecordValueBuilderTest::RunTest(const FString& Parameters)
         TEXT("Specific field references can be set to null"),
         NullBody.Data.JsonObject->HasTypedField<EJson::Null>(TEXT("title")));
 
+    const FOpenPocketBaseRecordBody FirstNullCopy = NullBody;
+    const FOpenPocketBaseRecordBody SecondNullCopy = FirstNullCopy;
+    TestTrue(
+        TEXT("Repeated body copies preserve JSON null fields"),
+        SecondNullCopy.Data.JsonObject->HasTypedField<EJson::Null>(TEXT("title")));
+
     FOpenPocketBaseListOptions Options;
     Options
         .AtPage(2)

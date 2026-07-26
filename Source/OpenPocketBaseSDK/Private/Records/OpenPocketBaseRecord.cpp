@@ -6,6 +6,86 @@
 
 namespace
 {
+TSharedPtr<FJsonValue> CopyJsonValue(const TSharedPtr<FJsonValue>& Value);
+
+TSharedRef<FJsonObject> CopyJsonObject(const TSharedPtr<FJsonObject>& Source)
+{
+    TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+    if (!Source.IsValid())
+    {
+        return Result;
+    }
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Source->Values)
+    {
+        Result->SetField(Pair.Key, CopyJsonValue(Pair.Value));
+    }
+    return Result;
+}
+
+TSharedPtr<FJsonValue> CopyJsonValue(const TSharedPtr<FJsonValue>& Value)
+{
+    if (!Value.IsValid() || Value->Type == EJson::Null)
+    {
+        return MakeShared<FJsonValueNull>();
+    }
+
+    switch (Value->Type)
+    {
+    case EJson::String:
+    {
+        FString Result;
+        if (Value->TryGetString(Result))
+        {
+            return MakeShared<FJsonValueString>(MoveTemp(Result));
+        }
+        return MakeShared<FJsonValueNull>();
+    }
+    case EJson::Number:
+    {
+        double Result = 0.0;
+        if (Value->TryGetNumber(Result))
+        {
+            return MakeShared<FJsonValueNumber>(Result);
+        }
+        return MakeShared<FJsonValueNull>();
+    }
+    case EJson::Boolean:
+    {
+        bool bResult = false;
+        if (Value->TryGetBool(bResult))
+        {
+            return MakeShared<FJsonValueBoolean>(bResult);
+        }
+        return MakeShared<FJsonValueNull>();
+    }
+    case EJson::Object:
+    {
+        const TSharedPtr<FJsonObject>* Result = nullptr;
+        if (Value->TryGetObject(Result) && Result != nullptr)
+        {
+            return MakeShared<FJsonValueObject>(CopyJsonObject(*Result));
+        }
+        return MakeShared<FJsonValueNull>();
+    }
+    case EJson::Array:
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+        TArray<TSharedPtr<FJsonValue>> Result;
+        if (Value->TryGetArray(Values) && Values != nullptr)
+        {
+            Result.Reserve(Values->Num());
+            for (const TSharedPtr<FJsonValue>& Item : *Values)
+            {
+                Result.Add(CopyJsonValue(Item));
+            }
+        }
+        return MakeShared<FJsonValueArray>(MoveTemp(Result));
+    }
+    default:
+        return MakeShared<FJsonValueNull>();
+    }
+}
+
 TSharedRef<FJsonObject> GetOrCreateBodyObject(FOpenPocketBaseRecordBody& Body)
 {
     if (!Body.Data.JsonObject.IsValid())
@@ -110,8 +190,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::operator=(
     Data.JsonString = Other.Data.JsonString;
     if (Other.Data.JsonObject.IsValid())
     {
-        Data.JsonObject = MakeShared<FJsonObject>();
-        FJsonObject::Duplicate(Other.Data.JsonObject, Data.JsonObject);
+        Data.JsonObject = CopyJsonObject(Other.Data.JsonObject);
     }
     else
     {
