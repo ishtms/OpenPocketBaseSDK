@@ -18,7 +18,22 @@ FOpenPocketBaseError MakeTransportError(const FOpenPocketBaseHttpResponse& Respo
     Error.HttpStatus = Response.HttpStatus;
     if (Response.bTimedOut)
     {
-        Error.Message = TEXT("PocketBase did not respond before the request timeout. Check that the server is reachable or increase the request timeout.");
+        if (Response.TimeoutSource == EOpenPocketBaseHttpTimeoutSource::Total)
+        {
+            Error.Message = FString::Printf(
+                TEXT("Total timeout expired after %.3f seconds before PocketBase completed the request. Increase Total Timeout or make the server operation finish sooner."),
+                Response.TimeoutSeconds);
+        }
+        else if (Response.TimeoutSource == EOpenPocketBaseHttpTimeoutSource::Activity)
+        {
+            Error.Message = FString::Printf(
+                TEXT("Activity timeout expired after %.3f seconds without network progress. Increase Activity Timeout or check why the server response stalled."),
+                Response.TimeoutSeconds);
+        }
+        else
+        {
+            Error.Message = TEXT("PocketBase did not respond before the request timeout. Check that the server is reachable or increase the request timeout.");
+        }
     }
     else if (Response.ErrorMessage.IsEmpty())
     {

@@ -1,6 +1,7 @@
 #include "Transport/OpenPocketBaseHttpTransport.h"
 
 #include "Compatibility/OpenPocketBaseUECompat.h"
+#include "HAL/PlatformTime.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
@@ -22,10 +23,49 @@ public:
 
     void Receive(void* Data, int64& Length)
     {
+        if (Length > 0)
+        {
+            ObserveResponseActivity();
+        }
         if (OnChunk && Length > 0)
         {
             OnChunk(MakeArrayView(static_cast<const uint8*>(Data), Length));
         }
+    }
+
+    void ObserveProgress(const uint64 BytesSent, const uint64 BytesReceived)
+    {
+        const uint64 PreviousSent = LastBytesSent.exchange(BytesSent, std::memory_order_acq_rel);
+        const uint64 PreviousReceived = LastBytesReceived.exchange(BytesReceived, std::memory_order_acq_rel);
+        if (BytesSent > PreviousSent || BytesReceived > PreviousReceived)
+        {
+            if (BytesReceived > PreviousReceived)
+            {
+                bResponseStarted.store(true, std::memory_order_release);
+            }
+            LastActivitySeconds.store(FPlatformTime::Seconds(), std::memory_order_release);
+        }
+    }
+
+    void ObserveResponseActivity(const int32 StatusCode = 0)
+    {
+        bResponseStarted.store(true, std::memory_order_release);
+        if (StatusCode > 0)
+        {
+            HttpStatus.store(StatusCode, std::memory_order_release);
+        }
+        LastActivitySeconds.store(FPlatformTime::Seconds(), std::memory_order_release);
+    }
+
+    bool DidActivityTimeout(const double TimeoutSeconds) const
+    {
+        return TimeoutSeconds > 0.0 && bResponseStarted.load(std::memory_order_acquire) &&
+            FPlatformTime::Seconds() - LastActivitySeconds.load(std::memory_order_acquire) + 0.05 >= TimeoutSeconds;
+    }
+
+    int32 GetHttpStatus() const
+    {
+        return HttpStatus.load(std::memory_order_acquire);
     }
 
     void Complete(FOpenPocketBaseHttpResponse&& Response)
@@ -45,6 +85,11 @@ public:
 
 private:
     std::atomic<bool> bCompleted = false;
+    std::atomic<bool> bResponseStarted = false;
+    std::atomic<uint64> LastBytesSent = 0;
+    std::atomic<uint64> LastBytesReceived = 0;
+    std::atomic<double> LastActivitySeconds = FPlatformTime::Seconds();
+    std::atomic<int32> HttpStatus = 0;
     FOpenPocketBaseHttpChunkCallback OnChunk;
     FOpenPocketBaseHttpCompleteCallback OnComplete;
 };
@@ -115,10 +160,28 @@ public:
                     }));
         }
 
+        HttpRequest->OnStatusCodeReceived().BindLambda(
+            [Callbacks](FHttpRequestPtr, const int32 StatusCode)
+            {
+                Callbacks->ObserveResponseActivity(StatusCode);
+            });
+        HttpRequest->OnHeaderReceived().BindLambda(
+            [Callbacks](FHttpRequestPtr, const FString&, const FString&)
+            {
+                Callbacks->ObserveResponseActivity();
+            });
+        HttpRequest->OnRequestProgress64().BindLambda(
+            [Callbacks](FHttpRequestPtr, const uint64 BytesSent, const uint64 BytesReceived)
+            {
+                Callbacks->ObserveProgress(BytesSent, BytesReceived);
+            });
+
         const FString RequestId = Request.RequestId;
         const FString RequestUrl = Request.Url;
+        const double TotalTimeoutSeconds = Request.TotalTimeoutSeconds;
+        const double ActivityTimeoutSeconds = Request.ActivityTimeoutSeconds;
         HttpRequest->OnProcessRequestComplete().BindLambda(
-            [Callbacks, RequestId](
+            [Callbacks, RequestId, TotalTimeoutSeconds, ActivityTimeoutSeconds](
                 FHttpRequestPtr CompletedRequest,
                 FHttpResponsePtr Response,
                 const bool bSucceeded)
@@ -129,14 +192,31 @@ public:
                     CompletedRequest,
                     Response);
                 Result.bTransportSucceeded = bSucceeded && Response.IsValid();
+                const EHttpFailureReason FailureReason = CompletedRequest.IsValid()
+                    ? CompletedRequest->GetFailureReason()
+                    : Response.IsValid()
+                        ? Response->GetFailureReason()
+                        : EHttpFailureReason::Other;
+                if (FailureReason == EHttpFailureReason::TimedOut)
+                {
+                    Result.bTimedOut = true;
+                    Result.TimeoutSource = EOpenPocketBaseHttpTimeoutSource::Total;
+                    Result.TimeoutSeconds = TotalTimeoutSeconds;
+                }
+                else if (FailureReason == EHttpFailureReason::ConnectionError &&
+                    Callbacks->DidActivityTimeout(ActivityTimeoutSeconds))
+                {
+                    Result.bTimedOut = true;
+                    Result.TimeoutSource = EOpenPocketBaseHttpTimeoutSource::Activity;
+                    Result.TimeoutSeconds = ActivityTimeoutSeconds;
+                }
 
                 if (Response.IsValid())
                 {
                     Result.HttpStatus = Response->GetResponseCode();
-                    Result.bTimedOut = Response->GetFailureReason() == EHttpFailureReason::TimedOut;
                     if (!Result.bTransportSucceeded)
                     {
-                        Result.ErrorMessage = LexToString(Response->GetFailureReason());
+                        Result.ErrorMessage = LexToString(FailureReason);
                     }
 
                     for (const FString& HeaderLine : Response->GetAllHeaders())
@@ -153,7 +233,10 @@ public:
                 }
                 else
                 {
-                    Result.ErrorMessage = TEXT("Unreal HTTP did not return a response. Check the server URL, confirm PocketBase is running, and verify network access.");
+                    Result.HttpStatus = Callbacks->GetHttpStatus();
+                    Result.ErrorMessage = Result.bTimedOut
+                        ? LexToString(FailureReason)
+                        : TEXT("Unreal HTTP did not return a response. Check the server URL, confirm PocketBase is running, and verify network access.");
                 }
 
                 Callbacks->Complete(MoveTemp(Result));

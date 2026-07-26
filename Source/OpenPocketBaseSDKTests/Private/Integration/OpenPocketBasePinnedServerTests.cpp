@@ -1525,4 +1525,159 @@ bool FOpenPocketBasePinnedRealtimeChaosTest::RunTest(const FString& Parameters)
     return true;
 }
 
+namespace
+{
+struct FPinnedTimeoutState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    FOpenPocketBaseError Error;
+    bool bCompleted = false;
+    bool bSucceeded = false;
+};
+
+class FVerifyPinnedTimeout final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPinnedTimeout(
+        TSharedRef<FPinnedTimeoutState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest,
+        FString InExpectedMessageFragment)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+        , ExpectedMessageFragment(MoveTemp(InExpectedMessageFragment))
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+
+        Test->TestFalse(TEXT("The delayed route does not succeed"), State->bSucceeded);
+        Test->TestEqual(
+            TEXT("A missing Unreal response still reports timeout"),
+            State->Error.Kind,
+            EOpenPocketBaseErrorKind::Timeout);
+        Test->TestTrue(
+            TEXT("The timeout message identifies its source"),
+            State->Error.Message.Contains(ExpectedMessageFragment));
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPinnedTimeoutState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+    FString ExpectedMessageFragment;
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePinnedTotalTimeoutTest,
+    "OpenPocketBase.Integration.V03911.TotalTimeoutClassification",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePinnedTotalTimeoutTest::RunTest(const FString& Parameters)
+{
+    const FString BaseUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("OPENPOCKETBASE_TEST_URL"));
+    if (BaseUrl.IsEmpty())
+    {
+        AddInfo(TEXT("OPENPOCKETBASE_TEST_URL is not set; the pinned-server timeout test was not requested."));
+        return true;
+    }
+
+    const TSharedRef<FPinnedTimeoutState, ESPMode::ThreadSafe> State =
+        MakeShared<FPinnedTimeoutState, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = BaseUrl;
+    Config.ProfileName = TEXT("integration-v03911-total-timeout");
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
+    if (!TestNotNull(TEXT("The timeout client is created"), State->Client.Get()))
+    {
+        AddError(Error.Message);
+        return false;
+    }
+
+    FOpenPocketBaseRequestOptions Options;
+    Options.TotalTimeoutSeconds = 0.25;
+    Options.ActivityTimeoutSeconds = 10.0;
+    Options.bRetryEligibleReads = false;
+    Options.MaxReadRetries = 0;
+    State->Client->SendCustomRoute(
+        OpenPocketBase::DynamicRoute::NoBody(
+            EOpenPocketBaseCustomRouteMethod::Get,
+            TEXT("/api/openpocketbase-test/delay"),
+            false,
+            {},
+            MoveTemp(Options)),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+        {
+            State->bSucceeded = Result.IsSuccess();
+            if (!Result.IsSuccess())
+            {
+                State->Error = Result.GetError();
+            }
+            State->bCompleted = true;
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedTimeout(State, this, TEXT("Total timeout")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePinnedActivityTimeoutTest,
+    "OpenPocketBase.Integration.V03911.ActivityTimeoutClassification",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePinnedActivityTimeoutTest::RunTest(const FString& Parameters)
+{
+    const FString BaseUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("OPENPOCKETBASE_TEST_URL"));
+    if (BaseUrl.IsEmpty())
+    {
+        AddInfo(TEXT("OPENPOCKETBASE_TEST_URL is not set; the pinned-server timeout test was not requested."));
+        return true;
+    }
+
+    const TSharedRef<FPinnedTimeoutState, ESPMode::ThreadSafe> State =
+        MakeShared<FPinnedTimeoutState, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = BaseUrl;
+    Config.ProfileName = TEXT("integration-v03911-activity-timeout");
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, Error);
+    if (!TestNotNull(TEXT("The timeout client is created"), State->Client.Get()))
+    {
+        AddError(Error.Message);
+        return false;
+    }
+
+    FOpenPocketBaseRequestOptions Options;
+    Options.TotalTimeoutSeconds = 10.0;
+    Options.ActivityTimeoutSeconds = 0.25;
+    Options.bRetryEligibleReads = false;
+    Options.MaxReadRetries = 0;
+    State->Client->SendCustomRoute(
+        OpenPocketBase::DynamicRoute::NoBody(
+            EOpenPocketBaseCustomRouteMethod::Get,
+            TEXT("/api/openpocketbase-test/stall"),
+            false,
+            {},
+            MoveTemp(Options)),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+        {
+            State->bSucceeded = Result.IsSuccess();
+            if (!Result.IsSuccess())
+            {
+                State->Error = Result.GetError();
+            }
+            State->bCompleted = true;
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPinnedTimeout(State, this, TEXT("Activity timeout")));
+    return true;
+}
+
 #endif

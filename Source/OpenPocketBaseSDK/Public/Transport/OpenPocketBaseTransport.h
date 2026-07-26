@@ -23,10 +23,19 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpRequest
     bool bStreamResponse = false;
 };
 
+enum class EOpenPocketBaseHttpTimeoutSource : uint8
+{
+    None,
+    Total,
+    Activity
+};
+
 struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpResponse
 {
     bool bTransportSucceeded = false;
     bool bTimedOut = false;
+    EOpenPocketBaseHttpTimeoutSource TimeoutSource = EOpenPocketBaseHttpTimeoutSource::None;
+    double TimeoutSeconds = 0.0;
     int32 HttpStatus = 0;
     TMap<FString, FString> Headers;
     TArray<uint8> Body;
