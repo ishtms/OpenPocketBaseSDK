@@ -34,8 +34,11 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpResponse
 {
     bool bTransportSucceeded = false;
     bool bTimedOut = false;
+    bool bResponseSizeLimitExceeded = false;
     EOpenPocketBaseHttpTimeoutSource TimeoutSource = EOpenPocketBaseHttpTimeoutSource::None;
     double TimeoutSeconds = 0.0;
+    int64 ResponseBytes = 0;
+    int64 ResponseLimitBytes = 0;
     int32 HttpStatus = 0;
     TMap<FString, FString> Headers;
     TArray<uint8> Body;

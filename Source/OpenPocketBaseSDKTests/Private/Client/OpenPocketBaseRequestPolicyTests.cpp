@@ -76,6 +76,8 @@ struct FRetryPolicyState
     TSharedPtr<FRetryPolicyTransport, ESPMode::ThreadSafe> Transport;
     bool bCompleted = false;
     bool bSucceeded = false;
+    bool bMayRetry = false;
+    int32 HttpStatus = 0;
     EOpenPocketBaseErrorKind ErrorKind = EOpenPocketBaseErrorKind::None;
     FString ErrorMessage;
 };
@@ -171,6 +173,48 @@ public:
             TEXT("Cancellation remains the terminal result"),
             State->ErrorKind,
             EOpenPocketBaseErrorKind::Cancelled);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FRetryPolicyState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
+class FVerifyResponseLimitPolicy final : public IAutomationLatentCommand
+{
+public:
+    FVerifyResponseLimitPolicy(
+        const TSharedRef<FRetryPolicyState, ESPMode::ThreadSafe>& InState,
+        FAutomationTestBase* InTest)
+        : State(InState)
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+
+        Test->TestFalse(TEXT("The oversized request fails"), State->bSucceeded);
+        Test->TestEqual(TEXT("The oversized response is not retried"), State->Transport->SendCount, 1);
+        Test->TestEqual(
+            TEXT("The response-size failure is classified as serialization"),
+            State->ErrorKind,
+            EOpenPocketBaseErrorKind::Serialization);
+        Test->TestFalse(TEXT("Retrying cannot change the configured response limit"), State->bMayRetry);
+        Test->TestEqual(TEXT("The original HTTP status is preserved"), State->HttpStatus, 200);
+        Test->TestTrue(
+            TEXT("The error identifies the observed and configured byte counts"),
+            State->ErrorMessage.Contains(
+                TEXT("The response is 2048 bytes, which exceeds Max Response Bytes of 1024")));
+        Test->TestFalse(
+            TEXT("The error does not claim that PocketBase returned no response"),
+            State->ErrorMessage.Contains(TEXT("did not return a response")));
         State->Client->Shutdown();
         return true;
     }
@@ -346,16 +390,14 @@ bool FOpenPocketBaseResponseLimitPolicyTest::RunTest(const FString& Parameters)
             {
                 State->ErrorKind = Result.GetError().Kind;
                 State->ErrorMessage = Result.GetError().Message;
+                State->bMayRetry = Result.GetError().bMayRetry;
+                State->HttpStatus = Result.GetError().HttpStatus;
             }
             State->bCompleted = true;
         },
         Options);
 
-    ADD_LATENT_AUTOMATION_COMMAND(FVerifyNonRetryPolicy(
-        State,
-        this,
-        1,
-        TEXT("An oversized response is not retried")));
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyResponseLimitPolicy(State, this));
     return true;
 }
 

@@ -12,11 +12,20 @@ namespace
 FOpenPocketBaseError MakeTransportError(const FOpenPocketBaseHttpResponse& Response)
 {
     FOpenPocketBaseError Error;
-    Error.Kind = Response.bTimedOut
-        ? EOpenPocketBaseErrorKind::Timeout
-        : EOpenPocketBaseErrorKind::Transport;
+    Error.Kind = Response.bResponseSizeLimitExceeded
+        ? EOpenPocketBaseErrorKind::Serialization
+        : Response.bTimedOut
+            ? EOpenPocketBaseErrorKind::Timeout
+            : EOpenPocketBaseErrorKind::Transport;
     Error.HttpStatus = Response.HttpStatus;
-    if (Response.bTimedOut)
+    if (Response.bResponseSizeLimitExceeded)
+    {
+        Error.Message = FString::Printf(
+            TEXT("The response is %lld bytes, which exceeds Max Response Bytes of %lld. Increase the limit only if this response size is expected."),
+            Response.ResponseBytes,
+            Response.ResponseLimitBytes);
+    }
+    else if (Response.bTimedOut)
     {
         if (Response.TimeoutSource == EOpenPocketBaseHttpTimeoutSource::Total)
         {
@@ -45,7 +54,7 @@ FOpenPocketBaseError MakeTransportError(const FOpenPocketBaseHttpResponse& Respo
             TEXT("PocketBase did not return a response. Transport reported: %s"),
             *Response.ErrorMessage);
     }
-    Error.bMayRetry = true;
+    Error.bMayRetry = !Response.bResponseSizeLimitExceeded;
     Error.RequestId = Response.RequestId;
     return Error;
 }

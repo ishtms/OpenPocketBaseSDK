@@ -1727,8 +1727,13 @@ private:
         if (bExceededResponseLimit)
         {
             const int64 ActualResponseBytes = Response.Body.Num();
+            const int32 ResponseHttpStatus = Response.HttpStatus;
             Response = FOpenPocketBaseHttpResponse();
             Response.RequestId = Request.RequestId;
+            Response.HttpStatus = ResponseHttpStatus;
+            Response.bResponseSizeLimitExceeded = true;
+            Response.ResponseBytes = ActualResponseBytes;
+            Response.ResponseLimitBytes = Options.MaxResponseBytes;
             Response.ErrorMessage = FString::Printf(
                 TEXT("The response is %lld bytes, which exceeds Max Response Bytes of %lld. Increase the limit only if this response size is expected."),
                 ActualResponseBytes,
