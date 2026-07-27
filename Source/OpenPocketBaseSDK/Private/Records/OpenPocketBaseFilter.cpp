@@ -399,11 +399,12 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::String(
     const EOpenPocketBaseStringComparison Comparison,
     const FString& Value)
 {
-    if (!FOpenPocketBaseStringFieldRef::Accepts(Field))
+    FOpenPocketBaseStringFieldRef Current;
+    if (!Field.ResolveCurrentAs(Current))
     {
         return MakeInvalidFilter(TEXT("Choose a string field for this filter."));
     }
-    return MakeComparison(Field, StringOperator(Comparison), EncodeString(Value));
+    return MakeComparison(Current, StringOperator(Comparison), EncodeString(Value));
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::StringArray(
@@ -428,11 +429,12 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Number(
     {
         return MakeInvalidFilter(TEXT("Filter Value must be a finite number. NaN and infinity cannot be sent to PocketBase."));
     }
-    if (!FOpenPocketBaseNumberFieldRef::Accepts(Field))
+    FOpenPocketBaseNumberFieldRef Current;
+    if (!Field.ResolveCurrentAs(Current))
     {
         return MakeInvalidFilter(TEXT("Choose a number field for this filter."));
     }
-    return MakeComparison(Field, NumberOperator(Comparison), EncodeNumber(Value));
+    return MakeComparison(Current, NumberOperator(Comparison), EncodeNumber(Value));
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::Boolean(
@@ -440,12 +442,13 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Boolean(
     const EOpenPocketBaseBooleanComparison Comparison,
     const bool bValue)
 {
-    if (!FOpenPocketBaseBooleanFieldRef::Accepts(Field))
+    FOpenPocketBaseBooleanFieldRef Current;
+    if (!Field.ResolveCurrentAs(Current))
     {
         return MakeInvalidFilter(TEXT("Choose a boolean field for this filter."));
     }
     return MakeComparison(
-        Field,
+        Current,
         BooleanOperator(Comparison),
         bValue ? TEXT("true") : TEXT("false"));
 }
@@ -455,12 +458,13 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Date(
     const EOpenPocketBaseDateComparison Comparison,
     const FDateTime& Value)
 {
-    if (!FOpenPocketBaseDateFieldRef::Accepts(Field))
+    FOpenPocketBaseDateFieldRef Current;
+    if (!Field.ResolveCurrentAs(Current))
     {
         return MakeInvalidFilter(TEXT("Choose a date field for this filter."));
     }
     return MakeComparison(
-        Field,
+        Current,
         DateOperator(Comparison),
         EncodeString(OpenPocketBase::Date::Format(Value)));
 }
@@ -469,11 +473,12 @@ FOpenPocketBaseFilter FOpenPocketBaseFilter::Null(
     const FOpenPocketBaseFieldRef& Field,
     const EOpenPocketBaseNullComparison Comparison)
 {
-    if (!Field.IsSet())
+    FOpenPocketBaseFieldRef Current;
+    if (!Field.ResolveCurrent(Current))
     {
         return MakeInvalidFilter(TEXT("Choose a field for this filter."));
     }
-    return MakeComparison(Field, NullOperator(Comparison), TEXT("null"));
+    return MakeComparison(Current, NullOperator(Comparison), TEXT("null"));
 }
 
 FOpenPocketBaseFilter FOpenPocketBaseFilter::RelatedString(

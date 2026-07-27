@@ -39,6 +39,11 @@ bool FOpenPocketBaseTypedQueryTest::RunTest(const FString& Parameters)
     Users.Id = TEXT("users_id");
     Users.Name = TEXT("sdk_users");
     Users.Type = EOpenPocketBaseCollectionType::Auth;
+    FOpenPocketBaseSchemaField UserName;
+    UserName.Id = TEXT("user_name_id");
+    UserName.Name = TEXT("name");
+    UserName.Type = EOpenPocketBaseFieldType::Text;
+    Users.Fields.Add(UserName);
     FOpenPocketBaseSchemaField Profile;
     Profile.Id = TEXT("profile_id");
     Profile.Name = TEXT("profile");
@@ -97,6 +102,19 @@ bool FOpenPocketBaseTypedQueryTest::RunTest(const FString& Parameters)
     Schema->MakeTypedFieldRef(TasksRef, TEXT("owner_id"), OwnerRef);
     FOpenPocketBaseCollectionRef UsersRef;
     Schema->MakeCollectionRef(TEXT("users_id"), UsersRef);
+    FOpenPocketBaseStringFieldRef UserNameRef;
+    Schema->MakeTypedFieldRef(UsersRef, UserName.Id, UserNameRef);
+    UserNameRef.Type = EOpenPocketBaseFieldType::Unknown;
+    const FOpenPocketBaseFilter RelatedName = FOpenPocketBaseFilter::RelatedString(
+        OpenPocketBase::Query::Expand(OwnerRef),
+        UserNameRef,
+        EOpenPocketBaseStringComparison::Equals,
+        TEXT("Ada"));
+    TestTrue(TEXT("Related filters resolve serialized field references through the schema"), RelatedName.IsValid());
+    TestEqual(
+        TEXT("Related string filters use the resolved field"),
+        RelatedName.ToString(),
+        FString(TEXT("owner.name = \"Ada\"")));
     FOpenPocketBaseRelationFieldRef ProfileRef;
     Schema->MakeTypedFieldRef(UsersRef, TEXT("profile_id"), ProfileRef);
     FOpenPocketBaseExpand Expand = OpenPocketBase::Query::Expand(OwnerRef);
