@@ -63,8 +63,7 @@ FOpenPocketBaseJsonValue UOpenPocketBaseJsonValueLibrary::SetJsonProperty(
                 : Value.ErrorMessage);
     }
 
-    TSharedPtr<FJsonObject> ResultObject = MakeShared<FJsonObject>();
-    FJsonObject::Duplicate(*SourceObject, ResultObject);
+    TSharedPtr<FJsonObject> ResultObject = *SourceObject;
     ResultObject->SetField(Name, PropertyValue);
     return FOpenPocketBaseJsonValue::FromJsonValue(MakeShared<FJsonValueObject>(ResultObject));
 }

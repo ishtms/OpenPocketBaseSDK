@@ -26,6 +26,47 @@ EOpenPocketBaseJsonValueType ConvertJsonType(const EJson Type)
         return EOpenPocketBaseJsonValueType::Invalid;
     }
 }
+
+bool IsJsonTreeValid(const TSharedPtr<FJsonValue>& Value)
+{
+    if (!Value.IsValid())
+    {
+        return false;
+    }
+
+    if (Value->Type == EJson::Object)
+    {
+        const TSharedPtr<FJsonObject>* Object = nullptr;
+        if (!Value->TryGetObject(Object) || Object == nullptr || !Object->IsValid())
+        {
+            return false;
+        }
+        for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*Object)->Values)
+        {
+            if (!IsJsonTreeValid(Pair.Value))
+            {
+                return false;
+            }
+        }
+    }
+    else if (Value->Type == EJson::Array)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Array = nullptr;
+        if (!Value->TryGetArray(Array) || Array == nullptr)
+        {
+            return false;
+        }
+        for (const TSharedPtr<FJsonValue>& Item : *Array)
+        {
+            if (!IsJsonTreeValid(Item))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
 }
 
 bool FOpenPocketBaseJsonValue::IsValid() const
@@ -55,7 +96,7 @@ TSharedPtr<FJsonValue> FOpenPocketBaseJsonValue::ToJsonValue() const
 FOpenPocketBaseJsonValue FOpenPocketBaseJsonValue::FromJsonValue(
     const TSharedPtr<FJsonValue>& Value)
 {
-    if (!Value.IsValid())
+    if (!IsJsonTreeValid(Value))
     {
         return Invalid(TEXT("The JSON value is empty or invalid. Build it with a JSON value node before adding it to a record body."));
     }

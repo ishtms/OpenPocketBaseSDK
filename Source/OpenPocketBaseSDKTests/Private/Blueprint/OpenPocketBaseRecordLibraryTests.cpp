@@ -318,6 +318,34 @@ bool FOpenPocketBaseCompleteRecordBodyTest::RunTest(const FString& Parameters)
             UOpenPocketBaseJsonValueLibrary::JsonBoolean(true));
     TestTrue(TEXT("JSON object builders create a valid value"), Settings.IsValid());
 
+    const FOpenPocketBaseJsonValue ObjectWithNull =
+        UOpenPocketBaseJsonValueLibrary::SetJsonProperty(
+            UOpenPocketBaseJsonValueLibrary::MakeJsonObject(),
+            TEXT("optional"),
+            UOpenPocketBaseJsonValueLibrary::JsonNull());
+    const FOpenPocketBaseJsonValue ObjectExtendedAfterNull =
+        UOpenPocketBaseJsonValueLibrary::SetJsonProperty(
+            ObjectWithNull,
+            TEXT("name"),
+            UOpenPocketBaseJsonValueLibrary::JsonString(TEXT("PocketBase")));
+    TestTrue(
+        TEXT("JSON objects remain valid when a property is added after an explicit null"),
+        ObjectExtendedAfterNull.IsValid());
+    const TSharedPtr<FJsonValue> ExtendedValue = ObjectExtendedAfterNull.ToJsonValue();
+    const TSharedPtr<FJsonObject>* ExtendedObject = nullptr;
+    TestTrue(
+        TEXT("JSON objects retain explicit null properties after another property is added"),
+        ExtendedValue.IsValid() && ExtendedValue->TryGetObject(ExtendedObject) &&
+            ExtendedObject != nullptr && ExtendedObject->IsValid() &&
+            (*ExtendedObject)->HasTypedField<EJson::Null>(TEXT("optional")));
+
+    TSharedRef<FJsonObject> MalformedObject = MakeShared<FJsonObject>();
+    MalformedObject->SetField(TEXT("invalid"), nullptr);
+    TestFalse(
+        TEXT("Malformed nested JSON values are rejected without entering the serializer"),
+        FOpenPocketBaseJsonValue::FromJsonValue(
+            MakeShared<FJsonValueObject>(MalformedObject)).IsValid());
+
     FOpenPocketBaseRecordBody Body;
     Body
         .SetDateField(Fields.Due, FDateTime(2026, 8, 24, 12, 30))
