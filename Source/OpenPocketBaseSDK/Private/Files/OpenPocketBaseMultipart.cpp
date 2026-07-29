@@ -380,8 +380,9 @@ bool Build(
             if (FileSize < 0)
             {
                 OutError = MakeMultipartError(FString::Printf(
-                    TEXT("File %d could not be found at its File Path. Choose an existing readable file before starting the upload."),
-                    FileIndex + 1));
+                    TEXT("File %d could not be found at File Path '%s'. Choose an existing readable file before starting the upload."),
+                    FileIndex + 1,
+                    *File.FilePath));
                 return false;
             }
             if (FileSize > Limits.MaxSourceFileBytes)
@@ -568,8 +569,9 @@ bool BuildForm(
             if (FileSize < 0)
             {
                 OutError = MakeMultipartError(FString::Printf(
-                    TEXT("File %d could not be found at its File Path. Choose an existing readable file before starting the upload."),
-                    FileIndex + 1));
+                    TEXT("File %d could not be found at File Path '%s'. Choose an existing readable file before starting the upload."),
+                    FileIndex + 1,
+                    *File.FilePath));
                 return false;
             }
             if (FileSize > Limits.MaxSourceFileBytes)

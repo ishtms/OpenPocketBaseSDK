@@ -143,6 +143,40 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
         TEXT("Oversized multipart bodies are rejected before dispatch"),
         OpenPocketBase::Multipart::Build(Body, {InlineFile}, BodyLimits, Boundary, Rejected, Error));
 
+    FOpenPocketBaseFileInput MissingFile;
+    MissingFile.DynamicFieldName = TEXT("document");
+    MissingFile.FileName = TEXT("missing.txt");
+    MissingFile.ContentType = TEXT("text/plain");
+    MissingFile.bUseFilePath = true;
+    MissingFile.FilePath = FPaths::Combine(
+        FPaths::ProjectIntermediateDir(),
+        TEXT("OpenPocketBaseMissingMultipartFile.bin"));
+    TestFalse(
+        TEXT("Missing record-upload paths are rejected before dispatch"),
+        OpenPocketBase::Multipart::Build(
+            Body,
+            {MissingFile},
+            FOpenPocketBaseUploadLimits(),
+            Boundary,
+            Rejected,
+            Error));
+    TestTrue(
+        TEXT("Record-upload errors identify the missing path"),
+        Error.Message.Contains(MissingFile.FilePath));
+
+    TestFalse(
+        TEXT("Missing custom-form paths are rejected before dispatch"),
+        OpenPocketBase::Multipart::BuildForm(
+            {{TEXT("note"), TEXT("missing path")}},
+            {MissingFile},
+            FOpenPocketBaseUploadLimits(),
+            Boundary,
+            Rejected,
+            Error));
+    TestTrue(
+        TEXT("Custom-form errors identify the missing path"),
+        Error.Message.Contains(MissingFile.FilePath));
+
     const FString SparseFile = FPaths::CreateTempFilename(
         *FPaths::ProjectIntermediateDir(),
         TEXT("OpenPocketBaseSparseMultipart-"),
