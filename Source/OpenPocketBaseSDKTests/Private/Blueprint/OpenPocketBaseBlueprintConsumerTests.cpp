@@ -844,17 +844,44 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
     FOpenPocketBaseSchemaCollection CollectionDefinition;
     CollectionDefinition.Id = TEXT("tasks_id");
     CollectionDefinition.Name = TEXT("sdk_tasks");
-    CollectionSchema->Collections = {CollectionDefinition};
+    CollectionDefinition.Type = EOpenPocketBaseCollectionType::Base;
+    FOpenPocketBaseSchemaCollection AuthCollectionDefinition;
+    AuthCollectionDefinition.Id = TEXT("users_id");
+    AuthCollectionDefinition.Name = TEXT("sdk_users");
+    AuthCollectionDefinition.Type = EOpenPocketBaseCollectionType::Auth;
+    CollectionSchema->Collections = {CollectionDefinition, AuthCollectionDefinition};
     FOpenPocketBaseCollectionRef CollectionReference;
-    CollectionSchema->MakeCollectionRef(CollectionDefinition.Id, CollectionReference);
+    FOpenPocketBaseAuthCollectionRef AuthCollectionReference;
+    TestTrue(
+        TEXT("The consumer has a valid collection fixture"),
+        CollectionSchema->MakeCollectionRef(CollectionDefinition.Id, CollectionReference));
+    TestTrue(
+        TEXT("The consumer has a valid auth collection fixture"),
+        CollectionSchema->MakeTypedCollectionRef(
+            AuthCollectionDefinition.Id,
+            AuthCollectionReference));
     CollectionNode->FindPinChecked(TEXT("Reference"))->DefaultValue =
         FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(CollectionReference);
+    UK2Node_CallFunction* AuthCollectionNode = NewObject<UK2Node_CallFunction>(Graph);
+    AuthCollectionNode->SetFromFunction(UOpenPocketBaseClient::StaticClass()->FindFunctionByName(
+        GET_FUNCTION_NAME_CHECKED(UOpenPocketBaseClient, Collection)));
+    AuthCollectionNode->CreateNewGuid();
+    AuthCollectionNode->PostPlacedNewNode();
+    AuthCollectionNode->AllocateDefaultPins();
+    Graph->AddNode(AuthCollectionNode, true, false);
+    AuthCollectionNode->FindPinChecked(TEXT("Reference"))->DefaultValue =
+        FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(AuthCollectionReference);
     const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
     TestTrue(
         TEXT("A retrieved client connects directly to Collection"),
         Schema->TryCreateConnection(
             GetClientNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
             CollectionNode->FindPin(UEdGraphSchema_K2::PN_Self, EGPD_Input)));
+    TestTrue(
+        TEXT("A retrieved client connects directly to Auth Collection"),
+        Schema->TryCreateConnection(
+            GetClientNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue, EGPD_Output),
+            AuthCollectionNode->FindPin(UEdGraphSchema_K2::PN_Self, EGPD_Input)));
     TestTrue(
         TEXT("A Collection value connects directly to record actions"),
         Schema->TryCreateConnection(
@@ -1206,8 +1233,42 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
         TEXT("Blueprint clients publish session changes"),
         UOpenPocketBaseClient::StaticClass()->FindPropertyByName(TEXT("SessionChanged")));
 
+    int32 CollectionHandlePinCount = 0;
+    int32 AuthCollectionHandlePinCount = 0;
     for (UEdGraphNode* Node : Graph->Nodes)
     {
+        if (UEdGraphPin* RequiredCollectionPin =
+                Node->FindPin(TEXT("Collection"), EGPD_Input))
+        {
+            ++CollectionHandlePinCount;
+            if (RequiredCollectionPin->LinkedTo.IsEmpty())
+            {
+                TestTrue(
+                    *FString::Printf(
+                        TEXT("%s receives the typed collection handle"),
+                        *Node->GetNodeTitle(ENodeTitleType::ListView).ToString()),
+                    Schema->TryCreateConnection(
+                        CollectionNode->FindPin(
+                            UEdGraphSchema_K2::PN_ReturnValue,
+                            EGPD_Output),
+                        RequiredCollectionPin));
+            }
+        }
+        if (UEdGraphPin* RequiredAuthCollectionPin =
+                Node->FindPin(TEXT("AuthCollection"), EGPD_Input))
+        {
+            ++AuthCollectionHandlePinCount;
+            TestTrue(
+                *FString::Printf(
+                    TEXT("%s receives the typed auth collection handle"),
+                    *Node->GetNodeTitle(ENodeTitleType::ListView).ToString()),
+                Schema->TryCreateConnection(
+                    AuthCollectionNode->FindPin(
+                        UEdGraphSchema_K2::PN_ReturnValue,
+                        EGPD_Output),
+                    RequiredAuthCollectionPin));
+        }
+
         UK2Node_AsyncAction* AsyncNode = Cast<UK2Node_AsyncAction>(Node);
         if (AsyncNode == nullptr)
         {
@@ -1225,6 +1286,12 @@ bool FOpenPocketBaseBlueprintConsumerTest::RunTest(const FString& Parameters)
                 *AsyncNode->GetNodeTitle(ENodeTitleType::ListView).ToString()),
             AsyncNode->FindPin(TEXT("WorldContextObject"), EGPD_Input));
     }
+    TestTrue(
+        TEXT("The consumer exercises required collection handles"),
+        CollectionHandlePinCount > 0);
+    TestTrue(
+        TEXT("The consumer exercises required auth collection handles"),
+        AuthCollectionHandlePinCount > 0);
 
     FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::SkipGarbageCollection);
     TestTrue(TEXT("The Blueprint consumer compiles without errors"), Blueprint->Status != BS_Error);

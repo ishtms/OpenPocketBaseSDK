@@ -10,6 +10,8 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "OpenPocketBaseAdminBlueprintClient.h"
 #include "OpenPocketBaseAdminQueryLibrary.h"
+#include "OpenPocketBaseSchema.h"
+#include "OpenPocketBaseSchemaPicker.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
 
@@ -235,6 +237,35 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
         UEdGraph::StaticClass(),
         UEdGraphSchema_K2::StaticClass());
     FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
+
+    UOpenPocketBaseSchema* TestSchema = NewObject<UOpenPocketBaseSchema>(
+        GetTransientPackage(),
+        TEXT("OpenPocketBaseAdminConsumerSchema"));
+    TestSchema->SchemaId = FGuid(233, 377, 610, 987);
+    FOpenPocketBaseSchemaCollection TasksCollection;
+    TasksCollection.Id = TEXT("tasks_id");
+    TasksCollection.Name = TEXT("sdk_tasks");
+    TasksCollection.Type = EOpenPocketBaseCollectionType::Base;
+    FOpenPocketBaseSchemaCollection UsersCollection;
+    UsersCollection.Id = TEXT("users_id");
+    UsersCollection.Name = TEXT("sdk_users");
+    UsersCollection.Type = EOpenPocketBaseCollectionType::Auth;
+    TestSchema->Collections = {TasksCollection, UsersCollection};
+
+    FOpenPocketBaseCollectionRef TasksRef;
+    FOpenPocketBaseAuthCollectionRef UsersRef;
+    TestTrue(
+        TEXT("The admin consumer has a valid collection fixture"),
+        TestSchema->MakeCollectionRef(TasksCollection.Id, TasksRef));
+    TestTrue(
+        TEXT("The admin consumer has a valid auth collection fixture"),
+        TestSchema->MakeTypedCollectionRef(UsersCollection.Id, UsersRef));
+    const FString TasksDefault =
+        FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(TasksRef);
+    const FString UsersDefault =
+        FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(UsersRef);
+    int32 CollectionPinCount = 0;
+    int32 AuthCollectionPinCount = 0;
     for (const FExpectedFunction& Function : Functions)
     {
         UK2Node_AsyncAction* AsyncNode = AddAdminAsyncNode(
@@ -255,7 +286,30 @@ bool FOpenPocketBaseAdminBlueprintSurfaceTest::RunTest(const FString& Parameters
             AsyncNode != nullptr
                 ? AsyncNode->FindPin(TEXT("WorldContextObject"), EGPD_Input)
                 : nullptr);
+        if (AsyncNode == nullptr)
+        {
+            continue;
+        }
+        if (UEdGraphPin* CollectionPin = AsyncNode->FindPin(TEXT("Collection"), EGPD_Input))
+        {
+            CollectionPin->DefaultValue = TasksDefault;
+            ++CollectionPinCount;
+        }
+        if (UEdGraphPin* AuthCollectionPin =
+                AsyncNode->FindPin(TEXT("AuthCollection"), EGPD_Input))
+        {
+            AuthCollectionPin->DefaultValue = UsersDefault;
+            ++AuthCollectionPinCount;
+        }
     }
+    TestEqual(
+        TEXT("Every typed admin collection action receives a schema value"),
+        CollectionPinCount,
+        3);
+    TestEqual(
+        TEXT("The typed impersonation action receives an auth schema value"),
+        AuthCollectionPinCount,
+        1);
     FKismetEditorUtilities::CompileBlueprint(
         Blueprint,
         EBlueprintCompileOptions::SkipGarbageCollection);

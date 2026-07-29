@@ -29,9 +29,24 @@ migrate((app) => {
       enabled: true,
       identityFields: ["email"],
     },
+    mfa: {
+      enabled: true,
+      duration: 600,
+      rule: "email = 'delivered+mfa-openpocketbase@resend.dev'",
+    },
     otp: {
       enabled: true,
       duration: 300,
+    },
+    oauth2: {
+      enabled: true,
+      providers: [
+        {
+          name: "github",
+          clientId: "openpocketbase-fixture-client",
+          clientSecret: "openpocketbase-fixture-secret",
+        },
+      ],
     },
   });
   app.save(users);
@@ -42,16 +57,42 @@ migrate((app) => {
   player.set("emailVisibility", true);
   player.set("verified", true);
   player.set("password", "correct-horse-battery");
+  player.refreshTokenKey();
   app.save(player);
 
+  const otpFixture = new Record(users);
+  otpFixture.set("id", "otpfixture00001");
+  otpFixture.set("email", "delivered+openpocketbase@resend.dev");
+  otpFixture.set("emailVisibility", true);
+  otpFixture.set("verified", true);
+  otpFixture.set("password", "otp-fixture-password");
+  otpFixture.refreshTokenKey();
+  app.save(otpFixture);
+
+  const mfaFixture = new Record(users);
+  mfaFixture.set("id", "mfafixture00001");
+  mfaFixture.set("email", "delivered+mfa-openpocketbase@resend.dev");
+  mfaFixture.set("emailVisibility", true);
+  mfaFixture.set("verified", true);
+  mfaFixture.set("password", "mfa-fixture-password");
+  mfaFixture.refreshTokenKey();
+  app.save(mfaFixture);
+
   const externalAuths = app.findCollectionByNameOrId("_externalAuths");
-  const externalAuth = new Record(externalAuths);
-  externalAuth.set("id", "extauth00000001");
-  externalAuth.set("collectionRef", users.id);
-  externalAuth.set("recordRef", player.id);
-  externalAuth.set("provider", "github");
-  externalAuth.set("providerId", "fixture-provider-user");
-  app.save(externalAuth);
+  const externalAuthFixtures = [
+    ["extauth00000001", "github", "fixture-github-user"],
+    ["extauth00000002", "google", "fixture-google-user"],
+  ];
+  for (let externalAuthIndex = 0; externalAuthIndex < externalAuthFixtures.length; externalAuthIndex += 1) {
+    const externalAuthFixture = externalAuthFixtures[externalAuthIndex];
+    const externalAuth = new Record(externalAuths);
+    externalAuth.set("id", externalAuthFixture[0]);
+    externalAuth.set("collectionRef", users.id);
+    externalAuth.set("recordRef", player.id);
+    externalAuth.set("provider", externalAuthFixture[1]);
+    externalAuth.set("providerId", externalAuthFixture[2]);
+    app.save(externalAuth);
+  }
 
   const tasks = new Collection({
     type: "base",

@@ -79,7 +79,7 @@ public:
             TEXT("The seeded record title is returned"),
             State->RecordTitle,
             FString(TEXT("Ship the Unreal SDK")));
-        Test->TestEqual(TEXT("The seeded list has one item"), State->ListItems, 1);
+        Test->TestEqual(TEXT("The filtered seeded list has one item"), State->ListItems, 1);
         Test->TestEqual(
             TEXT("Create accepts a deterministic record ID"),
             State->CreatedRecordId,
@@ -408,14 +408,19 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
     FOpenPocketBaseListOptions ListOptions;
     ListOptions.Page = 1;
     ListOptions.PerPage = 30;
+    ListOptions.Filter = FOpenPocketBaseFilter::DynamicString(
+        TEXT("id"),
+        EOpenPocketBaseStringComparison::Equals,
+        TEXT("task00000000001"));
     State->Client->DynamicCollection(TEXT("sdk_tasks")).GetList(
         ListOptions,
         [State](TOpenPocketBaseResult<FOpenPocketBaseRecordPage>&& Result)
         {
-            State->bGetListSucceeded = Result.IsSuccess();
             if (Result.IsSuccess())
             {
                 State->ListItems = Result.GetValue().Items.Num();
+                State->bGetListSucceeded = State->ListItems == 1 &&
+                    Result.GetValue().Items[0].Id == TEXT("task00000000001");
             }
             else
             {
@@ -426,6 +431,10 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
 
     FOpenPocketBaseFullListOptions FullListOptions;
     FullListOptions.ListOptions.PerPage = 30;
+    FullListOptions.ListOptions.Filter = FOpenPocketBaseFilter::DynamicString(
+        TEXT("id"),
+        EOpenPocketBaseStringComparison::Equals,
+        TEXT("task00000000001"));
     FullListOptions.ListOptions.bSkipTotal = true;
     FullListOptions.MaxPages = 1;
     State->Client->DynamicCollection(TEXT("sdk_tasks")).GetFullList(
@@ -433,7 +442,10 @@ bool FOpenPocketBasePinnedServerTest::RunTest(const FString& Parameters)
         [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
         {
             State->bGetFullListSucceeded = Result.IsSuccess() &&
-                Result.GetValue().Items.Num() >= 1 && Result.GetValue().bReachedEnd;
+                Result.GetValue().Items.Num() == 1 &&
+                Result.GetValue().Items[0].Id == TEXT("task00000000001") &&
+                Result.GetValue().PagesFetched == 1 &&
+                Result.GetValue().bReachedEnd;
             if (!Result.IsSuccess())
             {
                 State->Errors.Add(DescribeIntegrationError(TEXT("Get Full List"), Result.GetError()));
@@ -557,6 +569,8 @@ struct FPinnedAccountOperationsState
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
     TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> AnonymousClient;
     bool bCompleted = false;
+    bool bFixtureResetBefore = false;
+    bool bFixtureResetAfter = false;
     bool bPasswordResetRequested = false;
     bool bInvalidPasswordResetRejected = false;
     bool bVerificationRequested = false;
@@ -581,6 +595,26 @@ public:
     void Start()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->SendCustomRoute(
+            OpenPocketBase::DynamicRoute::NoBody(
+                EOpenPocketBaseCustomRouteMethod::Post,
+                TEXT("/api/openpocketbase-test/auth/reset")),
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+            {
+                Self->State->bFixtureResetBefore = Result.IsSuccess();
+                if (!Result.IsSuccess())
+                {
+                    Self->Fail(TEXT("Reset account fixtures before test"), Result.GetError());
+                    return;
+                }
+                Self->LogIn();
+            });
+    }
+
+private:
+    void LogIn()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
         State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
             TEXT("player@example.com"),
             TEXT("correct-horse-battery"),
@@ -594,8 +628,6 @@ public:
                 Self->RequestPasswordReset();
             });
     }
-
-private:
     void RequestPasswordReset()
     {
         const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
@@ -673,14 +705,28 @@ private:
             TEXT("user00000000001"),
             [Self](TOpenPocketBaseResult<TArray<FOpenPocketBaseExternalAuth>>&& Result)
             {
-                Self->State->bExternalAuthListed = Result.IsSuccess() &&
-                    Result.GetValue().Num() == 1 &&
-                    Result.GetValue()[0].Provider == TEXT("github");
                 if (!Result.IsSuccess())
                 {
                     Self->Fail(TEXT("List external auths"), Result.GetError());
                     return;
                 }
+
+                bool bHasGithub = false;
+                bool bHasGoogle = false;
+                for (const FOpenPocketBaseExternalAuth& ExternalAuth : Result.GetValue())
+                {
+                    const bool bReferencesPlayer =
+                        !ExternalAuth.CollectionRef.IsEmpty() &&
+                        ExternalAuth.RecordRef == TEXT("user00000000001");
+                    bHasGithub |= bReferencesPlayer &&
+                        ExternalAuth.Provider == TEXT("github") &&
+                        ExternalAuth.ProviderId == TEXT("fixture-github-user");
+                    bHasGoogle |= bReferencesPlayer &&
+                        ExternalAuth.Provider == TEXT("google") &&
+                        ExternalAuth.ProviderId == TEXT("fixture-google-user");
+                }
+                Self->State->bExternalAuthListed =
+                    Result.GetValue().Num() == 2 && bHasGithub && bHasGoogle;
                 if (!Self->State->bExternalAuthListed)
                 {
                     Self->State->Errors.Add(
@@ -701,7 +747,10 @@ private:
                 Self->State->bExternalAuthUnlinked = Result.IsSuccess();
                 if (!Result.IsSuccess())
                 {
-                    Self->Fail(TEXT("Unlink external auth"), Result.GetError());
+                    Self->State->Errors.Add(DescribeIntegrationError(
+                        TEXT("Unlink external auth"),
+                        Result.GetError()));
+                    Self->ResetFixturesAndComplete();
                     return;
                 }
                 Self->RequestUnauthenticatedEmailChange();
@@ -738,6 +787,26 @@ private:
                 if (!Self->State->bInvalidEmailChangeRejected)
                 {
                     Self->RecordUnexpected(TEXT("Confirm invalid email change"), Result);
+                }
+                Self->ResetFixturesAndComplete();
+            });
+    }
+
+    void ResetFixturesAndComplete()
+    {
+        const TSharedRef<FPinnedAccountOperationsFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->SendCustomRoute(
+            OpenPocketBase::DynamicRoute::NoBody(
+                EOpenPocketBaseCustomRouteMethod::Post,
+                TEXT("/api/openpocketbase-test/auth/reset")),
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+            {
+                Self->State->bFixtureResetAfter = Result.IsSuccess();
+                if (!Result.IsSuccess())
+                {
+                    Self->State->Errors.Add(DescribeIntegrationError(
+                        TEXT("Reset account fixtures after test"),
+                        Result.GetError()));
                 }
                 Self->State->bCompleted = true;
             });
@@ -782,6 +851,8 @@ public:
         {
             Test->AddError(Error);
         }
+        Test->TestTrue(TEXT("Account fixtures reset before the flow"),
+            State->bFixtureResetBefore);
         Test->TestTrue(TEXT("Password reset request matches v0.39.11"),
             State->bPasswordResetRequested);
         Test->TestTrue(TEXT("Invalid password reset is rejected by v0.39.11"),
@@ -798,6 +869,8 @@ public:
             State->bUnauthenticatedEmailChangeRejected);
         Test->TestTrue(TEXT("Invalid email change is rejected by v0.39.11"),
             State->bInvalidEmailChangeRejected);
+        Test->TestTrue(TEXT("Account fixtures reset after the flow"),
+            State->bFixtureResetAfter);
         State->AnonymousClient->Shutdown();
         State->Client->Shutdown();
         return true;
@@ -1253,6 +1326,45 @@ bool FOpenPocketBasePinnedRealtimeTest::RunTest(const FString& Parameters)
     if (!TestNotNull(TEXT("The realtime integration client is created"), State->Client.Get()))
     {
         AddError(Error.Message);
+        return false;
+    }
+
+    FOpenPocketBaseCapabilityInfo StreamingCapability;
+    const FOpenPocketBaseCapabilityReport CapabilityReport =
+        State->Client->GetCapabilityReport();
+    if (!TestTrue(
+            TEXT("The capability report contains HTTP streaming"),
+            CapabilityReport.TryGet(
+                EOpenPocketBaseCapability::HttpStreaming,
+                StreamingCapability)))
+    {
+        State->Client->Shutdown();
+        return false;
+    }
+
+    if (StreamingCapability.Status == EOpenPocketBaseCapabilityStatus::Unsupported)
+    {
+        const bool bExactCapability = TestEqual(
+            TEXT("The unsupported entry is HTTP streaming"),
+            StreamingCapability.Capability,
+            EOpenPocketBaseCapability::HttpStreaming);
+        const bool bExactStatus = TestEqual(
+            TEXT("HTTP streaming is reported as unsupported"),
+            StreamingCapability.Status,
+            EOpenPocketBaseCapabilityStatus::Unsupported);
+        AddInfo(FString::Printf(
+            TEXT("HTTP streaming is unsupported on this target; realtime mutation was skipped. %s"),
+            *StreamingCapability.Reason));
+        State->Client->Shutdown();
+        return bExactCapability && bExactStatus;
+    }
+
+    if (!TestEqual(
+            TEXT("HTTP streaming is supported before the realtime integration runs"),
+            StreamingCapability.Status,
+            EOpenPocketBaseCapabilityStatus::Supported))
+    {
+        State->Client->Shutdown();
         return false;
     }
 
