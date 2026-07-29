@@ -106,6 +106,11 @@ bool FOpenPocketBaseFileInput::IsValid() const
 bool FOpenPocketBaseFileInput::BelongsTo(
     const FOpenPocketBaseCollectionRef& Collection) const
 {
+    if (!DynamicFieldName.IsEmpty())
+    {
+        return true;
+    }
+
     FOpenPocketBaseFileFieldRef Current;
     return Field.ResolveCurrentAs(Current) && Current.BelongsTo(Collection);
 }

@@ -35,6 +35,27 @@ bool ContainsBytes(const TArray<uint8>& Haystack, const TArray<uint8>& Needle)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseDynamicFileOwnershipTest,
+    "OpenPocketBase.Client.Files.AcceptsDynamicFileInputsForSelectedCollections",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseDynamicFileOwnershipTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseCollectionRef Collection;
+    Collection.CollectionId = TEXT("sdk_field_lab");
+    const FOpenPocketBaseFileInput File = FOpenPocketBaseFileInput::DynamicFromBytes(
+        TEXT("documents"),
+        ToUtf8(TEXT("ABCDEFGH")),
+        TEXT("dynamic.txt"),
+        TEXT("text/plain"));
+
+    TestTrue(TEXT("Dynamic file inputs are valid"), File.IsValid());
+    TestEqual(TEXT("Dynamic file inputs retain their field name"), File.GetFieldName(), FString(TEXT("documents")));
+    TestTrue(TEXT("Dynamic file inputs are accepted for the selected collection"), File.BelongsTo(Collection));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseMultipartStreamTest,
     "OpenPocketBase.Client.Files.BuildsSegmentedMultipartStream",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
