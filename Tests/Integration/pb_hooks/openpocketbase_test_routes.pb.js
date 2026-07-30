@@ -459,3 +459,112 @@ routerAdd("GET", "/api/openpocketbase-test/retry/status", (event) => {
     writeAttempts: writeAttempts,
   });
 });
+
+routerAdd("GET", "/api/openpocketbase-test/custom/no-body", (event) => {
+  event.response.header().set("X-OpenPocketBase-Fixture", "custom-no-body");
+  return event.json(200, {
+    method: event.request.method,
+    value: event.request.url.query().get("value"),
+    spaced: event.request.url.query().get("space key"),
+    testHeader: event.request.header.get("X-OpenPocketBase-Test"),
+    authenticated: !!event.auth,
+    authId: event.auth ? event.auth.id : "",
+  });
+});
+
+routerAdd("POST", "/api/openpocketbase-test/custom/json", (event) => {
+  const info = event.requestInfo();
+  return event.json(200, {
+    method: info.method,
+    contentType: event.request.header.get("Content-Type"),
+    name: info.body.name,
+    count: info.body.count,
+    enabled: info.body.enabled,
+  });
+});
+
+routerAdd("POST", "/api/openpocketbase-test/custom/form", (event) => {
+  return event.json(200, {
+    method: event.request.method,
+    contentType: event.request.header.get("Content-Type"),
+    alpha: event.request.postFormValue("alpha"),
+    unicode: event.request.postFormValue("unicode"),
+  });
+});
+
+routerAdd("PUT", "/api/openpocketbase-test/custom/text", (event) => {
+  return event.json(200, {
+    method: event.request.method,
+    contentType: event.request.header.get("Content-Type"),
+    body: toString(event.request.body),
+  });
+});
+
+routerAdd("DELETE", "/api/openpocketbase-test/custom/binary", (event) => {
+  const body = toBytes(event.request.body);
+  event.response.header().set("X-OpenPocketBase-Fixture", "custom-binary");
+  return event.blob(200, "application/octet-stream", body);
+});
+
+routerAdd("POST", "/api/openpocketbase-test/custom/multipart", (event) => {
+  event.request.parseMultipartForm(1024 * 1024);
+  const form = event.request.multipartForm;
+  const headers = form && form.file && form.file.documents
+    ? form.file.documents
+    : [];
+  const files = [];
+  for (let index = 0; index < headers.length; index += 1) {
+    const header = headers[index];
+    const opened = header.open();
+    const bytes = toBytes(opened);
+    opened.close();
+    files.push({
+      fileName: header.filename,
+      contentType: header.header.get("Content-Type"),
+      byteLength: bytes.length,
+    });
+  }
+  return event.json(200, {
+    label: event.request.postFormValue("label"),
+    unicode: event.request.postFormValue("unicode"),
+    fileCount: files.length,
+    files: files,
+  });
+});
+
+routerAdd("GET", "/api/openpocketbase-test/custom/root/{kind}", (event) => {
+  const kind = event.request.pathValue("kind");
+  if (kind === "object") {
+    return event.json(200, { root: "object", count: 1 });
+  }
+  if (kind === "array") {
+    return event.json(200, [{ id: "one" }, 2, null]);
+  }
+  if (kind === "scalar") {
+    return event.json(200, "hello scalar");
+  }
+  if (kind === "empty") {
+    return event.noContent(204);
+  }
+  throw new NotFoundError("Unknown custom JSON root fixture.");
+});
+
+routerAdd("GET", "/api/openpocketbase-test/custom/status/{code}", (event) => {
+  const status = Number(event.request.pathValue("code"));
+  if ([400, 401, 404, 429, 500].indexOf(status) === -1) {
+    throw new BadRequestError("status must be 400, 401, 404, 429, or 500.");
+  }
+  if (status === 429) {
+    event.response.header().set("Retry-After", "1");
+  }
+  return event.json(status, {
+    code: "fixture_status_" + status,
+    message: "Fixture status " + status + ".",
+    data: {
+      title: {
+        code: "fixture_field",
+        message: "Fixture field error.",
+      },
+    },
+  });
+});
