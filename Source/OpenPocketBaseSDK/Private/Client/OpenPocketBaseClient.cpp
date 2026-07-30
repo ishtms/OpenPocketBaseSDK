@@ -2576,7 +2576,8 @@ struct FOpenPocketBaseClient::FImpl
         FOpenPocketBaseResponseHandler Handler,
         TUniqueFunction<void()> OnCancelled,
         const bool bCoordinateAuth = true,
-        FOpenPocketBaseHttpChunkCallback OnChunk = {})
+        FOpenPocketBaseHttpChunkCallback OnChunk = {},
+        TUniqueFunction<void()> OnCancelling = {})
     {
         const uint64 RequestId = NextRequestId.fetch_add(1, std::memory_order_relaxed);
         const FString RequestKey = bEligibleRead && Options.bCancelPreviousRequestWithSameKey
@@ -2585,6 +2586,7 @@ struct FOpenPocketBaseClient::FImpl
         const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State =
             MakeShared<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>(
                 RequestId,
+                MoveTemp(OnCancelling),
                 MoveTemp(OnCancelled),
                 [this, RequestId, RequestKey]()
                 {
@@ -2663,6 +2665,7 @@ struct FOpenPocketBaseClient::FImpl
         const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State =
             MakeShared<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>(
                 RequestId,
+                TUniqueFunction<void()>(),
                 MoveTemp(OnCancelled),
                 [this, RequestId]()
                 {
@@ -5408,6 +5411,10 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
                     {},
                     EOpenPocketBaseTransferPhase::Downloading);
             }
+        },
+        [Sink]()
+        {
+            Sink->Abort();
         });
 }
 

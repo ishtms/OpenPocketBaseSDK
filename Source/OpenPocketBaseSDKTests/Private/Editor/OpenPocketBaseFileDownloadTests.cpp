@@ -442,6 +442,9 @@ bool FOpenPocketBaseFileDownloadCancelTest::RunTest(const FString& Parameters)
             ++State->ProgressCount;
         });
     Handle.Cancel();
+    TestFalse(
+        TEXT("Cancellation removes the temporary file before returning"),
+        IFileManager::Get().FileExists(*(State->DestinationPath + TEXT(".tmp"))));
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyCancelledDownload(State, this));
     return true;

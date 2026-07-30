@@ -24,6 +24,7 @@ class FOpenPocketBaseRequestState final
 public:
     FOpenPocketBaseRequestState(
         uint64 InRequestId,
+        TUniqueFunction<void()> InOnCancelling,
         TUniqueFunction<void()> InOnCancelled,
         TUniqueFunction<void()> InOnTerminal);
 
@@ -53,6 +54,7 @@ private:
     std::atomic<EOpenPocketBaseRequestState> State = EOpenPocketBaseRequestState::Pending;
     mutable FCriticalSection Mutex;
     FOpenPocketBaseTransportHandle TransportHandle;
+    TUniqueFunction<void()> OnCancelling;
     TUniqueFunction<void()> OnCancelled;
     TUniqueFunction<void()> OnTerminal;
 };

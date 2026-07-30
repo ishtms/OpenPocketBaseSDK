@@ -5,9 +5,11 @@
 
 FOpenPocketBaseRequestState::FOpenPocketBaseRequestState(
     const uint64 InRequestId,
+    TUniqueFunction<void()> InOnCancelling,
     TUniqueFunction<void()> InOnCancelled,
     TUniqueFunction<void()> InOnTerminal)
     : RequestId(InRequestId)
+    , OnCancelling(MoveTemp(InOnCancelling))
     , OnCancelled(MoveTemp(InOnCancelled))
     , OnTerminal(MoveTemp(InOnTerminal))
 {
@@ -147,6 +149,7 @@ bool FOpenPocketBaseRequestState::TryComplete(
         FScopeLock Lock(&Mutex);
         TransportHandle = FOpenPocketBaseTransportHandle();
         TerminalCallback = MoveTemp(OnTerminal);
+        OnCancelling.Reset();
         OnCancelled.Reset();
     }
 
@@ -166,15 +169,21 @@ void FOpenPocketBaseRequestState::Cancel()
     }
 
     FOpenPocketBaseTransportHandle HandleToCancel;
+    TUniqueFunction<void()> CancellingCallback;
     TUniqueFunction<void()> CancelledCallback;
     TUniqueFunction<void()> TerminalCallback;
     {
         FScopeLock Lock(&Mutex);
         HandleToCancel = MoveTemp(TransportHandle);
+        CancellingCallback = MoveTemp(OnCancelling);
         CancelledCallback = MoveTemp(OnCancelled);
         TerminalCallback = MoveTemp(OnTerminal);
     }
 
+    if (CancellingCallback)
+    {
+        CancellingCallback();
+    }
     HandleToCancel.Cancel();
     if (TerminalCallback)
     {
