@@ -453,4 +453,107 @@ bool FOpenPocketBaseDebugStringFormattingTest::RunTest(const FString& Parameters
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseDebugStringRedactionTest,
+    "OpenPocketBase.Blueprint.DataTypeStringsRedactSecrets",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseDebugStringRedactionTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseOAuth2Callback Callback;
+    Callback.TransactionId = TEXT("callback-transaction-secret");
+    Callback.CallbackUrl =
+        TEXT("https://game.example/oauth/callback?code=callback-code-secret&state=callback-state-secret&screen=login");
+    Callback.Mfa.Id = TEXT("callback-mfa-secret");
+    const FString CallbackOutput =
+        UOpenPocketBaseStringLibrary::Conv_OpenPocketBaseOAuth2CallbackToString(Callback);
+    TestFalse(
+        TEXT("OAuth callback strings omit the transaction ID"),
+        CallbackOutput.Contains(TEXT("callback-transaction-secret")));
+    TestFalse(
+        TEXT("OAuth callback strings omit callback query secrets"),
+        CallbackOutput.Contains(TEXT("callback-code-secret")) ||
+            CallbackOutput.Contains(TEXT("callback-state-secret")));
+    TestFalse(
+        TEXT("OAuth callback strings omit the nested MFA ID"),
+        CallbackOutput.Contains(TEXT("callback-mfa-secret")));
+    TestTrue(
+        TEXT("OAuth callback strings retain useful URL and query context"),
+        CallbackOutput.Contains(TEXT("https://game.example/oauth/callback")) &&
+            CallbackOutput.Contains(TEXT("screen=login")) &&
+            CallbackOutput.Contains(TEXT("<redacted>")));
+
+    FOpenPocketBaseOAuth2Authorization Authorization;
+    Authorization.TransactionId = TEXT("authorization-transaction-secret");
+    Authorization.AuthorizationUrl =
+        TEXT("https://identity.example/authorize?state=authorization-state-query-secret&code_challenge=authorization-challenge-secret&prompt=consent");
+    Authorization.State = TEXT("authorization-state-secret");
+    const FString AuthorizationOutput =
+        UOpenPocketBaseStringLibrary::Conv_OpenPocketBaseOAuth2AuthorizationToString(
+            Authorization);
+    TestFalse(
+        TEXT("OAuth authorization strings omit the transaction ID"),
+        AuthorizationOutput.Contains(TEXT("authorization-transaction-secret")));
+    TestFalse(
+        TEXT("OAuth authorization strings omit the state"),
+        AuthorizationOutput.Contains(TEXT("authorization-state-secret")));
+    TestFalse(
+        TEXT("OAuth authorization strings omit URL query secrets"),
+        AuthorizationOutput.Contains(TEXT("authorization-state-query-secret")) ||
+            AuthorizationOutput.Contains(TEXT("authorization-challenge-secret")));
+    TestTrue(
+        TEXT("OAuth authorization strings retain useful URL context"),
+        AuthorizationOutput.Contains(TEXT("https://identity.example/authorize")) &&
+            AuthorizationOutput.Contains(TEXT("prompt=consent")) &&
+            AuthorizationOutput.Contains(TEXT("<redacted>")));
+
+    FOpenPocketBaseMfaContinuation Mfa;
+    Mfa.Id = TEXT("standalone-mfa-secret");
+    const FString MfaOutput =
+        UOpenPocketBaseStringLibrary::Conv_OpenPocketBaseMfaContinuationToString(Mfa);
+    TestFalse(
+        TEXT("MFA continuation strings omit the continuation ID"),
+        MfaOutput.Contains(TEXT("standalone-mfa-secret")));
+    TestTrue(
+        TEXT("MFA continuation strings mark the ID as redacted"),
+        MfaOutput.Contains(TEXT("<redacted>")));
+
+    FOpenPocketBaseCustomRouteRequest Request;
+    Request.Method = EOpenPocketBaseCustomRouteMethod::Post;
+    Request.Path = TEXT("/api/chunk71");
+    Request.Query.Add(TEXT("access_token"), TEXT("query-token-secret"));
+    Request.Query.Add(TEXT("view"), TEXT("summary"));
+    Request.FormFields.Add(TEXT("password"), TEXT("form-password-secret"));
+    Request.FormFields.Add(TEXT("label"), TEXT("chunk71"));
+    Request.JsonBody.JsonObject = MakeShared<FJsonObject>();
+    Request.JsonBody.JsonObject->SetStringField(TEXT("clientSecret"), TEXT("json-client-secret"));
+    Request.JsonBody.JsonObject->SetStringField(TEXT("name"), TEXT("visible-name"));
+    const TSharedPtr<FJsonObject> Nested = MakeShared<FJsonObject>();
+    Nested->SetStringField(TEXT("refresh_token"), TEXT("json-refresh-secret"));
+    Nested->SetStringField(TEXT("mode"), TEXT("safe-mode"));
+    Request.JsonBody.JsonObject->SetObjectField(TEXT("nested"), Nested);
+
+    const FString RequestOutput =
+        UOpenPocketBaseStringLibrary::Conv_OpenPocketBaseCustomRouteRequestToString(Request);
+    TestFalse(
+        TEXT("Custom route strings omit sensitive query values"),
+        RequestOutput.Contains(TEXT("query-token-secret")));
+    TestFalse(
+        TEXT("Custom route strings omit sensitive form values"),
+        RequestOutput.Contains(TEXT("form-password-secret")));
+    TestFalse(
+        TEXT("Custom route strings omit nested sensitive JSON values"),
+        RequestOutput.Contains(TEXT("json-client-secret")) ||
+            RequestOutput.Contains(TEXT("json-refresh-secret")));
+    TestTrue(
+        TEXT("Custom route strings retain non-sensitive request context"),
+        RequestOutput.Contains(TEXT("/api/chunk71")) &&
+            RequestOutput.Contains(TEXT("summary")) &&
+            RequestOutput.Contains(TEXT("chunk71")) &&
+            RequestOutput.Contains(TEXT("visible-name")) &&
+            RequestOutput.Contains(TEXT("safe-mode")) &&
+            RequestOutput.Contains(TEXT("<redacted>")));
+    return true;
+}
+
 #endif

@@ -1,18 +1,167 @@
 #include "OpenPocketBaseStringLibrary.h"
 
 #include "Dom/JsonValue.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
 #include "JsonObjectConverter.h"
 #include "UObject/UnrealType.h"
 
 namespace
 {
+bool IsSensitiveDebugName(const FString& Name)
+{
+    FString Normalized = Name.ToLower();
+    Normalized.ReplaceInline(TEXT("_"), TEXT(""));
+    Normalized.ReplaceInline(TEXT("-"), TEXT(""));
+    Normalized.ReplaceInline(TEXT(" "), TEXT(""));
+
+    return Normalized.Contains(TEXT("password")) ||
+        Normalized.Contains(TEXT("passcode")) ||
+        Normalized.Contains(TEXT("secret")) ||
+        Normalized.Contains(TEXT("token")) ||
+        Normalized.Contains(TEXT("authorization")) ||
+        Normalized.Contains(TEXT("credential")) ||
+        Normalized.Contains(TEXT("cookie")) ||
+        Normalized.Contains(TEXT("apikey")) ||
+        Normalized.Contains(TEXT("codeverifier")) ||
+        Normalized.Contains(TEXT("codechallenge")) ||
+        Normalized == TEXT("code") ||
+        Normalized == TEXT("state") ||
+        Normalized == TEXT("transactionid") ||
+        Normalized == TEXT("mfaid") ||
+        Normalized == TEXT("otpid");
+}
+
+FString RedactUrlParameters(const FString& Parameters)
+{
+    TArray<FString> Parts;
+    Parameters.ParseIntoArray(Parts, TEXT("&"), false);
+    for (FString& Part : Parts)
+    {
+        FString Name;
+        FString Value;
+        if (!Part.Split(TEXT("="), &Name, &Value))
+        {
+            Name = Part;
+        }
+        if (IsSensitiveDebugName(FGenericPlatformHttp::UrlDecode(Name)))
+        {
+            Part = Name + TEXT("=<redacted>");
+        }
+    }
+    return FString::Join(Parts, TEXT("&"));
+}
+
+FString RedactUrlSecrets(const FString& Url)
+{
+    int32 QueryIndex = INDEX_NONE;
+    int32 FragmentIndex = INDEX_NONE;
+    Url.FindChar(TEXT('?'), QueryIndex);
+    Url.FindChar(TEXT('#'), FragmentIndex);
+
+    if (QueryIndex == INDEX_NONE && FragmentIndex == INDEX_NONE)
+    {
+        return Url;
+    }
+
+    const int32 FirstParameterIndex = QueryIndex == INDEX_NONE
+        ? FragmentIndex
+        : FragmentIndex == INDEX_NONE
+            ? QueryIndex
+            : FMath::Min(QueryIndex, FragmentIndex);
+    FString Result = Url.Left(FirstParameterIndex);
+
+    if (QueryIndex != INDEX_NONE && (FragmentIndex == INDEX_NONE || QueryIndex < FragmentIndex))
+    {
+        const int32 QueryEnd = FragmentIndex == INDEX_NONE ? Url.Len() : FragmentIndex;
+        Result += TEXT("?") + RedactUrlParameters(
+            Url.Mid(QueryIndex + 1, QueryEnd - QueryIndex - 1));
+    }
+    if (FragmentIndex != INDEX_NONE)
+    {
+        Result += TEXT("#") + RedactUrlParameters(Url.Mid(FragmentIndex + 1));
+    }
+    return Result;
+}
+
+TSharedPtr<FJsonValue> SanitizeJsonValue(
+    const TSharedPtr<FJsonValue>& Value,
+    const FString& FieldName);
+
+TSharedPtr<FJsonObject> SanitizeJsonObject(const TSharedPtr<FJsonObject>& Object)
+{
+    if (!Object.IsValid())
+    {
+        return nullptr;
+    }
+
+    const TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Object->Values)
+    {
+        Result->SetField(Pair.Key, SanitizeJsonValue(Pair.Value, Pair.Key));
+    }
+    return Result;
+}
+
+TSharedPtr<FJsonValue> SanitizeJsonValue(
+    const TSharedPtr<FJsonValue>& Value,
+    const FString& FieldName)
+{
+    if (IsSensitiveDebugName(FieldName))
+    {
+        return MakeShared<FJsonValueString>(TEXT("<redacted>"));
+    }
+    if (!Value.IsValid())
+    {
+        return MakeShared<FJsonValueNull>();
+    }
+    if (Value->Type == EJson::Object)
+    {
+        return MakeShared<FJsonValueObject>(SanitizeJsonObject(Value->AsObject()));
+    }
+    if (Value->Type == EJson::Array)
+    {
+        TArray<TSharedPtr<FJsonValue>> Items;
+        Items.Reserve(Value->AsArray().Num());
+        for (const TSharedPtr<FJsonValue>& Item : Value->AsArray())
+        {
+            Items.Add(SanitizeJsonValue(Item, FString()));
+        }
+        return MakeShared<FJsonValueArray>(MoveTemp(Items));
+    }
+    return Value;
+}
+
+bool IsOAuthUrlProperty(const FProperty* Property)
+{
+    const UStruct* Owner = Property->GetOwnerStruct();
+    const FString Name = Property->GetName();
+    return (Owner == FOpenPocketBaseOAuth2Callback::StaticStruct() &&
+            Name == TEXT("CallbackUrl")) ||
+        (Owner == FOpenPocketBaseOAuth2Authorization::StaticStruct() &&
+            Name == TEXT("AuthorizationUrl")) ||
+        (Owner == FOpenPocketBaseOAuthProvider::StaticStruct() &&
+            Name == TEXT("AuthUrl"));
+}
+
 bool IsSensitiveProperty(const FProperty* Property)
 {
     const FString Name = Property->GetName();
-    if (Property->GetOwnerStruct() == FOpenPocketBaseAuthMethods::StaticStruct() &&
+    const UStruct* Owner = Property->GetOwnerStruct();
+    if (Owner == FOpenPocketBaseAuthMethods::StaticStruct() &&
         Name.Equals(TEXT("Password"), ESearchCase::CaseSensitive))
     {
         return false;
+    }
+    if ((Owner == FOpenPocketBaseOAuth2Callback::StaticStruct() &&
+            Name == TEXT("TransactionId")) ||
+        (Owner == FOpenPocketBaseOAuth2Authorization::StaticStruct() &&
+            (Name == TEXT("TransactionId") || Name == TEXT("State"))) ||
+        (Owner == FOpenPocketBaseOAuthProvider::StaticStruct() &&
+            (Name == TEXT("State") || Name == TEXT("CodeVerifier"))) ||
+        (Owner == FOpenPocketBaseMfaContinuation::StaticStruct() && Name == TEXT("Id")) ||
+        (Owner == FOpenPocketBaseOtpRequest::StaticStruct() && Name == TEXT("OtpId")))
+    {
+        return true;
     }
     return Name.Contains(TEXT("Password"), ESearchCase::IgnoreCase) ||
         Name.Contains(TEXT("Secret"), ESearchCase::IgnoreCase) ||
@@ -24,6 +173,43 @@ bool IsSensitiveProperty(const FProperty* Property)
 
 TSharedPtr<FJsonValue> ExportDebugProperty(FProperty* Property, const void* Value)
 {
+    if (IsOAuthUrlProperty(Property))
+    {
+        return MakeShared<FJsonValueString>(
+            RedactUrlSecrets(*static_cast<const FString*>(Value)));
+    }
+
+    if (Property->GetOwnerStruct() == FOpenPocketBaseCustomRouteRequest::StaticStruct())
+    {
+        const FString Name = Property->GetName();
+        if (Name == TEXT("Query") || Name == TEXT("FormFields"))
+        {
+            const TMap<FString, FString>& Fields =
+                *static_cast<const TMap<FString, FString>*>(Value);
+            const TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+            for (const TPair<FString, FString>& Pair : Fields)
+            {
+                Object->SetStringField(
+                    Pair.Key,
+                    IsSensitiveDebugName(Pair.Key) ? TEXT("<redacted>") : Pair.Value);
+            }
+            return MakeShared<FJsonValueObject>(Object);
+        }
+        if (Name == TEXT("JsonBody"))
+        {
+            FJsonObjectWrapper Wrapper =
+                *static_cast<const FJsonObjectWrapper*>(Value);
+            if (!Wrapper.JsonObject.IsValid() && !Wrapper.JsonString.IsEmpty())
+            {
+                Wrapper.JsonObjectFromString(Wrapper.JsonString);
+            }
+            if (Wrapper.JsonObject.IsValid())
+            {
+                return MakeShared<FJsonValueObject>(SanitizeJsonObject(Wrapper.JsonObject));
+            }
+        }
+    }
+
     if (IsSensitiveProperty(Property))
     {
         return MakeShared<FJsonValueString>(TEXT("<redacted>"));
