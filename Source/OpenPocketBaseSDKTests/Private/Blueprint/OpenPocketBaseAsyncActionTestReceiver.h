@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "OpenPocketBaseBatch.h"
 #include "OpenPocketBaseRecord.h"
 
 #include "OpenPocketBaseAsyncActionTestReceiver.generated.h"
@@ -16,4 +17,7 @@ public:
 
     UFUNCTION()
     void HandleRecordFailure(FOpenPocketBaseRecord Record, FOpenPocketBaseError InError);
+
+    UFUNCTION()
+    void HandleBatchFailure(FOpenPocketBaseBatchResult Result, FOpenPocketBaseError InError);
 };

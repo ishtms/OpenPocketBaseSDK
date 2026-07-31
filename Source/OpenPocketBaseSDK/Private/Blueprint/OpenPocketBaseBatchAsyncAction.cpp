@@ -14,23 +14,30 @@ UOpenPocketBaseSendBatchAsyncAction* UOpenPocketBaseSendBatchAsyncAction::SendBa
 
 void UOpenPocketBaseSendBatchAsyncAction::Activate()
 {
-    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
-        Client != nullptr ? Client->GetNativeClient() : nullptr;
-    if (!Batch.IsValid() || !NativeClient.IsValid() || NativeClient->IsShutdown())
+    if (!Batch.IsValid() || Batch.Entries.IsEmpty())
     {
         if (TryBeginTerminal())
         {
-            FOpenPocketBaseError Error = Batch.IsValid()
-                ? MakeClientUnavailableError()
-                : FOpenPocketBaseError();
-            if (!Batch.IsValid())
-            {
-                Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
-                Error.Message = Batch.ErrorMessage.IsEmpty()
+            FOpenPocketBaseError Error;
+            Error.Kind = EOpenPocketBaseErrorKind::InvalidArgument;
+            Error.Message = Batch.Entries.IsEmpty() && Batch.IsValid()
+                ? TEXT("Batch must contain at least one operation.")
+                : Batch.ErrorMessage.IsEmpty()
                     ? TEXT("The batch request is invalid. Start with New Batch and add at least one valid operation.")
                     : Batch.ErrorMessage;
-            }
             Failed.Broadcast(FOpenPocketBaseBatchResult(), Error);
+        }
+        Finish();
+        return;
+    }
+
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> NativeClient =
+        Client != nullptr ? Client->GetNativeClient() : nullptr;
+    if (!NativeClient.IsValid() || NativeClient->IsShutdown())
+    {
+        if (TryBeginTerminal())
+        {
+            Failed.Broadcast(FOpenPocketBaseBatchResult(), MakeClientUnavailableError());
         }
         Finish();
         return;
