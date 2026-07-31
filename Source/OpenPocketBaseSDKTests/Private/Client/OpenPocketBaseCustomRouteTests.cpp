@@ -117,6 +117,15 @@ struct FCustomRouteJsonRootState
     bool bArrayRetained = false;
 };
 
+struct FCustomRouteScalarRootState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FCustomRouteTransport, ESPMode::ThreadSafe> Transport;
+    int32 CompletionCount = 0;
+    bool bScalarRetained = false;
+    bool bNullRetained = false;
+};
+
 class FCustomRouteFlow final
     : public TSharedFromThis<FCustomRouteFlow, ESPMode::ThreadSafe>
 {
@@ -370,6 +379,36 @@ private:
     TSharedRef<FCustomRouteJsonRootState, ESPMode::ThreadSafe> State;
     FAutomationTestBase* Test;
 };
+
+class FVerifyCustomRouteScalarRoots final : public IAutomationLatentCommand
+{
+public:
+    FVerifyCustomRouteScalarRoots(
+        TSharedRef<FCustomRouteScalarRootState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (State->CompletionCount != 2)
+        {
+            return false;
+        }
+        Test->TestTrue(TEXT("A JSON string root is parsed and retained"),
+            State->bScalarRetained);
+        Test->TestTrue(TEXT("A JSON null root is parsed and retained"),
+            State->bNullRetained);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FCustomRouteScalarRootState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -524,6 +563,75 @@ bool FOpenPocketBaseCustomRouteJsonRootTest::RunTest(const FString& Parameters)
             State->bCompleted = true;
         });
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyCustomRouteJsonRoot(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseCustomRouteScalarRootTest,
+    "OpenPocketBase.Client.CustomRoutes.RetainsJsonScalarRoots",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseCustomRouteScalarRootTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FCustomRouteScalarRootState, ESPMode::ThreadSafe> State =
+        MakeShared<FCustomRouteScalarRootState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FCustomRouteTransport, ESPMode::ThreadSafe>();
+    State->Transport->AddResponse(
+        200,
+        TEXT("application/json"),
+        CustomUtf8(TEXT("\"hello scalar\"")));
+    State->Transport->AddResponse(
+        200,
+        TEXT("application/json"),
+        CustomUtf8(TEXT("null")));
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(
+        Config,
+        State->Transport.ToSharedRef(),
+        CreateOpenPocketBaseSecureStore(),
+        MakeShared<FCustomRouteClock, ESPMode::ThreadSafe>(),
+        Error);
+    if (!TestTrue(TEXT("The scalar-root client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseCustomRouteRequest ScalarRequest;
+    ScalarRequest.Path = TEXT("/api/project/scalar");
+    State->Client->SendCustomRoute(
+        MoveTemp(ScalarRequest),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+        {
+            if (Result.IsSuccess())
+            {
+                const TSharedPtr<FJsonValue>& Parsed = Result.GetValue().GetParsedJson();
+                State->bScalarRetained = Result.GetValue().bHasJson &&
+                    Result.GetValue().JsonRootType == EOpenPocketBaseJsonRootType::Scalar &&
+                    Parsed.IsValid() && Parsed->Type == EJson::String &&
+                    Parsed->AsString() == TEXT("hello scalar");
+            }
+            ++State->CompletionCount;
+        });
+
+    FOpenPocketBaseCustomRouteRequest NullRequest;
+    NullRequest.Path = TEXT("/api/project/null");
+    State->Client->SendCustomRoute(
+        MoveTemp(NullRequest),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseCustomRouteResponse>&& Result)
+        {
+            if (Result.IsSuccess())
+            {
+                const TSharedPtr<FJsonValue>& Parsed = Result.GetValue().GetParsedJson();
+                State->bNullRetained = Result.GetValue().bHasJson &&
+                    Result.GetValue().JsonRootType == EOpenPocketBaseJsonRootType::Scalar &&
+                    Parsed.IsValid() && Parsed->Type == EJson::Null;
+            }
+            ++State->CompletionCount;
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyCustomRouteScalarRoots(State, this));
     return true;
 }
 

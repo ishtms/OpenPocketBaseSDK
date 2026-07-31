@@ -611,8 +611,16 @@ bool TryParseJsonValue(
         reinterpret_cast<const ANSICHAR*>(Body.GetData()),
         Body.Num());
     OutJson = FString(Converted.Length(), Converted.Get());
-    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(OutJson);
-    return FJsonSerializer::Deserialize(Reader, OutValue) && OutValue.IsValid();
+    TArray<TSharedPtr<FJsonValue>> Values;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(
+        TEXT("[") + OutJson + TEXT("]"));
+    if (!FJsonSerializer::Deserialize(Reader, Values) || Values.Num() != 1 ||
+        !Values[0].IsValid())
+    {
+        return false;
+    }
+    OutValue = MoveTemp(Values[0]);
+    return true;
 }
 
 FOpenPocketBaseError MakeResponseSerializationError(
