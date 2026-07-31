@@ -568,3 +568,14 @@ routerAdd("GET", "/api/openpocketbase-test/custom/status/{code}", (event) => {
     },
   });
 });
+
+onBatchRequest((event) => {
+  for (let index = 0; index < event.batch.length; index += 1) {
+    const request = event.batch[index];
+    if (request && request.body && request.body.title === "Chunk 70 delayed batch") {
+      sleep(2500);
+      break;
+    }
+  }
+  event.next();
+});
