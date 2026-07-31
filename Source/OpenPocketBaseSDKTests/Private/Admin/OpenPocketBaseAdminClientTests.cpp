@@ -4,7 +4,9 @@
 
 #include "OpenPocketBaseAdminClient.h"
 #include "OpenPocketBaseAdminQueryLibrary.h"
+#include "OpenPocketBaseSchema.h"
 #include "Transport/OpenPocketBaseTransport.h"
+#include "UObject/StrongObjectPtr.h"
 
 namespace
 {
@@ -693,6 +695,432 @@ bool FOpenPocketBaseAdminClientTest::RunTest(const FString& Parameters)
         MakeShared<FAdminFlow, ESPMode::ThreadSafe>(State);
     Flow->Start();
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyAdminClient(State, this));
+    return true;
+}
+
+namespace
+{
+struct FAdminSafetyState
+{
+    TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FAdminTransport, ESPMode::ThreadSafe> Transport;
+    TStrongObjectPtr<UOpenPocketBaseSchema> Schema;
+    bool bCompleted = false;
+    bool bPassed = false;
+    int32 ExpectedRequests = 0;
+    FString Failure;
+};
+
+FOpenPocketBaseAdminClientResult CreateAdminSafetyClient(
+    const TSharedRef<FAdminTransport, ESPMode::ThreadSafe>& Transport,
+    FOpenPocketBaseClientConfig Config = {})
+{
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseAdminPolicy Policy;
+    Policy.bEnablePrivilegedRequests = true;
+    Policy.bAllowImpersonation = true;
+    FOpenPocketBaseClientDependencies Dependencies;
+    Dependencies.Transport = Transport;
+    return FOpenPocketBaseAdminClient::Create(Config, Policy, MoveTemp(Dependencies));
+}
+
+void AuthenticateAdminSafetyClient(
+    const TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe>& State,
+    TUniqueFunction<void(bool)> OnComplete)
+{
+    State->Client->AuthenticateSuperuser(
+        TEXT("fixture@example.test"),
+        TEXT("ephemeral-not-a-credential"),
+        [OnComplete = MoveTemp(OnComplete)](
+            TOpenPocketBaseResult<FOpenPocketBaseAdminIdentity>&& Result) mutable
+        {
+            OnComplete(Result.IsSuccess());
+        });
+}
+
+class FVerifyAdminSafety final : public IAutomationLatentCommand
+{
+public:
+    FVerifyAdminSafety(
+        TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        Test->TestTrue(*State->Failure, State->bPassed);
+        Test->TestEqual(TEXT("Only the expected requests reach transport"),
+            State->Transport->Requests.Num(), State->ExpectedRequests);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
+class FRedactedSettingsSafetyFlow final
+    : public TSharedFromThis<FRedactedSettingsSafetyFlow, ESPMode::ThreadSafe>
+{
+public:
+    explicit FRedactedSettingsSafetyFlow(
+        TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> InState)
+        : State(MoveTemp(InState))
+    {
+    }
+
+    void Start()
+    {
+        const TSharedRef<FRedactedSettingsSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        AuthenticateAdminSafetyClient(
+            State,
+            [Self](const bool bAuthenticated)
+            {
+                if (!bAuthenticated)
+                {
+                    Self->State->Failure = TEXT("Superuser authentication failed");
+                    Self->State->bCompleted = true;
+                    return;
+                }
+                FOpenPocketBaseAdminDocument Body;
+                Body.Data.JsonObject = MakeShared<FJsonObject>();
+                const TSharedRef<FJsonObject> Smtp = MakeShared<FJsonObject>();
+                Smtp->SetStringField(TEXT("password"), TEXT("[REDACTED]"));
+                Body.Data.JsonObject->SetObjectField(TEXT("smtp"), Smtp);
+                Self->State->Client->UpdateSettings(
+                    MoveTemp(Body),
+                    [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>&& Result)
+                    {
+                        Self->State->bPassed = !Result.IsSuccess() &&
+                            Result.GetError().Kind ==
+                                EOpenPocketBaseErrorKind::InvalidArgument &&
+                            Result.GetError().Message.Contains(TEXT("[REDACTED]")) &&
+                            Result.GetError().Message.Contains(TEXT("secret")) &&
+                            Result.GetError().Message.Contains(TEXT("omit"));
+                        Self->State->Failure =
+                            TEXT("A redacted settings secret was not rejected locally with useful guidance");
+                        Self->State->bCompleted = true;
+                    });
+            });
+    }
+
+private:
+    TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> State;
+};
+
+class FTypedReferenceSafetyFlow final
+    : public TSharedFromThis<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe>
+{
+public:
+    explicit FTypedReferenceSafetyFlow(
+        TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> InState)
+        : State(MoveTemp(InState))
+    {
+    }
+
+    void Start()
+    {
+        State->Schema.Reset(NewObject<UOpenPocketBaseSchema>(
+            GetTransientPackage(), NAME_None));
+        State->Schema->SchemaId = FGuid::NewGuid();
+        FOpenPocketBaseSchemaCollection Tasks;
+        Tasks.Id = TEXT("tasks_collection");
+        Tasks.Name = TEXT("sdk_tasks");
+        Tasks.Type = EOpenPocketBaseCollectionType::Base;
+        FOpenPocketBaseSchemaCollection Users;
+        Users.Id = TEXT("users_collection");
+        Users.Name = TEXT("sdk_users");
+        Users.Type = EOpenPocketBaseCollectionType::Auth;
+        State->Schema->Collections = {Tasks, Users};
+        State->Schema->MakeCollectionRef(Tasks.Id, StaleCollection);
+        FOpenPocketBaseCollectionRef AuthBase;
+        State->Schema->MakeCollectionRef(Users.Id, AuthBase);
+        static_cast<FOpenPocketBaseCollectionRef&>(StaleAuthCollection) = AuthBase;
+        static_cast<FOpenPocketBaseCollectionRef&>(WrongAuthCollection) = StaleCollection;
+        State->Schema->SchemaId = FGuid::NewGuid();
+
+        const TSharedRef<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        AuthenticateAdminSafetyClient(
+            State,
+            [Self](const bool bAuthenticated)
+            {
+                if (!bAuthenticated)
+                {
+                    Self->Finish(false, TEXT("Superuser authentication failed"));
+                    return;
+                }
+                Self->RejectStaleGet();
+            });
+    }
+
+private:
+    bool RecordFailure(const FOpenPocketBaseError& Error)
+    {
+        ++FailureCount;
+        return Error.Kind == EOpenPocketBaseErrorKind::InvalidArgument &&
+            Error.Message.Contains(TEXT("current imported schema"));
+    }
+
+    void RejectStaleGet()
+    {
+        const TSharedRef<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        State->Client->GetCollection(
+            StaleCollection,
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>&& Result)
+            {
+                Self->bErrorsExact = Self->bErrorsExact && !Result.IsSuccess() &&
+                    Self->RecordFailure(Result.GetError());
+                Self->RejectStaleUpdate();
+            });
+    }
+
+    void RejectStaleUpdate()
+    {
+        FOpenPocketBaseAdminDocument Body;
+        Body.Data.JsonObject = MakeShared<FJsonObject>();
+        Body.Data.JsonObject->SetStringField(TEXT("name"), TEXT("sdk_tasks"));
+        const TSharedRef<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        State->Client->UpdateCollection(
+            StaleCollection,
+            MoveTemp(Body),
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminDocument>&& Result)
+            {
+                Self->bErrorsExact = Self->bErrorsExact && !Result.IsSuccess() &&
+                    Self->RecordFailure(Result.GetError());
+                Self->RejectStaleDelete();
+            });
+    }
+
+    void RejectStaleDelete()
+    {
+        const TSharedRef<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        State->Client->DeleteCollection(
+            StaleCollection,
+            [Self](TOpenPocketBaseResult<bool>&& Result)
+            {
+                Self->bErrorsExact = Self->bErrorsExact && !Result.IsSuccess() &&
+                    Self->RecordFailure(Result.GetError());
+                Self->RejectStaleImpersonation();
+            });
+    }
+
+    void RejectStaleImpersonation()
+    {
+        const TSharedRef<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        State->Client->Impersonate(
+            StaleAuthCollection,
+            TEXT("user00000000001"),
+            60,
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>&& Result)
+            {
+                Self->bErrorsExact = Self->bErrorsExact && !Result.IsSuccess() &&
+                    Self->RecordFailure(Result.GetError());
+                Self->RejectWrongImpersonationType();
+            });
+    }
+
+    void RejectWrongImpersonationType()
+    {
+        const TSharedRef<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        State->Client->Impersonate(
+            WrongAuthCollection,
+            TEXT("user00000000001"),
+            60,
+            [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>&& Result)
+            {
+                Self->bErrorsExact = Self->bErrorsExact && !Result.IsSuccess() &&
+                    Self->RecordFailure(Result.GetError());
+                Self->Finish(Self->bErrorsExact && Self->FailureCount == 5,
+                    TEXT("Typed admin operations accepted stale or wrong schema references"));
+            });
+    }
+
+    void Finish(const bool bPassed, FString Failure)
+    {
+        State->bPassed = bPassed;
+        State->Failure = MoveTemp(Failure);
+        State->bCompleted = true;
+    }
+
+    TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> State;
+    FOpenPocketBaseCollectionRef StaleCollection;
+    FOpenPocketBaseAuthCollectionRef StaleAuthCollection;
+    FOpenPocketBaseAuthCollectionRef WrongAuthCollection;
+    int32 FailureCount = 0;
+    bool bErrorsExact = true;
+};
+
+class FImpersonationHeaderSafetyFlow final
+    : public TSharedFromThis<FImpersonationHeaderSafetyFlow, ESPMode::ThreadSafe>
+{
+public:
+    explicit FImpersonationHeaderSafetyFlow(
+        TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> InState)
+        : State(MoveTemp(InState))
+    {
+    }
+
+    void Start()
+    {
+        const TSharedRef<FImpersonationHeaderSafetyFlow, ESPMode::ThreadSafe> Self =
+            AsShared();
+        AuthenticateAdminSafetyClient(
+            State,
+            [Self](const bool bAuthenticated)
+            {
+                if (!bAuthenticated)
+                {
+                    Self->Finish(false, TEXT("Superuser authentication failed"));
+                    return;
+                }
+                Self->State->Client->Impersonate(
+                    AdminAuthCollectionRef(TEXT("sdk_users")),
+                    TEXT("user00000000001"),
+                    60,
+                    [Self](TOpenPocketBaseResult<FOpenPocketBaseAdminImpersonationResult>&& Result)
+                    {
+                        if (!Result.IsSuccess() || !Result.GetValue().Client.IsValid())
+                        {
+                            Self->Finish(false, TEXT("Impersonation failed"));
+                            return;
+                        }
+                        const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>
+                            Client = Result.GetValue().Client;
+                        Client->Health(
+                            [Self, Client](TOpenPocketBaseResult<FOpenPocketBaseHealthResult>&& Health)
+                            {
+                                const TArray<FOpenPocketBaseHttpRequest>& Requests =
+                                    Self->State->Transport->Requests;
+                                const bool bHeadersIsolated = Health.IsSuccess() &&
+                                    Requests.Num() == 3 &&
+                                    Requests[1].Headers.FindRef(TEXT("X-Admin-Secret")) ==
+                                        TEXT("privileged-only") &&
+                                    !Requests[2].Headers.Contains(TEXT("X-Admin-Secret"));
+                                Client->Shutdown();
+                                Self->Finish(bHeadersIsolated,
+                                    TEXT("The impersonated client inherited a privileged default header"));
+                            });
+                    });
+            });
+    }
+
+private:
+    void Finish(const bool bPassed, FString Failure)
+    {
+        State->bPassed = bPassed;
+        State->Failure = MoveTemp(Failure);
+        State->bCompleted = true;
+    }
+
+    TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> State;
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseAdminRejectsRedactedSettingsTest,
+    "OpenPocketBase.Admin.RejectsRedactedSettingsUpdates",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseAdminRejectsRedactedSettingsTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> State =
+        MakeShared<FAdminSafetyState, ESPMode::ThreadSafe>();
+    State->ExpectedRequests = 1;
+    State->Transport = MakeShared<FAdminTransport, ESPMode::ThreadSafe>();
+    State->Transport->AddJson(
+        TEXT("{\"token\":\"mock-superuser-token\",\"record\":{\"id\":\"super0000000001\","
+             "\"collectionId\":\"pbc_3142635823\",\"collectionName\":\"_superusers\"}}"));
+    State->Transport->AddJson(TEXT("{}"));
+    FOpenPocketBaseAdminClientResult ClientResult =
+        CreateAdminSafetyClient(State->Transport.ToSharedRef());
+    if (!TestTrue(TEXT("The privileged client is created"), ClientResult.IsSuccess()))
+    {
+        return false;
+    }
+    State->Client = ClientResult.TakeValue();
+    MakeShared<FRedactedSettingsSafetyFlow, ESPMode::ThreadSafe>(State)->Start();
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyAdminSafety(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseAdminTypedReferenceSafetyTest,
+    "OpenPocketBase.Admin.RevalidatesTypedCollectionReferences",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseAdminTypedReferenceSafetyTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> State =
+        MakeShared<FAdminSafetyState, ESPMode::ThreadSafe>();
+    State->ExpectedRequests = 1;
+    State->Transport = MakeShared<FAdminTransport, ESPMode::ThreadSafe>();
+    State->Transport->AddJson(
+        TEXT("{\"token\":\"mock-superuser-token\",\"record\":{\"id\":\"super0000000001\","
+             "\"collectionId\":\"pbc_3142635823\",\"collectionName\":\"_superusers\"}}"));
+    State->Transport->AddJson(TEXT("{}"));
+    State->Transport->AddJson(TEXT("{}"));
+    State->Transport->AddEmpty();
+    State->Transport->AddJson(
+        TEXT("{\"token\":\"mock-impersonation-token\",\"record\":{"
+             "\"id\":\"user00000000001\",\"collectionId\":\"users_collection\","
+             "\"collectionName\":\"sdk_users\"}}"));
+    FOpenPocketBaseAdminClientResult ClientResult =
+        CreateAdminSafetyClient(State->Transport.ToSharedRef());
+    if (!TestTrue(TEXT("The privileged client is created"), ClientResult.IsSuccess()))
+    {
+        return false;
+    }
+    State->Client = ClientResult.TakeValue();
+    MakeShared<FTypedReferenceSafetyFlow, ESPMode::ThreadSafe>(State)->Start();
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyAdminSafety(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseAdminImpersonationHeaderSafetyTest,
+    "OpenPocketBase.Admin.StripsPrivilegedHeadersFromImpersonation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseAdminImpersonationHeaderSafetyTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FAdminSafetyState, ESPMode::ThreadSafe> State =
+        MakeShared<FAdminSafetyState, ESPMode::ThreadSafe>();
+    State->ExpectedRequests = 3;
+    State->Transport = MakeShared<FAdminTransport, ESPMode::ThreadSafe>();
+    State->Transport->AddJson(
+        TEXT("{\"token\":\"mock-superuser-token\",\"record\":{\"id\":\"super0000000001\","
+             "\"collectionId\":\"pbc_3142635823\",\"collectionName\":\"_superusers\"}}"));
+    State->Transport->AddJson(
+        TEXT("{\"token\":\"mock-impersonation-token\",\"record\":{"
+             "\"id\":\"user00000000001\",\"collectionId\":\"users_collection\","
+             "\"collectionName\":\"sdk_users\"}}"));
+    State->Transport->AddJson(TEXT("{\"code\":200,\"message\":\"API is healthy.\"}"));
+    FOpenPocketBaseClientConfig Config;
+    Config.DefaultHeaders.Add(TEXT("X-Admin-Secret"), TEXT("privileged-only"));
+    FOpenPocketBaseAdminClientResult ClientResult =
+        CreateAdminSafetyClient(State->Transport.ToSharedRef(), MoveTemp(Config));
+    if (!TestTrue(TEXT("The privileged client is created"), ClientResult.IsSuccess()))
+    {
+        return false;
+    }
+    State->Client = ClientResult.TakeValue();
+    MakeShared<FImpersonationHeaderSafetyFlow, ESPMode::ThreadSafe>(State)->Start();
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyAdminSafety(State, this));
     return true;
 }
 

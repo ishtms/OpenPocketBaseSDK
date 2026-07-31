@@ -276,6 +276,74 @@ FOpenPocketBaseAdminDocument SanitizeSettingsDocument(
     return Document;
 }
 
+bool FindRedactedSettingValue(
+    const FString& Name,
+    const TSharedPtr<FJsonValue>& Value,
+    const FString& Path,
+    const bool bSecretParent,
+    FString& OutPath)
+{
+    if (!Value.IsValid())
+    {
+        return false;
+    }
+    const bool bSecret = bSecretParent || IsSecretSettingName(Name);
+    if (bSecret && Value->Type == EJson::String &&
+        Value->AsString() == TEXT("[REDACTED]"))
+    {
+        OutPath = Path;
+        return true;
+    }
+    if (Value->Type == EJson::Object)
+    {
+        for (const TPair<FString, TSharedPtr<FJsonValue>>& Field :
+             Value->AsObject()->Values)
+        {
+            const FString ChildPath = Path.IsEmpty()
+                ? Field.Key
+                : Path + TEXT(".") + Field.Key;
+            if (FindRedactedSettingValue(
+                    Field.Key, Field.Value, ChildPath, bSecret, OutPath))
+            {
+                return true;
+            }
+        }
+    }
+    else if (Value->Type == EJson::Array)
+    {
+        const TArray<TSharedPtr<FJsonValue>>& Items = Value->AsArray();
+        for (int32 Index = 0; Index < Items.Num(); ++Index)
+        {
+            if (FindRedactedSettingValue(
+                    Name,
+                    Items[Index],
+                    FString::Printf(TEXT("%s[%d]"), *Path, Index),
+                    bSecret,
+                    OutPath))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool FindRedactedSettingValue(
+    const FJsonObjectWrapper& Document,
+    FString& OutPath)
+{
+    for (const TPair<FString, TSharedPtr<FJsonValue>>& Field :
+         Document.JsonObject->Values)
+    {
+        if (FindRedactedSettingValue(
+                Field.Key, Field.Value, Field.Key, false, OutPath))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 FOpenPocketBaseRequestOptions BoundOptions(
     FOpenPocketBaseRequestOptions Options,
     const int64 MaxResponseBytes)
@@ -1101,14 +1169,15 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::GetCollection(
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!Collection.IsSet())
+    FOpenPocketBaseCollectionRef Current;
+    if (!Collection.ResolveCurrent(Current))
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(
             MoveTemp(OnComplete),
             TEXT("Collection is missing or stale. Choose a collection from the current imported schema."));
     }
     return DynamicGetCollection(
-        MoveTemp(Collection.Name), MoveTemp(OnComplete), MoveTemp(Options));
+        MoveTemp(Current.Name), MoveTemp(OnComplete), MoveTemp(Options));
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicGetCollection(
@@ -1181,14 +1250,15 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UpdateCollection(
     FOpenPocketBaseAdminDocumentCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!Collection.IsSet())
+    FOpenPocketBaseCollectionRef Current;
+    if (!Collection.ResolveCurrent(Current))
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(
             MoveTemp(OnComplete),
             TEXT("Collection is missing or stale. Choose a collection from the current imported schema."));
     }
     return DynamicUpdateCollection(
-        MoveTemp(Collection.Name),
+        MoveTemp(Current.Name),
         MoveTemp(Body),
         MoveTemp(OnComplete),
         MoveTemp(Options));
@@ -1246,14 +1316,15 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DeleteCollection(
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!Collection.IsSet())
+    FOpenPocketBaseCollectionRef Current;
+    if (!Collection.ResolveCurrent(Current))
     {
         return FailAdminRequest<bool>(
             MoveTemp(OnComplete),
             TEXT("Collection is missing or stale. Choose a collection from the current imported schema."));
     }
     return DynamicDeleteCollection(
-        MoveTemp(Collection.Name), MoveTemp(OnComplete), MoveTemp(Options));
+        MoveTemp(Current.Name), MoveTemp(OnComplete), MoveTemp(Options));
 }
 
 FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicDeleteCollection(
@@ -1360,6 +1431,15 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::UpdateSettings(
     {
         return FailAdminRequest<FOpenPocketBaseAdminDocument>(MoveTemp(OnComplete),
             TEXT("Settings Document has no valid JSON object. Build the settings update before sending it."));
+    }
+    FString RedactedPath;
+    if (FindRedactedSettingValue(Body.Data, RedactedPath))
+    {
+        return FailAdminRequest<FOpenPocketBaseAdminDocument>(
+            MoveTemp(OnComplete),
+            FString::Printf(
+                TEXT("Settings Document contains the literal [REDACTED] placeholder in secret field '%s'. Replace it with the real secret or omit that field before updating settings."),
+                *RedactedPath));
     }
     return SendAdminRequest<FOpenPocketBaseAdminDocument>(CoreClient,
         MakeAdminJsonRequest(EOpenPocketBaseCustomRouteMethod::Patch,
@@ -1863,14 +1943,15 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::Impersonate(
     FOpenPocketBaseAdminImpersonationCallback OnComplete,
     FOpenPocketBaseRequestOptions Options)
 {
-    if (!FOpenPocketBaseAuthCollectionRef::Accepts(AuthCollection))
+    FOpenPocketBaseAuthCollectionRef Current;
+    if (!AuthCollection.ResolveCurrentAs(Current))
     {
         return FailAdminRequest<FOpenPocketBaseAdminImpersonationResult>(
             MoveTemp(OnComplete),
             TEXT("Auth Collection is missing, stale, or is not an auth collection. Choose it from the current imported schema."));
     }
     return DynamicImpersonate(
-        MoveTemp(AuthCollection.Name),
+        MoveTemp(Current.Name),
         MoveTemp(RecordId),
         DurationSeconds,
         MoveTemp(OnComplete),
@@ -1914,7 +1995,9 @@ FOpenPocketBaseAdminRequestHandle FOpenPocketBaseAdminClient::DynamicImpersonate
     FOpenPocketBaseAdminDocument Body;
     Body.Data.JsonObject = MakeShared<FJsonObject>();
     Body.Data.JsonObject->SetNumberField(TEXT("duration"), DurationSeconds);
-    const FOpenPocketBaseClientConfig CapturedConfig = CoreConfig;
+    FOpenPocketBaseClientConfig ImpersonatedConfig = CoreConfig;
+    ImpersonatedConfig.DefaultHeaders.Reset();
+    const FOpenPocketBaseClientConfig CapturedConfig = MoveTemp(ImpersonatedConfig);
     const TSharedPtr<IOpenPocketBaseTransport, ESPMode::ThreadSafe> CapturedTransport =
         InjectedTransport;
     return SendAdminRequest<FOpenPocketBaseAdminImpersonationResult>(CoreClient,
