@@ -2,6 +2,14 @@
 
 #include "OpenPocketBaseStringLibrary.h"
 
+FString UOpenPocketBaseAdminStringLibrary::Conv_OpenPocketBaseAdminTestCredentialsToString(
+    const FOpenPocketBaseAdminTestCredentials& Value)
+{
+    return FString::Printf(
+        TEXT("Open PocketBase Admin Test Credentials\n{\n    \"baseUrl\": \"%s\",\n    \"identity\": \"<redacted>\",\n    \"password\": \"<redacted>\"\n}"),
+        *Value.BaseUrl);
+}
+
 #define OPENPOCKETBASE_IMPLEMENT_ADMIN_STRUCT_STRING(Suffix, Type) \
     FString UOpenPocketBaseAdminStringLibrary::Conv_##Suffix##ToString(const Type& Value) \
     { \

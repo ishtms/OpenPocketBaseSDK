@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "OpenPocketBaseAdminTestFixtureLibrary.h"
 #include "OpenPocketBaseAdminTypes.h"
 
 #include "OpenPocketBaseAdminStringLibrary.generated.h"
@@ -13,6 +14,9 @@ class OPENPOCKETBASESDKADMIN_API UOpenPocketBaseAdminStringLibrary final
     GENERATED_BODY()
 
 public:
+    UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Admin Test Credentials)", CompactNodeTitle = "->", BlueprintAutocast, DevelopmentOnly), Category = "Open PocketBase|Admin|Utilities|String")
+    static FString Conv_OpenPocketBaseAdminTestCredentialsToString(const FOpenPocketBaseAdminTestCredentials& Value);
+
     UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Admin Backup)", CompactNodeTitle = "->", BlueprintAutocast, DevelopmentOnly), Category = "Open PocketBase|Admin|Utilities|String")
     static FString Conv_OpenPocketBaseAdminBackupToString(const FOpenPocketBaseAdminBackup& Value);
 

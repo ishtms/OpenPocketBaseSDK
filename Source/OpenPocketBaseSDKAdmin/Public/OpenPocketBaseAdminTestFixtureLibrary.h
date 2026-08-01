@@ -42,14 +42,4 @@ public:
         FOpenPocketBaseAdminTestCredentials& Credentials,
         FOpenPocketBaseError& Error);
 
-    UFUNCTION(
-        BlueprintPure,
-        Category = "Open PocketBase|Admin|Testing",
-        meta = (
-            DisplayName = "To String (Admin Test Credentials)",
-            CompactNodeTitle = "->",
-            BlueprintAutocast,
-            DevelopmentOnly))
-    static FString Conv_OpenPocketBaseAdminTestCredentialsToString(
-        const FOpenPocketBaseAdminTestCredentials& Credentials);
 };

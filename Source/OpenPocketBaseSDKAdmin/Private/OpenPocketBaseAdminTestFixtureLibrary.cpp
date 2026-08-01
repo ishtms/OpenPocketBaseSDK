@@ -218,11 +218,3 @@ bool UOpenPocketBaseAdminTestFixtureLibrary::LoadAdminTestCredentials(
     return true;
 #endif
 }
-
-FString UOpenPocketBaseAdminTestFixtureLibrary::Conv_OpenPocketBaseAdminTestCredentialsToString(
-    const FOpenPocketBaseAdminTestCredentials& Credentials)
-{
-    return FString::Printf(
-        TEXT("Open PocketBase Admin Test Credentials\n{\n    \"baseUrl\": \"%s\",\n    \"identity\": \"<redacted>\",\n    \"password\": \"<redacted>\"\n}"),
-        *Credentials.BaseUrl);
-}

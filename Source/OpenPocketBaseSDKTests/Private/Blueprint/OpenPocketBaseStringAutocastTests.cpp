@@ -11,6 +11,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "OpenPocketBaseBlueprintClient.h"
 #include "OpenPocketBaseCustomRoute.h"
+#include "OpenPocketBaseSchemaPicker.h"
 #include "OpenPocketBaseStringLibrary.h"
 #include "UObject/Package.h"
 #include "UObject/StructOnScope.h"
@@ -189,6 +190,201 @@ bool AddAndValidateAutocastConnection(
     }
     return true;
 }
+
+struct FSchemaReferenceStringCase
+{
+    FName FunctionName;
+    UScriptStruct* ReferenceStruct = nullptr;
+    FString DefaultValue;
+};
+
+FOpenPocketBaseSchemaField MakeSchemaField(
+    const TCHAR* Name,
+    const EOpenPocketBaseFieldType Type,
+    const bool bMultiple = false)
+{
+    FOpenPocketBaseSchemaField Field;
+    Field.Id = FString(Name) + TEXT("_id");
+    Field.Name = Name;
+    Field.Type = Type;
+    Field.bMultiple = bMultiple;
+    return Field;
+}
+
+bool AddSchemaReferenceStringNode(
+    UEdGraph* Graph,
+    const FSchemaReferenceStringCase& TestCase,
+    FString& OutFailure)
+{
+    UFunction* Function = UOpenPocketBaseStringLibrary::StaticClass()->FindFunctionByName(
+        TestCase.FunctionName);
+    if (Function == nullptr)
+    {
+        OutFailure = TEXT("The conversion function was not found.");
+        return false;
+    }
+
+    UK2Node_CallFunction* Conversion = NewObject<UK2Node_CallFunction>(Graph);
+    Conversion->SetFromFunction(Function);
+    Conversion->CreateNewGuid();
+    Conversion->PostPlacedNewNode();
+    Conversion->AllocateDefaultPins();
+    Graph->AddNode(Conversion, true, false);
+
+    UEdGraphPin* ValuePin = Conversion->FindPin(TEXT("Value"), EGPD_Input);
+    UEdGraphPin* ReturnPin = Conversion->GetReturnValuePin();
+    UK2Node_CallFunction* Consumer = AddStringConsumer(Graph);
+    UEdGraphPin* StringPin =
+        Consumer != nullptr ? Consumer->FindPin(TEXT("S"), EGPD_Input) : nullptr;
+    if (ValuePin == nullptr || ReturnPin == nullptr || StringPin == nullptr)
+    {
+        OutFailure = TEXT("The conversion node did not expose its expected pins.");
+        return false;
+    }
+    if (ValuePin->PinType.PinSubCategoryObject != TestCase.ReferenceStruct)
+    {
+        OutFailure = TEXT("The conversion node exposed the wrong reference type.");
+        return false;
+    }
+
+    const UEdGraphSchema* Schema = Graph->GetSchema();
+    Schema->TrySetDefaultValue(*ValuePin, TestCase.DefaultValue);
+    if (ValuePin->GetDefaultAsString() != TestCase.DefaultValue)
+    {
+        OutFailure = TEXT("The schema-picker default was not retained.");
+        return false;
+    }
+    if (!Schema->TryCreateConnection(ReturnPin, StringPin))
+    {
+        OutFailure = TEXT("The conversion output did not connect to a String consumer.");
+        return false;
+    }
+    return true;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseSchemaReferenceStringDefaultsTest,
+    "OpenPocketBase.Blueprint.SchemaReferenceStringDefaultsCompile",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseSchemaReferenceStringDefaultsTest::RunTest(const FString& Parameters)
+{
+    UOpenPocketBaseSchema* Schema = NewObject<UOpenPocketBaseSchema>();
+    Schema->SchemaId = FGuid(7, 1, 7, 1);
+
+    FOpenPocketBaseSchemaCollection Tasks;
+    Tasks.Id = TEXT("tasks_id");
+    Tasks.Name = TEXT("sdk_tasks");
+    Tasks.Type = EOpenPocketBaseCollectionType::Base;
+    Tasks.Fields = {
+        MakeSchemaField(TEXT("title"), EOpenPocketBaseFieldType::Text),
+        MakeSchemaField(TEXT("score"), EOpenPocketBaseFieldType::Number),
+        MakeSchemaField(TEXT("done"), EOpenPocketBaseFieldType::Boolean),
+        MakeSchemaField(TEXT("due"), EOpenPocketBaseFieldType::Date),
+        MakeSchemaField(TEXT("tags"), EOpenPocketBaseFieldType::Select, true),
+        MakeSchemaField(TEXT("metadata"), EOpenPocketBaseFieldType::Json),
+        MakeSchemaField(TEXT("location"), EOpenPocketBaseFieldType::GeoPoint),
+        MakeSchemaField(TEXT("status"), EOpenPocketBaseFieldType::Select),
+        MakeSchemaField(TEXT("owner"), EOpenPocketBaseFieldType::Relation),
+        MakeSchemaField(TEXT("reviewers"), EOpenPocketBaseFieldType::Relation, true),
+        MakeSchemaField(TEXT("attachments"), EOpenPocketBaseFieldType::File, true)};
+
+    FOpenPocketBaseSchemaCollection Users;
+    Users.Id = TEXT("users_id");
+    Users.Name = TEXT("sdk_users");
+    Users.Type = EOpenPocketBaseCollectionType::Auth;
+    Schema->Collections = {Tasks, Users};
+
+    FOpenPocketBaseCollectionRef TasksRef;
+    FOpenPocketBaseCollectionRef UsersRef;
+    TestTrue(TEXT("The base collection resolves"), Schema->MakeCollectionRef(Tasks.Id, TasksRef));
+    TestTrue(TEXT("The auth collection resolves"), Schema->MakeCollectionRef(Users.Id, UsersRef));
+
+    const auto FindField = [&](const TCHAR* Name)
+    {
+        FOpenPocketBaseFieldRef Field;
+        Schema->MakeFieldRef(TasksRef, Name, Field);
+        return Field;
+    };
+    const FOpenPocketBaseFieldRef Title = FindField(TEXT("title"));
+    const FOpenPocketBaseFieldRef Score = FindField(TEXT("score"));
+    const FOpenPocketBaseFieldRef Done = FindField(TEXT("done"));
+    const FOpenPocketBaseFieldRef Due = FindField(TEXT("due"));
+    const FOpenPocketBaseFieldRef Tags = FindField(TEXT("tags"));
+    const FOpenPocketBaseFieldRef Metadata = FindField(TEXT("metadata"));
+    const FOpenPocketBaseFieldRef Location = FindField(TEXT("location"));
+    const FOpenPocketBaseFieldRef Status = FindField(TEXT("status"));
+    const FOpenPocketBaseFieldRef Owner = FindField(TEXT("owner"));
+    const FOpenPocketBaseFieldRef Reviewers = FindField(TEXT("reviewers"));
+    const FOpenPocketBaseFieldRef Attachments = FindField(TEXT("attachments"));
+
+    TArray<FSchemaReferenceStringCase> Cases = {
+        {TEXT("Conv_OpenPocketBaseCollectionRefToString"), FOpenPocketBaseCollectionRef::StaticStruct(), FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(TasksRef)},
+        {TEXT("Conv_OpenPocketBaseAuthCollectionRefToString"), FOpenPocketBaseAuthCollectionRef::StaticStruct(), FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(UsersRef)},
+        {TEXT("Conv_OpenPocketBaseWritableCollectionRefToString"), FOpenPocketBaseWritableCollectionRef::StaticStruct(), FOpenPocketBaseSchemaPickerModel::ExportCollectionDefault(TasksRef)}};
+
+    const auto AddFieldCase = [&](const TCHAR* FunctionName, UScriptStruct* ReferenceStruct, const FOpenPocketBaseFieldRef& Field)
+    {
+        Cases.Add(
+            {FunctionName,
+             ReferenceStruct,
+             FOpenPocketBaseSchemaPickerModel::ExportFieldDefault(ReferenceStruct, Field)});
+    };
+    AddFieldCase(TEXT("Conv_OpenPocketBaseFieldRefToString"), FOpenPocketBaseFieldRef::StaticStruct(), Title);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseAnyFieldRefToString"), FOpenPocketBaseAnyFieldRef::StaticStruct(), Title);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseStringFieldRefToString"), FOpenPocketBaseStringFieldRef::StaticStruct(), Title);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseTextFieldRefToString"), FOpenPocketBaseTextFieldRef::StaticStruct(), Title);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseNumberFieldRefToString"), FOpenPocketBaseNumberFieldRef::StaticStruct(), Score);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseBooleanFieldRefToString"), FOpenPocketBaseBooleanFieldRef::StaticStruct(), Done);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseDateFieldRefToString"), FOpenPocketBaseDateFieldRef::StaticStruct(), Due);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseStringArrayFieldRefToString"), FOpenPocketBaseStringArrayFieldRef::StaticStruct(), Tags);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseJsonFieldRefToString"), FOpenPocketBaseJsonFieldRef::StaticStruct(), Metadata);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseGeoPointFieldRefToString"), FOpenPocketBaseGeoPointFieldRef::StaticStruct(), Location);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseSingleSelectFieldRefToString"), FOpenPocketBaseSingleSelectFieldRef::StaticStruct(), Status);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseMultipleSelectFieldRefToString"), FOpenPocketBaseMultipleSelectFieldRef::StaticStruct(), Tags);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseRelationFieldRefToString"), FOpenPocketBaseRelationFieldRef::StaticStruct(), Owner);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseSingleRelationFieldRefToString"), FOpenPocketBaseSingleRelationFieldRef::StaticStruct(), Owner);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseMultipleRelationFieldRefToString"), FOpenPocketBaseMultipleRelationFieldRef::StaticStruct(), Reviewers);
+    AddFieldCase(TEXT("Conv_OpenPocketBaseFileFieldRefToString"), FOpenPocketBaseFileFieldRef::StaticStruct(), Attachments);
+    TestEqual(TEXT("Every schema reference conversion is covered"), Cases.Num(), 19);
+
+    UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprint(
+        UObject::StaticClass(),
+        GetTransientPackage(),
+        MakeUniqueObjectName(
+            GetTransientPackage(),
+            UBlueprint::StaticClass(),
+            TEXT("BP_OpenPocketBaseSchemaReferenceStrings")),
+        BPTYPE_Normal,
+        NAME_None);
+    UEdGraph* Graph = FBlueprintEditorUtils::CreateNewGraph(
+        Blueprint,
+        TEXT("ExerciseSchemaReferenceStrings"),
+        UEdGraph::StaticClass(),
+        UEdGraphSchema_K2::StaticClass());
+    FBlueprintEditorUtils::AddFunctionGraph<UFunction>(Blueprint, Graph, true, nullptr);
+
+    TArray<FString> SetupFailures;
+    for (const FSchemaReferenceStringCase& TestCase : Cases)
+    {
+        FString Failure;
+        if (!AddSchemaReferenceStringNode(Graph, TestCase, Failure))
+        {
+            SetupFailures.Add(TestCase.FunctionName.ToString() + TEXT(": ") + Failure);
+        }
+    }
+    TestTrue(
+        *FString::Printf(TEXT("Every literal conversion node was created. Failures: %s"), *FString::Join(SetupFailures, TEXT(", "))),
+        SetupFailures.IsEmpty());
+
+    FKismetEditorUtilities::CompileBlueprint(
+        Blueprint,
+        EBlueprintCompileOptions::SkipGarbageCollection);
+    TestTrue(
+        TEXT("Schema-picker defaults compile without source wires"),
+        Blueprint->Status != BS_Error);
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -240,7 +436,7 @@ bool FOpenPocketBaseStringAutocastTest::RunTest(const FString& Parameters)
 
     TestEqual(TEXT("Every core struct is covered"), CoreStructs.Num(), 80);
     TestEqual(TEXT("Every core enum is covered"), CoreEnums.Num(), 30);
-    TestEqual(TEXT("Every admin struct is covered"), AdminStructs.Num(), 17);
+    TestEqual(TEXT("Every admin struct is covered"), AdminStructs.Num(), 18);
     TestEqual(TEXT("Every admin enum is covered"), AdminEnums.Num(), 8);
     TestTrue(
         *FString::Printf(

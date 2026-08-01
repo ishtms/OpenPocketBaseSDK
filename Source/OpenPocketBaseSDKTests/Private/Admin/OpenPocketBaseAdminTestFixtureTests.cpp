@@ -5,6 +5,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "OpenPocketBaseAdminStringLibrary.h"
 #include "OpenPocketBaseAdminTestFixtureLibrary.h"
 #include "UObject/UnrealType.h"
 
@@ -80,7 +81,7 @@ bool FOpenPocketBaseAdminTestFixtureLoaderTest::RunTest(const FString& Parameter
     TestFalse(TEXT("A successful load has no error"), Error.IsSet());
 
     const FString Redacted =
-        UOpenPocketBaseAdminTestFixtureLibrary::Conv_OpenPocketBaseAdminTestCredentialsToString(
+        UOpenPocketBaseAdminStringLibrary::Conv_OpenPocketBaseAdminTestCredentialsToString(
             Credentials);
     TestTrue(TEXT("The credential conversion marks the identity as redacted"), Redacted.Contains(TEXT("<redacted>")));
     TestFalse(TEXT("The credential conversion hides the identity"), Redacted.Contains(TEXT("admin@example.com")));
