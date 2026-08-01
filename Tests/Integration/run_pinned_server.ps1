@@ -30,6 +30,9 @@ $CreatedRuntimeDir = $false
 $ServerProcess = $null
 $PreviousFixtureIdentity = [Environment]::GetEnvironmentVariable('OPENPOCKETBASE_FIXTURE_SUPERUSER_EMAIL', 'Process')
 $PreviousFixturePassword = [Environment]::GetEnvironmentVariable('OPENPOCKETBASE_FIXTURE_SUPERUSER_PASSWORD', 'Process')
+$RunningOnWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+
+. (Join-Path $ScriptDir 'pinned_server_restore.ps1')
 
 function Resolve-PocketBaseExecutable {
     param(
@@ -172,6 +175,60 @@ function Stop-OwnedProcess {
 
     Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
     $Process.WaitForExit(5000) | Out-Null
+}
+
+function New-PinnedAdminAuthorizationHeaders {
+    param(
+        [string]$BaseUrl,
+        [string]$Identity,
+        [string]$Password
+    )
+
+    $Body = @{
+        identity = $Identity
+        password = $Password
+    } | ConvertTo-Json -Compress
+    $Response = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/collections/_superusers/auth-with-password" -ContentType 'application/json' -Body $Body -TimeoutSec 5
+    return @{ Authorization = "Bearer $($Response.token)" }
+}
+
+function Find-PinnedRestoreRequestKey {
+    param(
+        [string]$BaseUrl,
+        [hashtable]$Headers,
+        [DateTime]$NotBeforeUtc
+    )
+
+    try {
+        $Page = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/logs?page=1&perPage=50&sort=-created" -Headers $Headers -TimeoutSec 5
+    }
+    catch {
+        return $null
+    }
+
+    foreach ($Item in $Page.items) {
+        $Created = $Item.PSObject.Properties['created']
+        $Data = $Item.PSObject.Properties['data']
+        if ($null -eq $Created -or $null -eq $Data) {
+            continue
+        }
+
+        $CreatedUtc = [DateTime]::MinValue
+        if (-not [DateTime]::TryParse([string]$Created.Value, [ref]$CreatedUtc) -or $CreatedUtc.ToUniversalTime() -lt $NotBeforeUtc) {
+            continue
+        }
+
+        $Method = $Data.Value.PSObject.Properties['method']
+        $Status = $Data.Value.PSObject.Properties['status']
+        $Url = $Data.Value.PSObject.Properties['url']
+        if ($null -ne $Method -and $Method.Value -eq 'POST' -and
+            $null -ne $Status -and [int]$Status.Value -eq 204 -and
+            $null -ne $Url -and [string]$Url.Value -match '^/api/backups/([a-z0-9_-]+\.zip)/restore$') {
+            return $Matches[1]
+        }
+    }
+
+    return $null
 }
 
 function Remove-VerifiedDataDirectory {
@@ -349,17 +406,41 @@ try {
             Write-Host "PocketBase restarted after restore ($RestartCount of $MaxRestarts)."
         }
 
+        $PendingRestoreKey = $null
+        $RestoreNotBeforeUtc = [DateTime]::UtcNow.AddSeconds(-2)
+        $RestoreHeaders = $null
+        if ($RunningOnWindows) {
+            $RestoreHeaders = New-PinnedAdminAuthorizationHeaders -BaseUrl $BaseUrl -Identity $FixtureIdentity -Password $Password
+        }
+        $NextRestorePollUtc = [DateTime]::UtcNow
         while (-not $ServerProcess.WaitForExit(250)) {
+            if ($RunningOnWindows -and [DateTime]::UtcNow -ge $NextRestorePollUtc) {
+                $NextRestorePollUtc = [DateTime]::UtcNow.AddSeconds(1)
+                $PendingRestoreKey = Find-PinnedRestoreRequestKey -BaseUrl $BaseUrl -Headers $RestoreHeaders -NotBeforeUtc $RestoreNotBeforeUtc
+                if (-not [string]::IsNullOrWhiteSpace($PendingRestoreKey)) {
+                    Write-Host "PocketBase restore request '$PendingRestoreKey' detected. Stopping the Windows fixture to apply it."
+                    Stop-OwnedProcess -Process $ServerProcess
+                    break
+                }
+            }
         }
         $ExitCode = $ServerProcess.ExitCode
         $ServerProcess = $null
+        if (-not [string]::IsNullOrWhiteSpace($PendingRestoreKey)) {
+            Invoke-PinnedPocketBaseWindowsRestore -DataDir $DataDir -BackupKey $PendingRestoreKey
+        }
         if ($RestartCount -ge $MaxRestarts) {
             Get-SafeLogTail -Paths @($ServerOutputLog, $ServerErrorLog) -Secret $Password
             throw "PocketBase exited with code $ExitCode after reaching the restart limit."
         }
 
         $RestartCount++
-        Write-Host "PocketBase exited with code $ExitCode. Restarting the isolated fixture for restore verification."
+        if (-not [string]::IsNullOrWhiteSpace($PendingRestoreKey)) {
+            Write-Host 'PocketBase stopped for the Windows restore. Restarting the isolated fixture for verification.'
+        }
+        else {
+            Write-Host "PocketBase exited with code $ExitCode. Restarting the isolated fixture for restore verification."
+        }
         Start-Sleep -Milliseconds 500
     }
 }
