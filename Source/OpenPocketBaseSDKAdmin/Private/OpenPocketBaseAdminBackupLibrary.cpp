@@ -98,7 +98,8 @@ bool UOpenPocketBaseAdminBackupLibrary::SaveBackupDownloadToFile(
     Writer->Serialize(
         const_cast<uint8*>(Download.Bytes.GetData()),
         Download.Bytes.Num());
-    const bool bWriteFailed = Writer->IsError();
+    const bool bClosed = Writer->Close();
+    const bool bWriteFailed = !bClosed || Writer->IsError();
     Writer.Reset();
     if (bWriteFailed)
     {
