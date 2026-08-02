@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Dom/JsonObject.h"
+#include "Containers/Ticker.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
@@ -453,15 +454,18 @@ private:
                 if (!Self->Require(Result, TEXT("List Crons"))) return;
                 for (const FJsonObjectWrapper& Item : Result.GetValue().Items)
                 {
+                    FString CronId;
                     if (Item.JsonObject.IsValid() &&
-                        Item.JsonObject->TryGetStringField(TEXT("id"), Self->State->CronId))
+                        Item.JsonObject->TryGetStringField(TEXT("id"), CronId) &&
+                        CronId == TEXT("openpocketbase-fixture-cron"))
                     {
+                        Self->State->CronId = MoveTemp(CronId);
                         break;
                     }
                 }
                 if (Self->State->CronId.IsEmpty())
                 {
-                    Self->State->Errors.Add(TEXT("PocketBase returned no cron to run."));
+                    Self->State->Errors.Add(TEXT("PocketBase returned no openpocketbase-fixture-cron fixture."));
                     Self->State->bCompleted = true;
                     return;
                 }
@@ -477,6 +481,41 @@ private:
             [Self](TOpenPocketBaseResult<bool>&& Result)
             {
                 if (!Self->Require(Result, TEXT("Run Cron"))) return;
+                Self->VerifyCronEffect();
+            });
+    }
+
+    void VerifyCronEffect(const int32 Attempt = 0)
+    {
+        const TSharedRef<FPinnedAdminFlow, ESPMode::ThreadSafe> Self = AsShared();
+        State->Client->RunSql(
+            TEXT("SELECT id FROM sdk_tasks WHERE id = 'cronmarker00001' AND title = 'Chunk 80 cron effect' AND score = 8001 AND done = 1 LIMIT 1"),
+            [Self, Attempt](TOpenPocketBaseResult<FOpenPocketBaseAdminSqlResult>&& Result)
+            {
+                if (!Result.IsSuccess())
+                {
+                    Self->Require(Result, TEXT("Verify Cron Effect"));
+                    return;
+                }
+                if (Result.GetValue().RowCount != 1)
+                {
+                    if (Attempt < 20)
+                    {
+                        FTSTicker::GetCoreTicker().AddTicker(
+                            FTickerDelegate::CreateLambda(
+                                [Self, Attempt](float)
+                                {
+                                    Self->VerifyCronEffect(Attempt + 1);
+                                    return false;
+                                }),
+                            0.05f);
+                        return;
+                    }
+                    Self->State->Errors.Add(TEXT("The fixture cron did not create its exact sdk_tasks marker."));
+                    Self->State->bCompleted = true;
+                    return;
+                }
+                Self->State->SuccessfulContracts++;
                 Self->RunSql();
             });
     }
@@ -544,7 +583,7 @@ public:
             Test->AddError(Error);
         }
         Test->TestEqual(TEXT("Every privileged route contract was exercised"),
-            State->SuccessfulContracts + State->ExpectedFailureContracts, 24);
+            State->SuccessfulContracts + State->ExpectedFailureContracts, 25);
         Test->TestTrue(TEXT("Unsafe external actions and restore used server rejections"),
             State->ExpectedFailureContracts >= 3);
         State->Client->Shutdown();

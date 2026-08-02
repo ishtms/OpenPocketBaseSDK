@@ -579,3 +579,18 @@ onBatchRequest((event) => {
   }
   event.next();
 });
+
+cronAdd("openpocketbase-fixture-cron", "0 0 1 1 *", () => {
+  const tasks = $app.findCollectionByNameOrId("sdk_tasks");
+  let marker;
+  try {
+    marker = $app.findRecordById(tasks, "cronmarker00001");
+  } catch (error) {
+    marker = new Record(tasks);
+    marker.set("id", "cronmarker00001");
+  }
+  marker.set("title", "Chunk 80 cron effect");
+  marker.set("score", 8001);
+  marker.set("done", true);
+  $app.save(marker);
+});
