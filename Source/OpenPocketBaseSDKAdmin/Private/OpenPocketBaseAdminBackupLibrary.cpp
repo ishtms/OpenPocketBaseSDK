@@ -128,3 +128,53 @@ bool UOpenPocketBaseAdminBackupLibrary::SaveBackupDownloadToFile(
     SavedPath = MoveTemp(DestinationPath);
     return true;
 }
+
+bool UOpenPocketBaseAdminBackupLibrary::DeleteSavedBackupFile(
+    FString SavedPath,
+    FOpenPocketBaseError& Error)
+{
+    Error = {};
+    if (SavedPath.IsEmpty())
+    {
+        return FailBackupSave(
+            Error,
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Saved Backup Path is empty. Pass the path returned by Save Backup Download to File."));
+    }
+
+    SavedPath = FPaths::ConvertRelativePathToFull(SavedPath);
+    FPaths::NormalizeFilename(SavedPath);
+    FString SavedDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
+    FPaths::NormalizeDirectoryName(SavedDirectory);
+    const FString FileName = FPaths::GetCleanFilename(SavedPath);
+    if (!FPaths::IsUnderDirectory(SavedPath, SavedDirectory) ||
+        (!FileName.EndsWith(TEXT(".zip"), ESearchCase::IgnoreCase) &&
+         !FileName.EndsWith(TEXT(".zip.tmp"), ESearchCase::IgnoreCase)))
+    {
+        return FailBackupSave(
+            Error,
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Saved Backup Path must name a .zip or .zip.tmp file under the project Saved directory."));
+    }
+
+    IFileManager& FileManager = IFileManager::Get();
+    if (FileManager.DirectoryExists(*SavedPath))
+    {
+        return FailBackupSave(
+            Error,
+            EOpenPocketBaseErrorKind::InvalidArgument,
+            TEXT("Saved Backup Path points to a directory, not a backup file."));
+    }
+    if (!FileManager.FileExists(*SavedPath))
+    {
+        return true;
+    }
+    if (!FileManager.Delete(*SavedPath, false, true, true))
+    {
+        return FailBackupSave(
+            Error,
+            EOpenPocketBaseErrorKind::Transport,
+            TEXT("The saved backup file could not be deleted. Check file permissions and whether another process is using it."));
+    }
+    return true;
+}

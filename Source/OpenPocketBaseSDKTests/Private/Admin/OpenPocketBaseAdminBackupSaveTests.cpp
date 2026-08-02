@@ -29,6 +29,20 @@ bool FOpenPocketBaseAdminBackupSaveTest::RunTest(const FString& Parameters)
             FString(TEXT("ReturnValue")));
     }
 
+    const UFunction* DeleteFunction = UOpenPocketBaseAdminBackupLibrary::StaticClass()
+        ->FindFunctionByName(TEXT("DeleteSavedBackupFile"));
+    TestNotNull(TEXT("The backup cleanup helper is exposed"), DeleteFunction);
+    if (DeleteFunction != nullptr)
+    {
+        TestTrue(
+            TEXT("The backup cleanup helper is development only"),
+            DeleteFunction->HasMetaData(TEXT("DevelopmentOnly")));
+        TestEqual(
+            TEXT("The cleanup helper exposes explicit success and failure paths"),
+            DeleteFunction->GetMetaData(TEXT("ExpandBoolAsExecs")),
+            FString(TEXT("ReturnValue")));
+    }
+
     const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(
         FPaths::ProjectIntermediateDir(),
         TEXT("OpenPocketBaseAdminBackupSave"),
@@ -191,6 +205,46 @@ bool FOpenPocketBaseAdminBackupSaveTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Empty bytes have no field errors"), Error.FieldErrors.IsEmpty());
     TestTrue(TEXT("Empty bytes clear the returned path"), SavedPath.IsEmpty());
 
+    const FString CleanupDirectory = FPaths::ConvertRelativePathToFull(FPaths::Combine(
+        FPaths::ProjectSavedDir(),
+        TEXT("OpenPocketBaseAdminBackupSave"),
+        FGuid::NewGuid().ToString(EGuidFormats::Digits)));
+    TestTrue(
+        TEXT("The cleanup destination directory is created"),
+        IFileManager::Get().MakeDirectory(*CleanupDirectory, true));
+    const FString CleanupPath = FPaths::Combine(CleanupDirectory, TEXT("cleanup.zip"));
+    TestTrue(
+        TEXT("A backup is staged under the project Saved directory"),
+        UOpenPocketBaseAdminBackupLibrary::SaveBackupDownloadToFile(
+            Replacement, CleanupPath, false, SavedPath, Error));
+    TestTrue(
+        TEXT("The saved backup cleanup succeeds"),
+        UOpenPocketBaseAdminBackupLibrary::DeleteSavedBackupFile(SavedPath, Error));
+    TestFalse(
+        TEXT("The cleanup removes the exact saved file"),
+        IFileManager::Get().FileExists(*CleanupPath));
+    TestTrue(
+        TEXT("Repeated cleanup is idempotent"),
+        UOpenPocketBaseAdminBackupLibrary::DeleteSavedBackupFile(CleanupPath, Error));
+
+    Error = {};
+    TestFalse(
+        TEXT("Cleanup rejects an empty path"),
+        UOpenPocketBaseAdminBackupLibrary::DeleteSavedBackupFile({}, Error));
+    TestEqual(
+        TEXT("Empty cleanup paths are InvalidArgument"),
+        Error.Kind,
+        EOpenPocketBaseErrorKind::InvalidArgument);
+    Error = {};
+    TestFalse(
+        TEXT("Cleanup rejects files outside Project Saved"),
+        UOpenPocketBaseAdminBackupLibrary::DeleteSavedBackupFile(Destination, Error));
+    TestEqual(
+        TEXT("Outside cleanup paths are InvalidArgument"),
+        Error.Kind,
+        EOpenPocketBaseErrorKind::InvalidArgument);
+
+    IFileManager::Get().DeleteDirectory(*CleanupDirectory, false, true);
     IFileManager::Get().DeleteDirectory(*Directory, false, true);
     return true;
 }

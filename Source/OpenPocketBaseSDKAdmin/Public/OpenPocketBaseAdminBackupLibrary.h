@@ -28,4 +28,16 @@ public:
         bool bReplaceExisting,
         FString& SavedPath,
         FOpenPocketBaseError& Error);
+
+    UFUNCTION(
+        BlueprintCallable,
+        Category = "Open PocketBase|Admin|Backups",
+        meta = (
+            DisplayName = "Delete Saved Backup File",
+            ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Deleted",
+            DevelopmentOnly))
+    static bool DeleteSavedBackupFile(
+        FString SavedPath,
+        FOpenPocketBaseError& Error);
 };
