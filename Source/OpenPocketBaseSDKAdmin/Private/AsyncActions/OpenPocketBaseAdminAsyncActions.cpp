@@ -52,7 +52,9 @@ FOpenPocketBaseError UOpenPocketBaseAdminAsyncActionBase::MakeCancelledError()
 bool UOpenPocketBaseAdminAsyncActionBase::TryGetNativeClient(
     TSharedPtr<FOpenPocketBaseAdminClient, ESPMode::ThreadSafe>& OutClient)
 {
-    OutClient = AdminClient != nullptr ? AdminClient->GetNativeClient() : nullptr;
+    OutClient = AdminClient != nullptr && AdminClient->IsReady()
+        ? AdminClient->GetNativeClient()
+        : nullptr;
     return OutClient.IsValid();
 }
 

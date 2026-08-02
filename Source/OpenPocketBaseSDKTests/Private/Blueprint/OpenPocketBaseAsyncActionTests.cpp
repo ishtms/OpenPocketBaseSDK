@@ -16,6 +16,14 @@ void UOpenPocketBaseAsyncActionTestReceiver::HandleBatchFailure(
     Error = MoveTemp(InError);
 }
 
+void UOpenPocketBaseAsyncActionTestReceiver::HandleAdminDocumentFailure(
+    FOpenPocketBaseAdminDocument Document,
+    FOpenPocketBaseError InError)
+{
+    bFailed = true;
+    Error = MoveTemp(InError);
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "AsyncActions/OpenPocketBaseRecordAsyncActions.h"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "OpenPocketBaseAdminTypes.h"
 #include "OpenPocketBaseBatch.h"
 #include "OpenPocketBaseRecord.h"
 
@@ -20,4 +21,9 @@ public:
 
     UFUNCTION()
     void HandleBatchFailure(FOpenPocketBaseBatchResult Result, FOpenPocketBaseError InError);
+
+    UFUNCTION()
+    void HandleAdminDocumentFailure(
+        FOpenPocketBaseAdminDocument Document,
+        FOpenPocketBaseError InError);
 };

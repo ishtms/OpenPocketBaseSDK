@@ -3,6 +3,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "AsyncActions/OpenPocketBaseAdminAsyncActions.h"
+#include "Blueprint/OpenPocketBaseAsyncActionTestReceiver.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/Blueprint.h"
 #include "K2Node_AsyncAction.h"
@@ -103,6 +104,54 @@ UK2Node_AsyncAction* AddAdminAsyncNode(
     Node->AllocateDefaultPins();
     Graph->AddNode(Node, true, false);
     return Node;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseAdminShutdownAsyncActionTest,
+    "OpenPocketBase.Admin.Blueprint.ShutdownClientBroadcastsMissingClient",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseAdminShutdownAsyncActionTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("http://127.0.0.1:18094");
+    FOpenPocketBaseAdminPolicy Policy;
+    Policy.bEnablePrivilegedRequests = true;
+    FOpenPocketBaseError CreateError;
+    UOpenPocketBaseAdminClient* Client = UOpenPocketBaseAdminClient::Create(
+        GetTransientPackage(),
+        Config,
+        Policy,
+        CreateError);
+    if (!TestNotNull(TEXT("The admin client is created"), Client))
+    {
+        AddError(CreateError.Message);
+        return false;
+    }
+    Client->Shutdown();
+
+    UOpenPocketBaseAsyncActionTestReceiver* Receiver =
+        NewObject<UOpenPocketBaseAsyncActionTestReceiver>();
+    UOpenPocketBaseAdminDocumentAsyncAction* Action =
+        UOpenPocketBaseAdminDocumentAsyncAction::GetDynamicCollection(
+            Client,
+            TEXT("sdk_tasks"),
+            {});
+    Action->Failed.AddDynamic(
+        Receiver,
+        &UOpenPocketBaseAsyncActionTestReceiver::HandleAdminDocumentFailure);
+    Action->Activate();
+
+    TestTrue(TEXT("A shut-down admin client reaches the Failed pin"), Receiver->bFailed);
+    TestEqual(
+        TEXT("The failure is an invalid argument"),
+        Receiver->Error.Kind,
+        EOpenPocketBaseErrorKind::InvalidArgument);
+    TestEqual(
+        TEXT("The failure identifies the unavailable admin client"),
+        Receiver->Error.Message,
+        FString(TEXT("The privileged PocketBase client is missing or has already shut down. Create or retrieve an active admin client before starting this operation.")));
+    return true;
 }
 }
 
