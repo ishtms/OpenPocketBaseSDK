@@ -324,10 +324,16 @@ FString UOpenPocketBaseStringLibrary::FormatStruct(
         }
     }
 
-    return FString::Printf(
-        TEXT("%s\n%s"),
-        *StructType->GetDisplayNameText().ToString(),
-        *Json);
+    FString TypeName;
+#if WITH_EDITORONLY_DATA
+    TypeName = StructType->GetDisplayNameText().ToString();
+#endif
+    if (TypeName.IsEmpty())
+    {
+        TypeName = FName::NameToDisplayString(StructType->GetAuthoredName(), false);
+    }
+
+    return FString::Printf(TEXT("%s\n%s"), *TypeName, *Json);
 }
 
 FString UOpenPocketBaseStringLibrary::FormatEnum(const UEnum* EnumType, int64 Value)
@@ -337,8 +343,18 @@ FString UOpenPocketBaseStringLibrary::FormatEnum(const UEnum* EnumType, int64 Va
         return LexToString(Value);
     }
 
-    const FText DisplayName = EnumType->GetDisplayNameTextByValue(Value);
-    return DisplayName.IsEmpty() ? LexToString(Value) : DisplayName.ToString();
+    FString DisplayName;
+#if WITH_EDITORONLY_DATA
+    DisplayName = EnumType->GetDisplayNameTextByValue(Value).ToString();
+#endif
+    if (DisplayName.IsEmpty())
+    {
+        const FString AuthoredName = EnumType->GetAuthoredNameStringByValue(Value);
+        DisplayName = AuthoredName.IsEmpty()
+            ? LexToString(Value)
+            : FName::NameToDisplayString(AuthoredName, false);
+    }
+    return DisplayName;
 }
 
 #define OPENPOCKETBASE_IMPLEMENT_STRUCT_STRING(Suffix, Type) \

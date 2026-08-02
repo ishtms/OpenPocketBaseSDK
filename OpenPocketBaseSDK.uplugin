@@ -41,12 +41,18 @@
     {
       "Name": "OpenPocketBaseSDKTests",
       "Type": "DeveloperTool",
-      "LoadingPhase": "PostDefault"
+      "LoadingPhase": "PostDefault",
+      "TargetAllowList": [
+        "Editor"
+      ]
     },
     {
       "Name": "OpenPocketBaseSDKPublicHeaders",
       "Type": "DeveloperTool",
-      "LoadingPhase": "None"
+      "LoadingPhase": "None",
+      "TargetAllowList": [
+        "Editor"
+      ]
     }
   ]
 }
