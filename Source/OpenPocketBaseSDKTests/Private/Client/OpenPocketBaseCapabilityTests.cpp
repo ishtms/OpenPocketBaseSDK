@@ -176,4 +176,34 @@ bool FOpenPocketBaseRealtimeCapabilityGateTest::RunTest(const FString& Parameter
     return true;
 }
 
+#if PLATFORM_WINDOWS && PLATFORM_CPU_X86_FAMILY
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseWindowsHttpStreamingCapabilityTest,
+    "OpenPocketBase.Client.Capabilities.DefaultHttpTransportSupportsWindowsStreaming",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseWindowsHttpStreamingCapabilityTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseError Error;
+    const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client =
+        CreateOpenPocketBaseTestClient(Config, Error);
+    if (!TestTrue(TEXT("The native client is created"), Client.IsValid()))
+    {
+        return false;
+    }
+
+    TestTrue(TEXT("The built-in Windows HTTP transport supports incremental response streaming"),
+        Client->GetCapability(EOpenPocketBaseCapability::HttpStreaming).Status ==
+            EOpenPocketBaseCapabilityStatus::Supported);
+    TestTrue(TEXT("The capability reason identifies Windows"),
+        Client->GetCapability(EOpenPocketBaseCapability::HttpStreaming).Reason.Contains(TEXT("Windows")));
+    Client->Shutdown();
+    return true;
+}
+
+#endif
+
 #endif

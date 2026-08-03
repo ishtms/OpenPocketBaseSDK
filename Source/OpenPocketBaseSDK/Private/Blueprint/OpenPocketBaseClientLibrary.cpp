@@ -3,6 +3,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "OpenPocketBaseProjectSettings.h"
 #include "OpenPocketBaseSubsystem.h"
 
 namespace
@@ -116,6 +117,21 @@ bool UOpenPocketBaseClientLibrary::InitializePocketBase(
 {
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = BaseUrl;
+    return GetOrCreateClient(WorldContextObject, NAME_None, Config, Client, Error);
+}
+
+bool UOpenPocketBaseClientLibrary::InitializePocketBaseFromProjectSettings(
+    const UObject* WorldContextObject,
+    const FName Profile,
+    UOpenPocketBaseClient*& Client,
+    FOpenPocketBaseError& Error)
+{
+    Client = nullptr;
+    FOpenPocketBaseClientConfig Config;
+    if (!GetDefault<UOpenPocketBaseProjectSettings>()->TryResolveProfile(Profile, Config, Error))
+    {
+        return false;
+    }
     return GetOrCreateClient(WorldContextObject, NAME_None, Config, Client, Error);
 }
 

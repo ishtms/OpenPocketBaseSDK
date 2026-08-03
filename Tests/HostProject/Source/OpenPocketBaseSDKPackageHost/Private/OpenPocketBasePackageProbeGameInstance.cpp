@@ -62,6 +62,16 @@ void UOpenPocketBasePackageProbeGameInstance::Init()
 {
     Super::Init();
 
+    const FString RawStreamingOrigin = FPlatformMisc::GetEnvironmentVariable(
+        TEXT("OPENPOCKETBASE_PACKAGE_RAW_STREAM_ORIGIN"));
+    if (!RawStreamingOrigin.IsEmpty())
+    {
+        TransferOrigin = RawStreamingOrigin;
+        UE_LOG(LogTemp, Display, TEXT("OPENPOCKETBASE_PACKAGED_RAW_STREAMING_STARTED"));
+        BeginStreamingProbe();
+        return;
+    }
+
     const FString Origin = FPlatformMisc::GetEnvironmentVariable(TEXT("OPENPOCKETBASE_PACKAGE_TLS_ORIGIN"));
     TransferOrigin = FPlatformMisc::GetEnvironmentVariable(
         TEXT("OPENPOCKETBASE_PACKAGE_TRANSFER_ORIGIN"));

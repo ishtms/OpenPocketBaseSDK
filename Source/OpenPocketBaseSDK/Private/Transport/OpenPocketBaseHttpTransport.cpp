@@ -99,7 +99,10 @@ class FOpenPocketBaseHttpTransport final : public IOpenPocketBaseTransport
 public:
     virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const override
     {
-#if PLATFORM_MAC && PLATFORM_CPU_ARM_FAMILY
+#if PLATFORM_WINDOWS && PLATFORM_CPU_X86_FAMILY
+        OutReason = TEXT("Incremental Unreal HTTP streaming is packaged-proven on Windows x64.");
+        return true;
+#elif PLATFORM_MAC && PLATFORM_CPU_ARM_FAMILY
         OutReason = TEXT("Incremental Unreal HTTP streaming is packaged-proven on Mac ARM64.");
         return true;
 #else

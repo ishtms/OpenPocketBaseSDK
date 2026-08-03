@@ -55,6 +55,26 @@ public:
 
     UFUNCTION(
         BlueprintCallable,
+        Category = "Open PocketBase|Client",
+        meta = (
+            DisplayName = "Initialize PocketBase from Project Settings",
+            WorldContext = "WorldContextObject",
+            DefaultToSelf = "WorldContextObject",
+            HidePin = "WorldContextObject",
+            ExpandBoolAsExecs = "ReturnValue",
+            ReturnDisplayName = "Succeeded",
+            AdvancedDisplay = "Profile",
+            CPP_Default_Profile = "None",
+            ToolTip = "Creates the default PocketBase client using a profile configured in Project Settings.",
+            Keywords = "pocketbase setup connect client profile settings start"))
+    static bool InitializePocketBaseFromProjectSettings(
+        const UObject* WorldContextObject,
+        FName Profile,
+        UOpenPocketBaseClient*& Client,
+        FOpenPocketBaseError& Error);
+
+    UFUNCTION(
+        BlueprintCallable,
         Category = "Open PocketBase|Client|Advanced",
         meta = (
             DisplayName = "Initialize PocketBase with Config",

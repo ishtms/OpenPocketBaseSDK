@@ -20,7 +20,7 @@ export const referencePages: DocPage[] = [
               ["Authentication", "Password, OTP, MFA continuation, manual OAuth2, account actions, refresh coordination, and session events implemented"],
               ["Secure persistence", "Opt-in and fail-closed, packaged-proven on Mac ARM64"],
               ["Files", "Multipart mutations, URLs, tokens, memory and disk downloads implemented, packaged streaming proven on Mac ARM64"],
-              ["Realtime", "Shared SSE connection, owned listeners, reconnect, and gap signaling implemented, packaged-proven on Mac ARM64"],
+              ["Realtime", "Incremental SSE transport is packaged-proven on Mac ARM64 and Windows x64; full realtime manager proof currently covers Mac ARM64"],
               ["Batches", "Explicit transactional create, update, upsert, and delete implemented"],
               ["Custom routes", "JSON, form, multipart, raw, and binary request formats implemented"],
               ["Privileged API", "Implemented in a separate Development Only module excluded from Shipping"],
@@ -78,6 +78,7 @@ export const referencePages: DocPage[] = [
             ["Node", "Kind", "Purpose"],
             [
               ["Initialize PocketBase", "Callable with success/failure paths", "Create the default Game Instance client from an origin"],
+              ["Initialize PocketBase from Project Settings", "Callable with success/failure paths", "Create the default client from a configured project profile"],
               ["Initialize PocketBase with Config", "Advanced callable", "Create the default client with full policy"],
               ["Get PocketBase Client", "Pure", "Retrieve the default client"],
               ["Create Named PocketBase Client", "Advanced callable", "Create a separate named client"],

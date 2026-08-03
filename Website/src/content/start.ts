@@ -38,7 +38,7 @@ export const startPages: DocPage[] = [
             [
               ["HTTP records and auth", "Implemented", "Available through the core runtime module."],
               ["Secure persistence", "Platform-gated", "Apple Keychain is implemented on Mac and iOS. Packaged proof currently covers Mac ARM64."],
-              ["Streaming and realtime", "Platform-gated", "Packaged proof currently covers Mac ARM64."],
+              ["Streaming and realtime", "Platform-gated", "Incremental streaming is packaged-proven on Mac ARM64 and Windows x64. Full realtime manager proof currently covers Mac ARM64."],
               ["Privileged API", "Development only", "The complete admin module is excluded from Shipping by default."],
               ["Offline outbox", "Optional module", "Never enabled by ordinary record calls and never changes their semantics."]
             ]
