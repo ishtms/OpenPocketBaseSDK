@@ -310,6 +310,48 @@ bool FOpenPocketBaseReadRetryPolicyTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseRateLimitRetryPolicyTest,
+    "OpenPocketBase.Client.RequestPolicy.RetriesRateLimitedReads",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseRateLimitRetryPolicyTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FRetryPolicyState, ESPMode::ThreadSafe> State =
+        MakeShared<FRetryPolicyState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FRetryPolicyTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseHttpResponse RateLimited = MakePolicyRecordResponse(429);
+    RateLimited.Headers.Add(TEXT("Retry-After"), TEXT("0"));
+    State->Transport->Responses.Add(MoveTemp(RateLimited));
+    State->Transport->Responses.Add(MakePolicyRecordResponse(200));
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestNotNull(TEXT("The client is created"), State->Client.Get()))
+    {
+        return false;
+    }
+
+    FOpenPocketBaseRequestOptions Options;
+    Options.MaxReadRetries = 1;
+    Options.RetryBaseDelaySeconds = 0;
+    Options.RetryMaxDelaySeconds = 0;
+    Options.RetryJitterFraction = 0;
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(
+        TEXT("retry123"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bSucceeded = Result.IsSuccess();
+            State->bCompleted = true;
+        },
+        Options);
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyRetryPolicy(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseMutationRetryPolicyTest,
     "OpenPocketBase.Client.RequestPolicy.DoesNotRetryPasswordAuth",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -430,6 +430,33 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringArrayField(
     return *this;
 }
 
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::RemoveFiles(
+    const FOpenPocketBaseFileFieldRef& Field,
+    const TArray<FString>& FileNames)
+{
+    FOpenPocketBaseFieldRef Current;
+    if (!AcceptField(Field, Current))
+    {
+        return *this;
+    }
+    if (!FOpenPocketBaseFileFieldRef::Accepts(Current))
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Field '%s' is not a file field. Choose a file field from the schema."),
+            *Current.Name));
+    }
+    if (FileNames.IsEmpty())
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("File field '%s' requires at least one existing file name to remove."),
+            *Current.Name));
+    }
+    GetOrCreateBodyObject(*this)->SetArrayField(
+        MakeModifiedFieldName(Current.Name, EOpenPocketBaseFieldModifier::Remove),
+        StringValues(FileNames));
+    return *this;
+}
+
 FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDateField(
     const FOpenPocketBaseDateFieldRef& Field,
     const FDateTime& Value)
@@ -804,6 +831,26 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetDynamicStringArrayField
     GetOrCreateBodyObject(*this)->SetArrayField(
         MakeModifiedFieldName(FieldName, Modifier),
         StringValues(Value));
+    return *this;
+}
+
+FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::RemoveDynamicFiles(
+    const FString& FieldName,
+    const TArray<FString>& FileNames)
+{
+    if (!ValidateDynamicField(*this, FieldName))
+    {
+        return *this;
+    }
+    if (FileNames.IsEmpty())
+    {
+        return InvalidateBody(*this, FString::Printf(
+            TEXT("Dynamic file field '%s' requires at least one existing file name to remove."),
+            *FieldName));
+    }
+    GetOrCreateBodyObject(*this)->SetArrayField(
+        MakeModifiedFieldName(FieldName, EOpenPocketBaseFieldModifier::Remove),
+        StringValues(FileNames));
     return *this;
 }
 

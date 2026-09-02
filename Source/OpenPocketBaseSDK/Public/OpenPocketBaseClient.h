@@ -429,7 +429,7 @@ private:
         TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
         TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser);
 
-    TUniquePtr<FImpl> Impl;
+    TSharedPtr<FImpl, ESPMode::ThreadSafe> Impl;
 
     friend class FOpenPocketBaseCollectionService;
     friend class FOpenPocketBaseWritableCollectionService;

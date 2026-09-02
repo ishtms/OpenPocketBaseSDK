@@ -123,6 +123,17 @@ bool FOpenPocketBaseCapabilityReportTest::RunTest(const FString& Parameters)
         Client->GetCapability(EOpenPocketBaseCapability::HttpStreaming).Status,
         Streaming.Status);
 
+    const FOpenPocketBaseCapabilityInfo Privileged =
+        Client->GetCapability(EOpenPocketBaseCapability::PrivilegedModule);
+    TestEqual(
+        TEXT("The installed privileged module is reported as supported"),
+        Privileged.Status,
+        EOpenPocketBaseCapabilityStatus::Supported);
+    TestTrue(
+        TEXT("The offline boundary remains accurately unsupported"),
+        Client->GetCapability(EOpenPocketBaseCapability::OfflineModule).Status ==
+            EOpenPocketBaseCapabilityStatus::Unsupported);
+
     TestNotNull(TEXT("Blueprint exposes the single-capability query"),
         UOpenPocketBaseClient::StaticClass()->FindFunctionByName(TEXT("GetCapability")));
     TestNotNull(TEXT("Blueprint exposes the complete report query"),

@@ -78,13 +78,13 @@ export function Icon({ name, ...props }: { name: IconName } & SVGProps<SVGSVGEle
   );
 }
 
-export function OpenMobileMark({ className }: { className?: string }) {
+export function PocketBaseMark({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <path d="M20 2c5.2 0 8.2 6 5 10.2L20 18.5 15 12.2C11.8 8 14.8 2 20 2Z" fill="currentColor" />
-      <path d="M38 20c0 5.2-6 8.2-10.2 5L21.5 20l6.3-5C32 11.8 38 14.8 38 20Z" fill="currentColor" />
-      <path d="M20 38c-5.2 0-8.2-6-5-10.2l5-6.3 5 6.3C28.2 32 25.2 38 20 38Z" fill="currentColor" />
-      <path d="M2 20c0-5.2 6-8.2 10.2-5l6.3 5-6.3 5C8 28.2 2 25.2 2 20Z" fill="currentColor" />
+      <path d="M20 3 34 10.8v18.4L20 37 6 29.2V10.8L20 3Z" fill="currentColor" opacity=".14" />
+      <path d="M20 3 34 10.8 20 18.6 6 10.8 20 3Z" stroke="currentColor" strokeWidth="2.2" />
+      <path d="M6 10.8v18.4L20 37l14-7.8V10.8M20 18.6V37" stroke="currentColor" strokeWidth="2.2" />
+      <circle cx="20" cy="18.6" r="3.2" fill="currentColor" />
     </svg>
   );
 }

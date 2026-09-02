@@ -522,6 +522,44 @@ private:
     TSharedRef<FPasswordResetValidationState, ESPMode::ThreadSafe> State;
     FAutomationTestBase* Test;
 };
+
+struct FPasswordResetSessionState
+{
+    TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
+    TSharedPtr<FAccountOperationsTransport, ESPMode::ThreadSafe> Transport;
+    bool bCompleted = false;
+    bool bResetSucceeded = false;
+    bool bSessionCleared = false;
+};
+
+class FVerifyPasswordResetSession final : public IAutomationLatentCommand
+{
+public:
+    FVerifyPasswordResetSession(
+        TSharedRef<FPasswordResetSessionState, ESPMode::ThreadSafe> InState,
+        FAutomationTestBase* InTest)
+        : State(MoveTemp(InState))
+        , Test(InTest)
+    {
+    }
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        Test->TestTrue(TEXT("Password reset confirmation succeeds"), State->bResetSucceeded);
+        Test->TestTrue(TEXT("A matching password reset clears the invalidated local session"), State->bSessionCleared);
+        Test->TestEqual(TEXT("Authentication and reset each reach the transport"), State->Transport->Requests.Num(), 2);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPasswordResetSessionState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -582,6 +620,58 @@ bool FOpenPocketBaseAccountOperationsTest::RunTest(const FString& Parameters)
         MakeShared<FAccountOperationsFlow, ESPMode::ThreadSafe>(State);
     Flow->Start();
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyAccountOperations(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBasePasswordResetSessionTest,
+    "OpenPocketBase.Client.Authentication.PasswordResetClearsMatchingSession",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBasePasswordResetSessionTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FPasswordResetSessionState, ESPMode::ThreadSafe> State =
+        MakeShared<FPasswordResetSessionState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FAccountOperationsTransport, ESPMode::ThreadSafe>();
+    State->Transport->AddResponse(
+        200,
+        TEXT("{\"token\":\"login.token.signature\",\"record\":{")
+        TEXT("\"id\":\"user00000000001\",\"collectionId\":\"users_id\",")
+        TEXT("\"collectionName\":\"sdk_users\",\"created\":\"\",\"updated\":\"\"}}"));
+    State->Transport->AddResponse(204);
+
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestTrue(TEXT("The password-reset client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+
+    State->Client->DynamicCollection(TEXT("sdk_users")).AuthWithPassword(
+        TEXT("player@example.com"),
+        TEXT("old-password"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>&& AuthResult)
+        {
+            if (!AuthResult.IsSuccess())
+            {
+                State->bCompleted = true;
+                return;
+            }
+            State->Client->DynamicCollection(TEXT("sdk_users")).ConfirmPasswordReset(
+                AccountToken(TEXT("user00000000001"), TEXT("users_id")),
+                TEXT("replacement-password"),
+                TEXT("replacement-password"),
+                [State](TOpenPocketBaseResult<bool>&& ResetResult)
+                {
+                    State->bResetSucceeded = ResetResult.IsSuccess();
+                    State->bSessionCleared = !State->Client->IsAuthenticated();
+                    State->bCompleted = true;
+                });
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyPasswordResetSession(State, this));
     return true;
 }
 

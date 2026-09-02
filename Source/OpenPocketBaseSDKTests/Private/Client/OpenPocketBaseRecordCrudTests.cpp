@@ -12,7 +12,7 @@
 
 namespace
 {
-TArray<uint8> ToUtf8(const FString& Value)
+TArray<uint8> RecordCrudToUtf8(const FString& Value)
 {
     FTCHARToUTF8 Converted(*Value);
     TArray<uint8> Bytes;
@@ -63,13 +63,13 @@ public:
         Response.EffectiveUrl = Request.Url;
         if (bIsFirst)
         {
-            Response.Body = ToUtf8(
+            Response.Body = RecordCrudToUtf8(
                 TEXT("{\"page\":1,\"perPage\":1,\"totalItems\":-1,\"totalPages\":-1,\"items\":[{")
                 TEXT("\"id\":\"first123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\",\"title\":\"First\"}]}"));
         }
         else if (bIsList)
         {
-            Response.Body = ToUtf8(
+            Response.Body = RecordCrudToUtf8(
                 TEXT("{\"page\":1,\"perPage\":5,\"totalItems\":1,\"totalPages\":1,\"items\":[{")
                 TEXT("\"id\":\"list123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"renamed_tasks\",")
                 TEXT("\"created\":\"2026-08-23 16:00:56.310Z\",\"updated\":\"2026-08-23 16:00:56.310Z\",")
@@ -77,7 +77,7 @@ public:
         }
         else if (!bIsDelete)
         {
-            Response.Body = ToUtf8(
+            Response.Body = RecordCrudToUtf8(
                 TEXT("{\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\",")
                 TEXT("\"created\":\"2026-08-23 16:00:56.310Z\",\"updated\":\"2026-08-23 16:00:56.310Z\",")
                 TEXT("\"title\":\"Saved\",\"futureField\":{\"kept\":true},\"expand\":{")
@@ -522,7 +522,7 @@ bool FOpenPocketBaseRecordMutationErrorTest::RunTest(const FString& Parameters)
     FOpenPocketBaseHttpResponse ValidationResponse;
     ValidationResponse.bTransportSucceeded = true;
     ValidationResponse.HttpStatus = 400;
-    ValidationResponse.Body = ToUtf8(
+    ValidationResponse.Body = RecordCrudToUtf8(
         TEXT("{\"status\":400,\"message\":\"Failed to create record.\",\"data\":{")
         TEXT("\"title\":{\"code\":\"validation_required\",\"message\":\"Missing required value.\"}}}"));
     State->Transport->Responses.Add(MoveTemp(ValidationResponse));
@@ -530,7 +530,7 @@ bool FOpenPocketBaseRecordMutationErrorTest::RunTest(const FString& Parameters)
     FOpenPocketBaseHttpResponse RuleResponse;
     RuleResponse.bTransportSucceeded = true;
     RuleResponse.HttpStatus = 403;
-    RuleResponse.Body = ToUtf8(
+    RuleResponse.Body = RecordCrudToUtf8(
         TEXT("{\"status\":403,\"message\":\"Only authenticated users can perform this action.\",\"data\":{}}"));
     State->Transport->Responses.Add(MoveTemp(RuleResponse));
 
@@ -604,7 +604,7 @@ bool FOpenPocketBaseAuthCreateIgnoresServerManagedFieldsTest::RunTest(
     FOpenPocketBaseHttpResponse Response;
     Response.bTransportSucceeded = true;
     Response.HttpStatus = 200;
-    Response.Body = ToUtf8(
+    Response.Body = RecordCrudToUtf8(
         TEXT("{\"id\":\"user123\",\"collectionId\":\"users_id\",")
         TEXT("\"collectionName\":\"users\",\"email\":\"new-user@example.com\"}"));
     Transport->Responses.Add(MoveTemp(Response));

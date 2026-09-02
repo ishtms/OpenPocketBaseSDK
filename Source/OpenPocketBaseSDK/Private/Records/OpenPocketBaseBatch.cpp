@@ -6,7 +6,7 @@
 namespace
 {
 template <typename ValueType>
-FString JoinQueryValues(const TArray<ValueType>& Values)
+FString JoinBatchQueryValues(const TArray<ValueType>& Values)
 {
     TArray<FString> QueryValues;
     QueryValues.Reserve(Values.Num());
@@ -27,7 +27,7 @@ FString FOpenPocketBaseBatchEntry::GetCollectionName() const
 FString FOpenPocketBaseBatchEntry::GetExpandQuery() const
 {
     return Collection.IsSet()
-        ? JoinQueryValues(ResponseOptions.Expand)
+        ? JoinBatchQueryValues(ResponseOptions.Expand)
         : FString::Join(DynamicExpand, TEXT(","));
 }
 

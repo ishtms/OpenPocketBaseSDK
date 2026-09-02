@@ -266,7 +266,7 @@ if (!Settings->TryResolveProfile(TEXT("production"), Config, Error))
               ["HttpStreaming", "Incremental uploads, downloads, and response streaming"],
               ["SecurePersistence", "A platform secure store suitable for auth sessions"],
               ["OAuthCallback", "A configured app-to-browser-to-app provider flow"],
-              ["OfflineModule", "The optional offline outbox module"],
+              ["OfflineModule", "Reserved offline module boundary; unsupported until a public offline API ships"],
               ["EditorMock", "Editor-only scripted transport support"],
               ["PrivilegedModule", "Availability of trusted admin tooling"]
             ]

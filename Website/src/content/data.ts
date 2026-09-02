@@ -371,7 +371,7 @@ Client->Collection(TEXT("tasks")).GetFullList(Options, OnFullList);`
           paragraph(
             "PocketBase batches are opt-in. Configure batch.enabled, batch.maxRequests, batch.timeout, and batch.maxBodySize on the server. If support is disabled, the SDK reports Unsupported with server code batch_disabled."
           ),
-          callout("warning", "A batch is never implicit", "Ordinary record calls and offline mutations are not gathered into a batch. The caller must create FOpenPocketBaseBatchRequest and send it explicitly."),
+          callout("warning", "A batch is never implicit", "Ordinary record calls are not gathered into a batch. The caller must create FOpenPocketBaseBatchRequest and send it explicitly."),
         ],
       },
       {

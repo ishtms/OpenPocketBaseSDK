@@ -18,6 +18,7 @@
 #include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/SecureHash.h"
+#include "Modules/ModuleManager.h"
 #include "Query/OpenPocketBaseRecordQuery.h"
 #include "Request/OpenPocketBaseRequestState.h"
 #include "Realtime/OpenPocketBaseRealtimeManager.h"
@@ -1617,7 +1618,8 @@ bool IsRetryableReadResponse(const FOpenPocketBaseHttpResponse& Response)
     {
         return true;
     }
-    return Response.HttpStatus == 502 || Response.HttpStatus == 503 || Response.HttpStatus == 504;
+    return Response.HttpStatus == 429 || Response.HttpStatus == 502 ||
+        Response.HttpStatus == 503 || Response.HttpStatus == 504;
 }
 
 double GetRetryAfterSeconds(const FOpenPocketBaseHttpResponse& Response)
@@ -1811,6 +1813,7 @@ private:
 }
 
 struct FOpenPocketBaseClient::FImpl
+    : public TSharedFromThis<FImpl, ESPMode::ThreadSafe>
 {
     class FSessionEventQueue final
         : public TSharedFromThis<FSessionEventQueue, ESPMode::ThreadSafe>
@@ -1902,7 +1905,7 @@ struct FOpenPocketBaseClient::FImpl
     {
     public:
         FAuthorizedRequestOperation(
-            FImpl* InImpl,
+            TSharedRef<FImpl, ESPMode::ThreadSafe> InImpl,
             TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> InClient,
             FOpenPocketBaseHttpRequest InRequest,
             FOpenPocketBaseRequestOptions InOptions,
@@ -2050,7 +2053,7 @@ struct FOpenPocketBaseClient::FImpl
             }
         }
 
-        FImpl* Impl;
+        TSharedRef<FImpl, ESPMode::ThreadSafe> Impl;
         TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client;
         FOpenPocketBaseHttpRequest Request;
         FOpenPocketBaseRequestOptions Options;
@@ -2115,20 +2118,33 @@ struct FOpenPocketBaseClient::FImpl
     {
         const FString Binding = BaseUrl + TEXT("|") + Config.ProfileName;
         SecureStorageKey = TEXT("openpocketbase.session.") + FMD5::HashAnsiString(*Binding);
+    }
+
+    void InitializeRealtime()
+    {
+        const TWeakPtr<FImpl, ESPMode::ThreadSafe> WeakThis = AsShared();
         Realtime = MakeShared<OpenPocketBase::Realtime::FConnectionManager, ESPMode::ThreadSafe>(
             BaseUrl,
             Config.DefaultHeaders,
             Config.AcceptLanguage,
             Transport,
             Clock,
-            [this]()
+            [WeakThis]()
             {
-                FScopeLock Lock(&AuthMutex);
-                return bHasAuthRecord ? AuthToken : FString();
+                const TSharedPtr<FImpl, ESPMode::ThreadSafe> Self = WeakThis.Pin();
+                if (!Self.IsValid() || Self->bShutdown.load(std::memory_order_acquire))
+                {
+                    return FString();
+                }
+                FScopeLock Lock(&Self->AuthMutex);
+                return Self->bHasAuthRecord ? Self->AuthToken : FString();
             },
-            [this]()
+            [WeakThis]()
             {
-                return !bShutdown.load(std::memory_order_acquire) && Owner.IsValid();
+                const TSharedPtr<FImpl, ESPMode::ThreadSafe> Self = WeakThis.Pin();
+                return Self.IsValid() &&
+                    !Self->bShutdown.load(std::memory_order_acquire) &&
+                    Self->Owner.IsValid();
             });
     }
 
@@ -2591,24 +2607,30 @@ struct FOpenPocketBaseClient::FImpl
         const FString RequestKey = bEligibleRead && Options.bCancelPreviousRequestWithSameKey
             ? Options.RequestKey
             : FString();
+        const TWeakPtr<FImpl, ESPMode::ThreadSafe> WeakThis = AsShared();
         const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State =
             MakeShared<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>(
                 RequestId,
                 MoveTemp(OnCancelling),
                 MoveTemp(OnCancelled),
-                [this, RequestId, RequestKey]()
+                [WeakThis, RequestId, RequestKey]()
                 {
-                    FScopeLock Lock(&RequestsMutex);
-                    Requests.Remove(RequestId);
+                    const TSharedPtr<FImpl, ESPMode::ThreadSafe> Self = WeakThis.Pin();
+                    if (!Self.IsValid())
+                    {
+                        return;
+                    }
+                    FScopeLock Lock(&Self->RequestsMutex);
+                    Self->Requests.Remove(RequestId);
                     if (!RequestKey.IsEmpty())
                     {
                         const TWeakPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>* KeyState =
-                            RequestKeys.Find(RequestKey);
+                            Self->RequestKeys.Find(RequestKey);
                         const TSharedPtr<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> PinnedKeyState =
                             KeyState != nullptr ? KeyState->Pin() : nullptr;
                         if (!PinnedKeyState.IsValid() || PinnedKeyState->GetRequestId() == RequestId)
                         {
-                            RequestKeys.Remove(RequestKey);
+                            Self->RequestKeys.Remove(RequestKey);
                         }
                     }
                 });
@@ -2643,7 +2665,7 @@ struct FOpenPocketBaseClient::FImpl
         {
             const TSharedRef<FAuthorizedRequestOperation, ESPMode::ThreadSafe> Operation =
                 MakeShared<FAuthorizedRequestOperation, ESPMode::ThreadSafe>(
-                    this,
+                    AsShared(),
                     Owner,
                     MoveTemp(Request),
                     Options,
@@ -2670,15 +2692,21 @@ struct FOpenPocketBaseClient::FImpl
         TUniqueFunction<void()> OnCancelled)
     {
         const uint64 RequestId = NextRequestId.fetch_add(1, std::memory_order_relaxed);
+        const TWeakPtr<FImpl, ESPMode::ThreadSafe> WeakThis = AsShared();
         const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe> State =
             MakeShared<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>(
                 RequestId,
                 TUniqueFunction<void()>(),
                 MoveTemp(OnCancelled),
-                [this, RequestId]()
+                [WeakThis, RequestId]()
                 {
-                    FScopeLock Lock(&RequestsMutex);
-                    Requests.Remove(RequestId);
+                    const TSharedPtr<FImpl, ESPMode::ThreadSafe> Self = WeakThis.Pin();
+                    if (!Self.IsValid())
+                    {
+                        return;
+                    }
+                    FScopeLock Lock(&Self->RequestsMutex);
+                    Self->Requests.Remove(RequestId);
                 });
         {
             FScopeLock Lock(&RequestsMutex);
@@ -4080,7 +4108,7 @@ FOpenPocketBaseClient::FOpenPocketBaseClient(
     TSharedRef<IOpenPocketBaseSecureStore, ESPMode::ThreadSafe> SecureStore,
     TSharedRef<IOpenPocketBaseClock, ESPMode::ThreadSafe> Clock,
     TSharedRef<IOpenPocketBaseOAuthBrowser, ESPMode::ThreadSafe> OAuthBrowser)
-    : Impl(MakeUnique<FImpl>(
+    : Impl(MakeShared<FImpl, ESPMode::ThreadSafe>(
         MoveTemp(Config),
         MoveTemp(NormalizedBaseUrl),
         MoveTemp(Transport),
@@ -4088,6 +4116,7 @@ FOpenPocketBaseClient::FOpenPocketBaseClient(
         MoveTemp(Clock),
         MoveTemp(OAuthBrowser)))
 {
+    Impl->InitializeRealtime();
 }
 
 FOpenPocketBaseClient::~FOpenPocketBaseClient()
@@ -4564,8 +4593,16 @@ FOpenPocketBaseCapabilityInfo FOpenPocketBaseClient::GetCapability(
 #endif
         break;
     case EOpenPocketBaseCapability::PrivilegedModule:
-        Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
-        Info.Reason = TEXT("The optional privileged API module is not implemented.");
+        if (FModuleManager::Get().ModuleExists(TEXT("OpenPocketBaseSDKAdmin")))
+        {
+            Info.Status = EOpenPocketBaseCapabilityStatus::Supported;
+            Info.Reason = TEXT("The optional privileged API module is installed for this target.");
+        }
+        else
+        {
+            Info.Status = EOpenPocketBaseCapabilityStatus::Unavailable;
+            Info.Reason = TEXT("The optional privileged API module is not installed for this target.");
+        }
         break;
     default:
         Info.Status = EOpenPocketBaseCapabilityStatus::Unsupported;
@@ -5337,17 +5374,37 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
         Options.RequestOptions,
         false);
     Request.Url = MoveTemp(Url);
-    Request.bStreamResponse = true;
+    FString StreamingReason;
+    const bool bUseStreaming =
+        PinnedClient->Impl->Transport->IsIncrementalResponseStreamingAvailable(StreamingReason);
+    Request.bStreamResponse = bUseStreaming;
+
+    FOpenPocketBaseHttpChunkCallback OnChunk;
+    if (bUseStreaming)
+    {
+        OnChunk = [Sink, Progress](const TArrayView<const uint8> Chunk)
+        {
+            Sink->Receive(Chunk);
+            if (Progress.IsValid())
+            {
+                Progress->Report(
+                    Sink->GetTransferredBytes(),
+                    {},
+                    EOpenPocketBaseTransferPhase::Downloading);
+            }
+        };
+    }
 
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options.RequestOptions,
         false,
-        [Completion, Sink, Progress, ProtectedToken = MoveTemp(ProtectedToken)](
+        [Completion, Sink, Progress, bUseStreaming, ProtectedToken = MoveTemp(ProtectedToken)](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
-            TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult> Result = [&Response, &Sink]()
+            TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult> Result =
+                [&Response, &Sink, bUseStreaming]()
             {
                 TOpenPocketBaseResult<bool> Status = OpenPocketBase::Json::ParseEmptyResponse(Response);
                 if (!Status.IsSuccess())
@@ -5355,6 +5412,11 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
                     Sink->Abort();
                     return TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Failure(
                         Status.GetError());
+                }
+
+                if (!bUseStreaming && !Response.Body.IsEmpty())
+                {
+                    Sink->Receive(MakeArrayView(Response.Body));
                 }
 
                 FOpenPocketBaseFileDownloadResult DownloadResult;
@@ -5409,17 +5471,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
                     MakeCancelledError()));
         },
         false,
-        [Sink, Progress](const TArrayView<const uint8> Chunk)
-        {
-            Sink->Receive(Chunk);
-            if (Progress.IsValid())
-            {
-                Progress->Report(
-                    Sink->GetTransferredBytes(),
-                    {},
-                    EOpenPocketBaseTransferPhase::Downloading);
-            }
-        },
+        MoveTemp(OnChunk),
         [Sink]()
         {
             Sink->Abort();
@@ -7464,6 +7516,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmPasswo
     FOpenPocketBaseBoolCallback OnComplete,
     FOpenPocketBaseRequestOptions Options) const
 {
+    FString ResetRecordId;
+    FString ResetCollectionId;
+    const bool bHasResetIdentity = TryDecodeJwtIdentity(
+        Token,
+        ResetRecordId,
+        ResetCollectionId);
+
     FString ValidationMessage;
     FString ValidationField;
     FString ValidationCode;
@@ -7514,11 +7573,32 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::ConfirmPasswo
     Body.Add(TEXT("token"), MoveTemp(Token));
     Body.Add(TEXT("password"), MoveTemp(Password));
     Body.Add(TEXT("passwordConfirm"), MoveTemp(PasswordConfirm));
+    const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> ClientToClear = Client;
     return SendAccountPost(
         TEXT("confirm-password-reset"),
         MoveTemp(Body),
         false,
-        MoveTemp(OnComplete),
+        [ClientToClear,
+         bHasResetIdentity,
+         ResetRecordId = MoveTemp(ResetRecordId),
+         ResetCollectionId = MoveTemp(ResetCollectionId),
+         OnComplete = MoveTemp(OnComplete)](TOpenPocketBaseResult<bool>&& Result) mutable
+        {
+            if (Result.IsSuccess() && bHasResetIdentity)
+            {
+                if (const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> PinnedClient =
+                        ClientToClear.Pin())
+                {
+                    PinnedClient->Impl->TryClearCurrentAuthIdentity(
+                        ResetRecordId,
+                        ResetCollectionId);
+                }
+            }
+            if (OnComplete)
+            {
+                OnComplete(MoveTemp(Result));
+            }
+        },
         MoveTemp(Options));
 }
 

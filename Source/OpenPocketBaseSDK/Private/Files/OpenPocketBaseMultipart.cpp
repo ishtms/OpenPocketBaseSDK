@@ -67,7 +67,7 @@ bool IsSafeContentType(const FString& Value)
     return true;
 }
 
-FString SanitizeFileName(const FString& Value)
+FString SanitizeMultipartFileName(const FString& Value)
 {
     FString Result = FPaths::GetCleanFilename(Value).Left(128);
     for (TCHAR& Character : Result)
@@ -332,6 +332,13 @@ bool Build(
     for (int32 FileIndex = 0; FileIndex < Files.Num(); ++FileIndex)
     {
         const FOpenPocketBaseFileInput& File = Files[FileIndex];
+        if (File.Modifier == EOpenPocketBaseFieldModifier::Remove)
+        {
+            OutError = MakeMultipartError(FString::Printf(
+                TEXT("File %d uses the Remove modifier. Remove existing files by name with With Files Removed on the record body instead of uploading file bytes."),
+                FileIndex + 1));
+            return false;
+        }
         const FString ModifiedField = FOpenPocketBaseRecordBody::MakeModifiedFieldName(
             File.GetFieldName(),
             File.Modifier);
@@ -351,8 +358,8 @@ bool Build(
         }
 
         const FString FileName = File.FileName.IsEmpty() && File.bUseFilePath
-            ? SanitizeFileName(File.FilePath)
-            : SanitizeFileName(File.FileName);
+            ? SanitizeMultipartFileName(File.FilePath)
+            : SanitizeMultipartFileName(File.FileName);
         const FString Header = FString::Printf(
             TEXT("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n")
             TEXT("Content-Type: %s\r\n\r\n"),
@@ -540,8 +547,8 @@ bool BuildForm(
         }
 
         const FString FileName = File.FileName.IsEmpty() && File.bUseFilePath
-            ? SanitizeFileName(File.FilePath)
-            : SanitizeFileName(File.FileName);
+            ? SanitizeMultipartFileName(File.FilePath)
+            : SanitizeMultipartFileName(File.FileName);
         const FString Header = FString::Printf(
             TEXT("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n")
             TEXT("Content-Type: %s\r\n\r\n"),

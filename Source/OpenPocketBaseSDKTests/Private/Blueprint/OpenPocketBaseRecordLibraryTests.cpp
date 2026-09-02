@@ -158,6 +158,13 @@ bool FOpenPocketBaseOptionsBlueprintSurfaceTest::RunTest(const FString& Paramete
         FOpenPocketBaseFullListOptions::StaticStruct()->GetMetaData(TEXT("HasNativeMake")),
         FString(TEXT("/Script/OpenPocketBaseSDK.OpenPocketBaseRecordLibrary.NewFullListOptions")));
 
+    const FOpenPocketBaseFullListOptions DefaultStructOptions;
+    const FOpenPocketBaseFullListOptions DefaultBlueprintOptions =
+        UOpenPocketBaseRecordLibrary::NewFullListOptions();
+    TestEqual(TEXT("Default C++ full-list options have a safe item bound"), DefaultStructOptions.MaxItems, 1000);
+    TestEqual(TEXT("Default Blueprint full-list options have a safe item bound"), DefaultBlueprintOptions.MaxItems, 1000);
+    TestEqual(TEXT("Default full-list options leave the optional page bound disabled"), DefaultBlueprintOptions.MaxPages, 0);
+
     const FRecordFieldFixture Fields;
     const FOpenPocketBaseFilter Filter = FOpenPocketBaseFilter::Boolean(
         Fields.Done,
@@ -255,6 +262,23 @@ bool FOpenPocketBaseRecordValueBuilderTest::RunTest(const FString& Parameters)
     TestFalse(
         TEXT("Pure body nodes add the new field"),
         WithDone.Data.JsonObject->GetBoolField(TEXT("done")));
+
+    const UFunction* RemoveFilesFunction =
+        UOpenPocketBaseRecordLibrary::StaticClass()->FindFunctionByName(TEXT("WithFilesRemoved"));
+    TestNotNull(TEXT("Blueprint exposes typed file removal by existing file name"), RemoveFilesFunction);
+    const FOpenPocketBaseRecordBody WithRemovedFiles =
+        UOpenPocketBaseRecordLibrary::WithDynamicFilesRemoved(
+            WithDone,
+            TEXT("attachments"),
+            {TEXT("old-a.txt"), TEXT("old-b.txt")});
+    TestTrue(TEXT("Dynamic file removal keeps the body valid"), WithRemovedFiles.IsValid());
+    TestEqual(
+        TEXT("Blueprint file removal uses the PocketBase field-minus key"),
+        WithRemovedFiles.Data.JsonObject->GetArrayField(TEXT("attachments-")).Num(),
+        2);
+    TestFalse(
+        TEXT("Pure file-removal nodes do not mutate the source body"),
+        WithDone.Data.JsonObject->HasField(TEXT("attachments-")));
 
     FOpenPocketBaseRecordBody NativeBody;
     NativeBody

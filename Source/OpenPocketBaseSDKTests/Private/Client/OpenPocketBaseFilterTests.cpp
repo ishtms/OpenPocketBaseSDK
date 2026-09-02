@@ -90,6 +90,42 @@ bool FOpenPocketBaseFilterValidationTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseFilterNumberEncodingTest,
+    "OpenPocketBase.Client.Filters.EmitsPlainDecimalNumbers",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseFilterNumberEncodingTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseDynamicFilterParams Params;
+    TestTrue(TEXT("Very small numbers are accepted"), Params.AddNumber(TEXT("small"), 1.0e-20));
+    TestTrue(TEXT("Very large numbers are accepted"), Params.AddNumber(TEXT("large"), 1.0e20));
+    TestTrue(TEXT("Negative numbers are accepted"), Params.AddNumber(TEXT("negative"), -1.0e-20));
+    TestTrue(TEXT("Integral numbers are accepted"), Params.AddNumber(TEXT("integral"), 42.0));
+    TestTrue(TEXT("Ordinary decimals are accepted"), Params.AddNumber(TEXT("decimal"), 12.5));
+    TestTrue(
+        TEXT("Number arrays are accepted"),
+        Params.AddNumberArray(TEXT("values"), {1.0e-20, 1.0e20, -1.0e-20, 42.0, 12.5}));
+
+    FOpenPocketBaseFilter Bound;
+    FOpenPocketBaseError Error;
+    TestTrue(
+        TEXT("Numeric parameters bind"),
+        FOpenPocketBaseFilter::TryBindDynamic(
+            TEXT("small={:small} && large={:large} && negative={:negative} && integral={:integral} && decimal={:decimal} && values ?= {:values}"),
+            Params,
+            Bound,
+            Error));
+    TestEqual(
+        TEXT("Every number uses PocketBase-compatible plain decimal notation"),
+        Bound.ToString(),
+        FString(
+            TEXT("small=0.00000000000000000001 && large=100000000000000000000 && ")
+            TEXT("negative=-0.00000000000000000001 && integral=42 && decimal=12.5 && ")
+            TEXT("values ?= \"[0.00000000000000000001,100000000000000000000,-0.00000000000000000001,42,12.5]\"")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseComposableFilterTest,
     "OpenPocketBase.Client.Filters.ComposesTypedValues",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

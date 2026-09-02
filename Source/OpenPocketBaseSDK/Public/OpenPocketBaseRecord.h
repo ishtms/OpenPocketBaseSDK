@@ -104,6 +104,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         const FOpenPocketBaseStringArrayFieldRef& Field,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& RemoveFiles(
+        const FOpenPocketBaseFileFieldRef& Field,
+        const TArray<FString>& FileNames);
 
     FOpenPocketBaseRecordBody& SetDateField(
         const FOpenPocketBaseDateFieldRef& Field,
@@ -155,6 +158,9 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseRecordBody
         const FString& FieldName,
         const TArray<FString>& Value,
         EOpenPocketBaseFieldModifier Modifier = EOpenPocketBaseFieldModifier::Replace);
+    FOpenPocketBaseRecordBody& RemoveDynamicFiles(
+        const FString& FieldName,
+        const TArray<FString>& FileNames);
     FOpenPocketBaseRecordBody& SetDynamicDateField(
         const FString& FieldName,
         const FDateTime& Value);
@@ -373,7 +379,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseFullListOptions
     FOpenPocketBaseListOptions ListOptions;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", meta = (ClampMin = "0", ClampMax = "1000000"))
-    int32 MaxItems = 0;
+    int32 MaxItems = 1000;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Open PocketBase|Records", meta = (ClampMin = "0", ClampMax = "10000"))
     int32 MaxPages = 0;

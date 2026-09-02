@@ -19,7 +19,7 @@ static_assert(std::is_same_v<
 
 namespace
 {
-TArray<uint8> ToUtf8(const FString& Value)
+TArray<uint8> NativeClientToUtf8(const FString& Value)
 {
     FTCHARToUTF8 Converted(*Value);
     TArray<uint8> Bytes;
@@ -225,7 +225,7 @@ bool FOpenPocketBaseNativeGetOneTest::RunTest(const FString& Parameters)
     State->Transport = MakeShared<FImmediateTransport, ESPMode::ThreadSafe>();
     State->Transport->NextResponse.bTransportSucceeded = true;
     State->Transport->NextResponse.HttpStatus = 200;
-    State->Transport->NextResponse.Body = ToUtf8(
+    State->Transport->NextResponse.Body = NativeClientToUtf8(
         TEXT("{\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\","
              "\"created\":\"2026-08-22 10:00:00.000Z\",\"updated\":\"2026-08-22 10:01:00.000Z\","
              "\"title\":\"First task\"}"));
@@ -269,7 +269,7 @@ bool FOpenPocketBaseNativeGetListTest::RunTest(const FString& Parameters)
     State->Transport = MakeShared<FImmediateTransport, ESPMode::ThreadSafe>();
     State->Transport->NextResponse.bTransportSucceeded = true;
     State->Transport->NextResponse.HttpStatus = 200;
-    State->Transport->NextResponse.Body = ToUtf8(
+    State->Transport->NextResponse.Body = NativeClientToUtf8(
         TEXT("{\"page\":2,\"perPage\":25,\"totalItems\":1,\"totalPages\":1,\"items\":[{"
              "\"id\":\"task123\",\"collectionId\":\"tasks_id\",\"collectionName\":\"tasks\","
              "\"created\":\"2026-08-22 10:00:00.000Z\",\"updated\":\"2026-08-22 10:01:00.000Z\"}]}"));

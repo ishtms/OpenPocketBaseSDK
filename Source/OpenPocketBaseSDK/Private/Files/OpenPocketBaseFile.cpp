@@ -100,7 +100,8 @@ FString FOpenPocketBaseFileInput::GetFieldName() const
 bool FOpenPocketBaseFileInput::IsValid() const
 {
     FOpenPocketBaseFileFieldRef Current;
-    return Field.IsSet() ? Field.ResolveCurrentAs(Current) : !DynamicFieldName.IsEmpty();
+    return Modifier != EOpenPocketBaseFieldModifier::Remove &&
+        (Field.IsSet() ? Field.ResolveCurrentAs(Current) : !DynamicFieldName.IsEmpty());
 }
 
 bool FOpenPocketBaseFileInput::BelongsTo(

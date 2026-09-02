@@ -1,3 +1,5 @@
+#include "HAL/Platform.h"
+
 #if PLATFORM_MAC
 
 #include "OAuth/OpenPocketBaseMacOAuthBrowser.h"

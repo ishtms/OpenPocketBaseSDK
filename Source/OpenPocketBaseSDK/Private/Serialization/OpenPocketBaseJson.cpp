@@ -270,7 +270,7 @@ bool ParseRecordObject(
     Object->TryGetStringField(TEXT("collectionName"), OutRecord.CollectionName);
 
     FString DateValue;
-    if (Object->TryGetStringField(TEXT("created"), DateValue) &&
+    if (Object->TryGetStringField(TEXT("created"), DateValue) && !DateValue.IsEmpty() &&
         !OpenPocketBase::Date::TryParse(DateValue, OutRecord.Created))
     {
         if (OutFailureReason != nullptr)
@@ -279,7 +279,7 @@ bool ParseRecordObject(
         }
         return false;
     }
-    if (Object->TryGetStringField(TEXT("updated"), DateValue) &&
+    if (Object->TryGetStringField(TEXT("updated"), DateValue) && !DateValue.IsEmpty() &&
         !OpenPocketBase::Date::TryParse(DateValue, OutRecord.Updated))
     {
         if (OutFailureReason != nullptr)

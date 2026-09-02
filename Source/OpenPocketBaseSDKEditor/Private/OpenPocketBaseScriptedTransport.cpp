@@ -70,6 +70,18 @@ private:
 class FOpenPocketBaseScriptedTransport::FState
 {
 public:
+    void SetIncrementalResponseStreamingAvailable(const bool bAvailable)
+    {
+        FScopeLock Lock(&Mutex);
+        bIncrementalResponseStreamingAvailable = bAvailable;
+    }
+
+    bool IsIncrementalResponseStreamingAvailable() const
+    {
+        FScopeLock Lock(&Mutex);
+        return bIncrementalResponseStreamingAvailable;
+    }
+
     void Enqueue(FOpenPocketBaseTransportScript&& Script)
     {
         FScopeLock Lock(&Mutex);
@@ -162,6 +174,7 @@ private:
     TArray<FOpenPocketBaseHttpRequest> Requests;
     TArray<TSharedRef<FPendingScriptedResponse, ESPMode::ThreadSafe>> HeldResponses;
     int32 CancelCount = 0;
+    bool bIncrementalResponseStreamingAvailable = true;
 };
 
 FOpenPocketBaseScriptedTransport::FOpenPocketBaseScriptedTransport()
@@ -174,6 +187,22 @@ FOpenPocketBaseScriptedTransport::~FOpenPocketBaseScriptedTransport() = default;
 void FOpenPocketBaseScriptedTransport::Enqueue(FOpenPocketBaseTransportScript&& Script)
 {
     State->Enqueue(MoveTemp(Script));
+}
+
+void FOpenPocketBaseScriptedTransport::SetIncrementalResponseStreamingAvailable(
+    const bool bAvailable)
+{
+    State->SetIncrementalResponseStreamingAvailable(bAvailable);
+}
+
+bool FOpenPocketBaseScriptedTransport::IsIncrementalResponseStreamingAvailable(
+    FString& OutReason) const
+{
+    const bool bAvailable = State->IsIncrementalResponseStreamingAvailable();
+    OutReason = bAvailable
+        ? TEXT("The scripted editor transport supports deterministic response chunks.")
+        : TEXT("The scripted editor transport is configured to return buffered response bodies.");
+    return bAvailable;
 }
 
 bool FOpenPocketBaseScriptedTransport::CompleteNextHeld()

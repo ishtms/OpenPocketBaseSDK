@@ -6,22 +6,22 @@
     <meta name="theme-color" content="#090909" />
     <meta
       name="description"
-      content="OpenMobile documentation for OpenPocketBase SDK, the Unreal Engine C++ and Blueprint client for PocketBase."
+      content="Blueprint-first tutorials and complete documentation for OpenPocketBase SDK, the Unreal Engine client for PocketBase."
     />
-    <link rel="icon" type="image/svg+xml" href="/openmobile-mark.svg" />
-    <title>OpenPocketBase SDK | OpenMobile Docs</title>
+    <link rel="icon" type="image/svg+xml" href="/openpocketbase-mark.svg" />
+    <title>OpenPocketBase SDK Documentation</title>
     <script>
       (() => {
         let saved = null;
         try {
-          saved = localStorage.getItem("openmobile-theme");
+          saved = localStorage.getItem("openpocketbase-docs-theme");
         } catch {}
         const theme = saved === "light" || saved === "dark"
           ? saved
           : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
         document.documentElement.dataset.theme = theme;
         document.documentElement.style.colorScheme = theme;
-        document.querySelector('meta[name="theme-color"]').content = theme === "light" ? "#f5f2ed" : "#090909";
+        document.querySelector('meta[name="theme-color"]').content = theme === "light" ? "#f7faf9" : "#07100f";
       })();
     </script>
   </head>

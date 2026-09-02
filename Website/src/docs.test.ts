@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { docs, navigation, searchDocs } from "./docs";
+import { docs, navigation, pageText, searchDocs } from "./docs";
 
 describe("documentation registry", () => {
   it("uses unique slugs and resolves every navigation item", () => {
@@ -46,12 +46,32 @@ describe("documentation registry", () => {
       )
     );
 
-    expect(placeholders.length).toBeGreaterThan(15);
+    expect(placeholders.length).toBeGreaterThan(45);
     for (const placeholder of placeholders) {
       if (placeholder.type === "screenshot") {
         expect(placeholder.text.startsWith("[put a screenshot of ")).toBe(true);
         expect(placeholder.text.endsWith(" here]")).toBe(true);
       }
     }
+  });
+
+  it("keeps the Blueprint tutorial course ordered and capture-rich", () => {
+    const tutorials = docs.filter((page) => page.tutorial);
+
+    expect(tutorials.map((page) => page.tutorial?.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    for (const tutorial of tutorials) {
+      const captures = tutorial.sections.flatMap((section) =>
+        section.blocks.filter((block) => block.type === "screenshot")
+      );
+      expect(captures.length, tutorial.slug).toBeGreaterThanOrEqual(4);
+      expect(tutorial.tutorial?.outcome.length, tutorial.slug).toBeGreaterThan(20);
+      expect(tutorial.tutorial?.prerequisites.length, tutorial.slug).toBeGreaterThan(0);
+    }
+  });
+
+  it("does not publish internal fixture walkthroughs", () => {
+    const publishedText = docs.map(pageText).join(" ");
+    expect(publishedText).not.toContain("pb_testing");
+    expect(publishedText).not.toContain("bp_pb_chunk");
   });
 });

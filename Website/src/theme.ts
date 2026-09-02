@@ -1,10 +1,10 @@
 export type Theme = "dark" | "light";
 
-export const themeStorageKey = "openmobile-theme";
+export const themeStorageKey = "openpocketbase-docs-theme";
 
 export const themeColor: Record<Theme, string> = {
-  dark: "#090909",
-  light: "#f5f2ed",
+  dark: "#07100f",
+  light: "#f7faf9",
 };
 
 const isTheme = (value: string | null | undefined): value is Theme => value === "dark" || value === "light";

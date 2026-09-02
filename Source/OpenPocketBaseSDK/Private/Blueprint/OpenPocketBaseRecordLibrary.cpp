@@ -187,6 +187,15 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithStringArrayField(
     return Body;
 }
 
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithFilesRemoved(
+    FOpenPocketBaseRecordBody Body,
+    const FOpenPocketBaseFileFieldRef Field,
+    const TArray<FString>& FileNames)
+{
+    Body.RemoveFiles(Field, FileNames);
+    return Body;
+}
+
 FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithDateField(
     FOpenPocketBaseRecordBody Body,
     const FOpenPocketBaseDateFieldRef Field,
@@ -322,6 +331,15 @@ FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithDynamicStringArrayFi
     const TArray<FString>& Value)
 {
     Body.SetDynamicStringArrayField(FieldName, Value);
+    return Body;
+}
+
+FOpenPocketBaseRecordBody UOpenPocketBaseRecordLibrary::WithDynamicFilesRemoved(
+    FOpenPocketBaseRecordBody Body,
+    const FString& FieldName,
+    const TArray<FString>& FileNames)
+{
+    Body.RemoveDynamicFiles(FieldName, FileNames);
     return Body;
 }
 

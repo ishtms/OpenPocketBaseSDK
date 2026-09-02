@@ -68,6 +68,15 @@ public:
     UFUNCTION(
         BlueprintPure,
         Category = "Open PocketBase|Records|Body",
+        meta = (DisplayName = "With Files Removed", ToolTip = "Returns a copy of the record body that removes the named existing files from a file field.", Keywords = "pocketbase record body file delete remove filename"))
+    static FOpenPocketBaseRecordBody WithFilesRemoved(
+        FOpenPocketBaseRecordBody Body,
+        UPARAM(meta = (OpenPocketBaseFieldAccess = "Write")) FOpenPocketBaseFileFieldRef Field,
+        const TArray<FString>& FileNames);
+
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body",
         meta = (DisplayName = "With Date Field", Keywords = "record body date time"))
     static FOpenPocketBaseRecordBody WithDateField(
         FOpenPocketBaseRecordBody Body,
@@ -184,6 +193,15 @@ public:
         const FString& FieldName,
         const TArray<FString>& Value);
 
+    UFUNCTION(
+        BlueprintPure,
+        Category = "Open PocketBase|Records|Body|Advanced",
+        meta = (DisplayName = "With Dynamic Files Removed", ToolTip = "Returns a copy of the record body that removes the named existing files from a dynamic file field.", Keywords = "pocketbase record body dynamic file delete remove filename"))
+    static FOpenPocketBaseRecordBody WithDynamicFilesRemoved(
+        FOpenPocketBaseRecordBody Body,
+        const FString& FieldName,
+        const TArray<FString>& FileNames);
+
     UFUNCTION(BlueprintPure, Category = "Open PocketBase|Records|Body|Advanced", meta = (DisplayName = "With Dynamic Date Field"))
     static FOpenPocketBaseRecordBody WithDynamicDateField(
         FOpenPocketBaseRecordBody Body,
@@ -291,7 +309,7 @@ public:
         meta = (DisplayName = "Full List Options", NativeMakeFunc))
     static FOpenPocketBaseFullListOptions NewFullListOptions(
         int32 PerPage = 30,
-        int32 MaxItems = 0,
+        int32 MaxItems = 1000,
         int32 MaxPages = 0);
 
     UFUNCTION(

@@ -6,6 +6,10 @@
   "Description": "PocketBase v0.39.11 client for Unreal Engine C++ and Blueprint projects.",
   "Category": "Online",
   "CreatedBy": "Ishtmeet Singh",
+  "CreatedByURL": "https://github.com/ishtms",
+  "DocsURL": "https://github.com/ishtms/OpenPocketBaseSDK",
+  "SupportURL": "https://github.com/ishtms/OpenPocketBaseSDK/issues",
+  "EngineVersion": "5.8.0",
   "CanContainContent": true,
   "Installed": false,
   "Plugins": [

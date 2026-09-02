@@ -1,5 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
 #include "Files/OpenPocketBaseMultipart.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
@@ -81,6 +83,19 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
     Body.SetDynamicStringField(TEXT("title"), TEXT("Multipart record"));
     Body.SetDynamicStringArrayField(TEXT("tags"), {TEXT("one"), TEXT("two")});
 
+    FOpenPocketBaseRecordBody RemovalBody;
+    RemovalBody.RemoveDynamicFiles(
+        TEXT("documents"),
+        {TEXT("old-a.txt"), TEXT("old-b.txt")});
+    TestTrue(TEXT("File removal produces a valid record body"), RemovalBody.IsValid());
+    const TArray<TSharedPtr<FJsonValue>>& RemovedFiles =
+        RemovalBody.Data.JsonObject->GetArrayField(TEXT("documents-"));
+    TestEqual(TEXT("File removal uses the PocketBase field-minus key"), RemovedFiles.Num(), 2);
+    TestEqual(
+        TEXT("File removal sends existing file names"),
+        RemovedFiles[0]->AsString(),
+        FString(TEXT("old-a.txt")));
+
     FOpenPocketBaseFileInput InlineFile;
     InlineFile.DynamicFieldName = TEXT("avatar");
     InlineFile.FileName = TEXT("../unsafe\"name.png");
@@ -157,6 +172,27 @@ bool FOpenPocketBaseMultipartStreamTest::RunTest(const FString& Parameters)
         TEXT("Oversized inline files are rejected before dispatch"),
         OpenPocketBase::Multipart::Build(Body, {InlineFile}, InlineLimits, Boundary, Rejected, Error));
     TestEqual(TEXT("Bound violations use InvalidArgument"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
+
+    const FOpenPocketBaseFileInput RemoveInput = FOpenPocketBaseFileInput::DynamicFromBytes(
+        TEXT("documents"),
+        {0x01},
+        TEXT("old-a.txt"),
+        TEXT("text/plain"),
+        EOpenPocketBaseFieldModifier::Remove);
+    TestFalse(TEXT("File upload inputs reject the Remove modifier"), RemoveInput.IsValid());
+    TestFalse(
+        TEXT("Multipart construction rejects byte uploads with the Remove modifier"),
+        OpenPocketBase::Multipart::Build(
+            Body,
+            {RemoveInput},
+            FOpenPocketBaseUploadLimits(),
+            Boundary,
+            Rejected,
+            Error));
+    TestEqual(TEXT("Unsupported file removal is an InvalidArgument error"), Error.Kind, EOpenPocketBaseErrorKind::InvalidArgument);
+    TestTrue(
+        TEXT("The error points developers to the record-body API"),
+        Error.Message.Contains(TEXT("With Files Removed")));
 
     FOpenPocketBaseUploadLimits BodyLimits;
     BodyLimits.MaxTotalBodyBytes = 32;

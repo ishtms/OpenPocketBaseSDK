@@ -4,6 +4,8 @@
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonWriter.h"
 
+#include <charconv>
+
 namespace
 {
 using FCondensedJsonWriter = TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>;
@@ -68,14 +70,85 @@ FString EncodeString(const FString& Value)
 
 FString EncodeNumber(const double Value)
 {
-    FString Json;
-    const TSharedRef<FCondensedJsonWriter> Writer =
-        TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
-    Writer->WriteArrayStart();
-    Writer->WriteValue(Value);
-    Writer->WriteArrayEnd();
-    Writer->Close();
-    return Json.Mid(1, Json.Len() - 2);
+    if (Value == 0.0)
+    {
+        return TEXT("0");
+    }
+
+    ANSICHAR Buffer[64];
+    const std::to_chars_result Converted = std::to_chars(
+        Buffer,
+        Buffer + UE_ARRAY_COUNT(Buffer),
+        Value);
+    FString Encoded;
+    if (Converted.ec == std::errc())
+    {
+        const FUTF8ToTCHAR Utf8(Buffer, static_cast<int32>(Converted.ptr - Buffer));
+        Encoded = FString(Utf8.Length(), Utf8.Get());
+    }
+    else
+    {
+        FString Json;
+        const TSharedRef<FCondensedJsonWriter> Writer =
+            TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
+        Writer->WriteArrayStart();
+        Writer->WriteValue(Value);
+        Writer->WriteArrayEnd();
+        Writer->Close();
+        Encoded = Json.Mid(1, Json.Len() - 2);
+    }
+
+    int32 ExponentIndex = INDEX_NONE;
+    if (!Encoded.FindChar(TEXT('e'), ExponentIndex) &&
+        !Encoded.FindChar(TEXT('E'), ExponentIndex))
+    {
+        return Encoded;
+    }
+
+    int32 Exponent = 0;
+    if (!LexTryParseString(Exponent, *Encoded.Mid(ExponentIndex + 1)))
+    {
+        return Encoded;
+    }
+
+    FString Mantissa = Encoded.Left(ExponentIndex);
+    const bool bNegative = Mantissa.RemoveFromStart(TEXT("-"));
+    int32 DecimalIndex = INDEX_NONE;
+    const int32 DigitsBeforeDecimal = Mantissa.FindChar(TEXT('.'), DecimalIndex)
+        ? DecimalIndex
+        : Mantissa.Len();
+    Mantissa.ReplaceInline(TEXT("."), TEXT(""));
+
+    const int32 NewDecimalIndex = DigitsBeforeDecimal + Exponent;
+    FString Fixed;
+    if (NewDecimalIndex <= 0)
+    {
+        Fixed = TEXT("0.") + FString::ChrN(-NewDecimalIndex, TEXT('0')) + Mantissa;
+    }
+    else if (NewDecimalIndex >= Mantissa.Len())
+    {
+        Fixed = Mantissa + FString::ChrN(NewDecimalIndex - Mantissa.Len(), TEXT('0'));
+    }
+    else
+    {
+        Fixed = Mantissa.Left(NewDecimalIndex) + TEXT(".") + Mantissa.Mid(NewDecimalIndex);
+    }
+    return bNegative ? TEXT("-") + Fixed : Fixed;
+}
+
+FString EncodeNumberArray(const TArray<double>& Values)
+{
+    FString Json = TEXT("[");
+    for (int32 Index = 0; Index < Values.Num(); ++Index)
+    {
+        if (Index > 0)
+        {
+            Json += TEXT(",");
+        }
+        Json += EncodeNumber(Values[Index]);
+    }
+    Json += TEXT("]");
+    return EncodeString(Json);
 }
 
 template <typename WriteValuesType>
@@ -324,16 +397,7 @@ bool FOpenPocketBaseDynamicFilterParams::AddNumberArray(
             return false;
         }
     }
-    return AddEncoded(
-        Name,
-        EncodeArray(
-            [&Value](const TSharedRef<FCondensedJsonWriter>& Writer)
-            {
-                for (const double Item : Value)
-                {
-                    Writer->WriteValue(Item);
-                }
-            }));
+    return AddEncoded(Name, EncodeNumberArray(Value));
 }
 
 bool FOpenPocketBaseDynamicFilterParams::AddBooleanArray(

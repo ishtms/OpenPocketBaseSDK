@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { docs, docsBySlug, navigation, searchDocs, type DocBlock, type DocPage } from "./docs";
-import { Icon, OpenMobileMark, type IconName } from "./icons";
+import { Icon, PocketBaseMark } from "./icons";
 import { applyTheme, getInitialTheme, nextTheme, saveTheme, type Theme } from "./theme";
 
-const sourceUrl = "https://github.com/ishtms/pb_sdk_private";
+const sourceUrl = "https://github.com/ishtms/OpenPocketBaseSDK";
+const tutorialPages = docs.filter((page) => page.tutorial).sort((a, b) => a.tutorial!.order - b.tutorial!.order);
+
+const primaryNavigation = [
+  { title: "Docs", slug: "overview", active: (slug: string) => slug === "overview" || slug.startsWith("start/") || slug.startsWith("core/") },
+  { title: "Tutorials", slug: "tutorials/getting-started", active: (slug: string) => slug.startsWith("tutorials/") },
+  { title: "Guides", slug: "records/crud", active: (slug: string) => ["records/", "authentication/", "files/", "realtime/", "tools/"].some((prefix) => slug.startsWith(prefix)) },
+  { title: "Blueprint API", slug: "reference/blueprint-nodes", active: (slug: string) => slug === "reference/blueprint-nodes" || slug === "reference/data-types" },
+  { title: "C++ API", slug: "reference/api-index", active: (slug: string) => slug === "reference/api-index" || slug === "reference/feature-status" },
+];
 
 const readSlug = () => {
   const raw = window.location.hash.replace(/^#\/?/, "");
@@ -18,90 +27,91 @@ function useRoute() {
   useEffect(() => {
     const onHashChange = () => setSlug(readSlug());
     window.addEventListener("hashchange", onHashChange);
-    if (!window.location.hash) {
-      window.history.replaceState(null, "", hrefFor("overview"));
-    }
+    if (!window.location.hash) window.history.replaceState(null, "", hrefFor("overview"));
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   return docsBySlug.has(slug) ? slug : "overview";
 }
 
-function ProductRail({ onMenu }: { onMenu: () => void }) {
-  const products: { name: string; icon: IconName; active?: boolean; soon?: boolean }[] = [
-    { name: "PocketBase", icon: "database", active: true },
-    { name: "OpenHaptics", icon: "haptics", soon: true },
-    { name: "OpenSensors", icon: "sensor", soon: true },
-    { name: "OpenAds", icon: "zap", soon: true },
-  ];
-
+function SiteHeader({ activeSlug, theme, onMenu, onSearch, onThemeToggle }: {
+  activeSlug: string;
+  theme: Theme;
+  onMenu: () => void;
+  onSearch: () => void;
+  onThemeToggle: () => void;
+}) {
   return (
-    <aside className="product-rail" aria-label="OpenMobile products">
-      <a className="rail-mark" href={hrefFor("overview")} aria-label="OpenMobile docs home">
-        <OpenMobileMark />
-      </a>
-      <button className="rail-menu" onClick={onMenu} aria-label="Open documentation navigation">
-        <Icon name="menu" />
-      </button>
-      <div className="rail-products">
-        {products.map((product) => (
-          <button
-            key={product.name}
-            className={`rail-product ${product.active ? "is-active" : ""}`}
-            title={product.soon ? `${product.name}, coming soon` : product.name}
-            aria-label={product.soon ? `${product.name}, coming soon` : product.name}
-          >
-            <Icon name={product.icon} />
-            {product.soon && <span className="rail-dot" />}
-          </button>
-        ))}
-      </div>
-      <div className="rail-bottom">
-        <a href={sourceUrl} target="_blank" rel="noreferrer" aria-label="Open repository">
-          <Icon name="github" />
+    <header className="site-header">
+      <div className="header-inner">
+        <button className="mobile-menu" onClick={onMenu} aria-label="Open documentation navigation">
+          <Icon name="menu" />
+        </button>
+        <a className="site-brand" href={hrefFor("overview")} aria-label="OpenPocketBase documentation home">
+          <span className="brand-mark"><PocketBaseMark /></span>
+          <span className="brand-copy"><strong>OpenPocketBase</strong><small>Unreal Engine SDK</small></span>
         </a>
+
+        <nav className="primary-nav" aria-label="Primary navigation">
+          {primaryNavigation.map((item) => (
+            <a className={item.active(activeSlug) ? "is-active" : ""} href={hrefFor(item.slug)} key={item.title}>
+              {item.title}
+            </a>
+          ))}
+        </nav>
+
+        <div className="header-actions">
+          <button className="header-search" onClick={onSearch} aria-label="Search documentation">
+            <Icon name="search" /><span>Search</span><kbd>Ctrl K</kbd>
+          </button>
+          <button className="icon-button" onClick={onThemeToggle} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>
+            <Icon name={theme === "dark" ? "sun" : "moon"} />
+          </button>
+          <a className="icon-button" href={sourceUrl} target="_blank" rel="noreferrer" aria-label="Open GitHub repository">
+            <Icon name="github" />
+          </a>
+        </div>
       </div>
-    </aside>
+    </header>
   );
 }
 
-function Sidebar({ activeSlug, open, onClose, onSearch }: { activeSlug: string; open: boolean; onClose: () => void; onSearch: () => void }) {
+function Sidebar({ activeSlug, open, onClose, onSearch }: {
+  activeSlug: string;
+  open: boolean;
+  onClose: () => void;
+  onSearch: () => void;
+}) {
   return (
     <>
       <button className={`sidebar-scrim ${open ? "is-open" : ""}`} onClick={onClose} aria-label="Close navigation" />
       <aside className={`docs-sidebar ${open ? "is-open" : ""}`}>
-        <div className="sidebar-brand">
-          <a href={hrefFor("overview")} onClick={onClose}>
-            <span className="brand-name">OPENMOBILE</span>
-            <span className="brand-subtitle">DEVELOPER DOCS</span>
-          </a>
-          <button className="sidebar-close" onClick={onClose} aria-label="Close navigation">
-            <Icon name="x" />
-          </button>
+        <div className="sidebar-mobile-head">
+          <span><PocketBaseMark /> Documentation</span>
+          <button onClick={onClose} aria-label="Close navigation"><Icon name="x" /></button>
         </div>
 
-        <div className="product-select">
-          <span className="product-select-icon"><Icon name="database" /></span>
-          <span><strong>OpenPocketBase</strong><small>Unreal Engine SDK</small></span>
-          <Icon name="chevron-down" />
-        </div>
-
-        <button className="search-trigger" onClick={onSearch}>
-          <Icon name="search" />
-          <span>Search documentation</span>
-          <kbd><Icon name="command" /> K</kbd>
+        <button className="sidebar-search" onClick={onSearch}>
+          <Icon name="search" /><span>Search everything</span><kbd>Ctrl K</kbd>
         </button>
 
-        <nav className="sidebar-nav" aria-label="Documentation">
+        <div className="sidebar-course-card">
+          <span className="course-kicker"><Icon name="spark" /> Blueprint course</span>
+          <strong>From zero to realtime</strong>
+          <p>Nine practical lessons. One working PocketBase integration.</p>
+          <a href={hrefFor("tutorials/getting-started")} onClick={onClose}>Start learning <Icon name="arrow-right" /></a>
+        </div>
+
+        <nav className="sidebar-nav" aria-label="Documentation pages">
           {navigation.map((group) => (
-            <div className="nav-group" key={group.title}>
+            <div className={`nav-group ${group.title === "Blueprint tutorials" ? "tutorial-group" : ""}`} key={group.title}>
               <h2>{group.title}</h2>
               {group.items.map((item) => (
                 <a
-                  key={item.slug}
                   className={activeSlug === item.slug ? "is-active" : ""}
                   href={hrefFor(item.slug)}
                   onClick={onClose}
+                  key={item.slug}
                 >
                   <span>{item.title}</span>
                   {activeSlug === item.slug && <Icon name="chevron-right" />}
@@ -111,37 +121,12 @@ function Sidebar({ activeSlug, open, onClose, onSearch }: { activeSlug: string; 
           ))}
         </nav>
 
-        <div className="sidebar-meta">
-          <span className="status-light" />
-          <span>SDK 0.1.0</span>
-          <span className="meta-divider" />
-          <span>PB 0.39.11</span>
+        <div className="sidebar-footer">
+          <span><i /> SDK 0.1.0</span>
+          <span>PocketBase 0.39.11</span>
         </div>
       </aside>
     </>
-  );
-}
-
-function Topbar({ page, theme, onMenu, onSearch, onThemeToggle }: { page: DocPage; theme: Theme; onMenu: () => void; onSearch: () => void; onThemeToggle: () => void }) {
-  return (
-    <header className="topbar">
-      <div className="topbar-path">
-        <button className="mobile-menu" onClick={onMenu} aria-label="Open navigation"><Icon name="menu" /></button>
-        <span>OpenMobile</span>
-        <Icon name="chevron-right" />
-        <span>PocketBase</span>
-        <Icon name="chevron-right" />
-        <strong>{page.title}</strong>
-      </div>
-      <div className="topbar-actions">
-        <button className="topbar-search" onClick={onSearch} aria-label="Search documentation"><Icon name="search" /><span>Search</span><kbd>⌘ K</kbd></button>
-        <button className="theme-toggle" onClick={onThemeToggle} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
-          <Icon name={theme === "dark" ? "sun" : "moon"} />
-          <span>{theme === "dark" ? "Light" : "Dark"}</span>
-        </button>
-        <a href={sourceUrl} target="_blank" rel="noreferrer"><Icon name="github" /><span>Source</span><Icon name="external" /></a>
-      </div>
-    </header>
   );
 }
 
@@ -151,10 +136,9 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const results = useMemo(() => searchDocs(query), [query]);
 
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      window.setTimeout(() => inputRef.current?.focus(), 20);
-    }
+    if (!open) return;
+    setQuery("");
+    window.setTimeout(() => inputRef.current?.focus(), 20);
   }, [open]);
 
   if (!open) return null;
@@ -168,25 +152,27 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search nodes, workflows, errors, and types..."
+            placeholder="Search tutorials, Blueprint nodes, errors, and types..."
             aria-label="Search query"
           />
           <button onClick={onClose}>ESC</button>
         </div>
-        <div className="search-label">{query ? `${results.length} BEST MATCHES` : "QUICK ACCESS"}</div>
+        <div className="search-summary">
+          <span>{query ? `${results.length} results` : "Popular starting points"}</span>
+          <small>Searching {docs.length} documentation pages</small>
+        </div>
         <div className="search-results">
-          {results.map((result, index) => (
-            <a key={result.slug} href={hrefFor(result.slug)} onClick={onClose}>
-              <span className="result-number">{String(index + 1).padStart(2, "0")}</span>
+          {results.map((result) => (
+            <a href={hrefFor(result.slug)} onClick={onClose} key={result.slug}>
+              <span className="result-icon"><Icon name={result.slug.startsWith("tutorials/") ? "spark" : "book"} /></span>
               <span className="result-copy"><small>{result.eyebrow}</small><strong>{result.title}</strong><p>{result.description}</p></span>
               <Icon name="arrow-right" />
             </a>
           ))}
           {results.length === 0 && (
-            <div className="search-empty"><Icon name="search" /><strong>No exact match</strong><p>Try a node name, type, or workflow such as refresh, upload, or batch.</p></div>
+            <div className="search-empty"><Icon name="search" /><strong>No match yet</strong><p>Try a workflow such as login, create record, protected file, or realtime.</p></div>
           )}
         </div>
-        <div className="search-footer"><span>Searches all {docs.length} pages</span><span><kbd>ENTER</kbd> open <kbd>ESC</kbd> close</span></div>
       </div>
     </div>
   );
@@ -200,7 +186,6 @@ function CodeBlock({ block, onCopied }: { block: Extract<DocBlock, { type: "code
     onCopied();
     window.setTimeout(() => setCopied(false), 1500);
   };
-  const lines = block.code.split("\n");
 
   return (
     <div className="code-block">
@@ -208,8 +193,36 @@ function CodeBlock({ block, onCopied }: { block: Extract<DocBlock, { type: "code
         <span><Icon name="terminal" />{block.label ?? block.language.toUpperCase()}</span>
         <button onClick={copy}><Icon name={copied ? "check" : "clipboard"} />{copied ? "Copied" : "Copy"}</button>
       </div>
-      <pre><code>{lines.map((line, index) => <span className="code-line" key={index}><i>{index + 1}</i><b>{line || " "}</b></span>)}</code></pre>
+      <pre><code>{block.code.split("\n").map((line, index) => (
+        <span className="code-line" key={`${index}-${line}`}><i>{String(index + 1).padStart(2, "0")}</i><b>{line || " "}</b></span>
+      ))}</code></pre>
     </div>
+  );
+}
+
+function ScreenshotBlock({ block }: { block: Extract<DocBlock, { type: "screenshot" }> }) {
+  return (
+    <figure className="blueprint-shot">
+      <div className="shot-toolbar">
+        <span><Icon name="grid" /> BLUEPRINT CAPTURE</span>
+        <code>{block.asset ?? "/tutorials/replace-this-capture.png"}</code>
+      </div>
+      <div className="shot-canvas">
+        <div className="shot-wire wire-a" />
+        <div className="shot-wire wire-b" />
+        <div className="fake-node node-event"><span /><b>EVENT</b><i /><i /></div>
+        <div className="fake-node node-action"><span /><b>OPEN POCKETBASE</b><i /><i /><i /></div>
+        <div className="shot-drop">
+          <span><Icon name="grid" /></span>
+          <strong>DROP YOUR BLUEPRINT SCREENSHOT HERE</strong>
+          <p>{block.text}</p>
+        </div>
+      </div>
+      <figcaption>
+        <div><span>CAPTURE NOTE</span><strong>{block.title ?? "Blueprint graph"}</strong></div>
+        <p>{block.caption ?? "Replace this placeholder with a tightly cropped, readable Blueprint graph capture."}</p>
+      </figcaption>
+    </figure>
   );
 }
 
@@ -220,7 +233,7 @@ function RichBlock({ block, onCopied }: { block: DocBlock; onCopied: () => void 
     case "paragraph":
       return <p>{block.text}</p>;
     case "bullets":
-      return <ul className="doc-bullets">{block.items.map((item) => <li key={item}><span><Icon name="chevron-right" /></span>{item}</li>)}</ul>;
+      return <ul className="doc-bullets">{block.items.map((item) => <li key={item}><span><Icon name="check" /></span>{item}</li>)}</ul>;
     case "steps":
       return <ol className="doc-steps">{block.items.map((item, index) => <li key={item.title}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{item.title}</strong><p>{item.text}</p></div></li>)}</ol>;
     case "code":
@@ -228,63 +241,83 @@ function RichBlock({ block, onCopied }: { block: DocBlock; onCopied: () => void 
     case "callout":
       return <aside className={`callout callout-${block.tone}`}><span className="callout-icon"><Icon name={block.tone === "success" ? "check" : block.tone === "danger" ? "shield" : block.tone === "warning" ? "zap" : "info"} /></span><div><strong>{block.title}</strong><p>{block.text}</p></div></aside>;
     case "screenshot":
-      return <div className="screenshot-placeholder"><div className="placeholder-grid" /><span className="placeholder-icon"><Icon name="grid" /></span><strong>SCREENSHOT PLACEHOLDER</strong><p>{block.text}</p><small>REPLACE WITH FINAL BLUEPRINT CAPTURE</small></div>;
+      return <ScreenshotBlock block={block} />;
     case "table":
-      return <div className="table-wrap"><table><thead><tr>{block.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{block.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
+      return <div className="table-wrap"><table><thead><tr>{block.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{block.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={`${cellIndex}-${cell}`}>{cell}</td>)}</tr>)}</tbody></table></div>;
     case "cards":
-      return <div className="doc-cards">{block.items.map((item) => item.link ? <a href={hrefFor(item.link)} key={item.title}><span className="card-top"><small>{item.label ?? "GUIDE"}</small><Icon name="arrow-right" /></span><strong>{item.title}</strong><p>{item.text}</p></a> : <div key={item.title}><strong>{item.title}</strong><p>{item.text}</p></div>)}</div>;
+      return <div className="doc-cards">{block.items.map((item) => item.link ? (
+        <a href={hrefFor(item.link)} key={item.title}><span className="card-label">{item.label ?? "GUIDE"}</span><strong>{item.title}</strong><p>{item.text}</p><span className="card-link">Open page <Icon name="arrow-right" /></span></a>
+      ) : <div key={item.title}><strong>{item.title}</strong><p>{item.text}</p></div>)}</div>;
   }
 }
 
-function PageHeader({ page }: { page: DocPage }) {
-  const isOverview = page.slug === "overview";
+function TutorialHeader({ page }: { page: DocPage }) {
+  if (!page.tutorial) return null;
+  const total = tutorialPages.length;
+  const progress = Math.round((page.tutorial.order / total) * 100);
+
   return (
-    <div className={`page-header ${isOverview ? "overview-header" : ""}`}>
-      <div className="header-coordinate"><span>DOC / {page.slug.toUpperCase()}</span><span>V0.1.0</span></div>
-      <div className="eyebrow"><span /><strong>{page.eyebrow}</strong></div>
-      <h1>{page.title}</h1>
-      <p>{page.description}</p>
-      <div className="page-badges">
-        <span><Icon name="book" />{page.readTime} read</span>
-        <span><Icon name="check" />PocketBase 0.39.11</span>
-        <span><Icon name="code" />C++ + Blueprint</span>
+    <div className="tutorial-meta">
+      <div className="tutorial-progress">
+        <span><Icon name="spark" /> Blueprint course</span>
+        <strong>{String(page.tutorial.order).padStart(2, "0")} <i>/</i> {String(total).padStart(2, "0")}</strong>
+        <div><i style={{ width: `${progress}%` }} /></div>
       </div>
-      {isOverview && (
-        <div className="overview-console">
-          <div className="console-line"><span>OPENMOBILE::POCKETBASE</span><span className="console-status">READY</span></div>
-          <div className="console-stats">
-            <div><strong>31</strong><span>GUIDES</span></div>
-            <div><strong>02</strong><span>LANGUAGES</span></div>
-            <div><strong>01</strong><span>CLIENT</span></div>
-            <div><strong>100%</strong><span>OPEN SOURCE</span></div>
-          </div>
-        </div>
-      )}
+      <div className="tutorial-outcome"><small>YOU WILL FINISH WITH</small><p>{page.tutorial.outcome}</p></div>
+      <div className="tutorial-prereqs"><small>BEFORE YOU START</small><ul>{page.tutorial.prerequisites.map((item) => <li key={item}><Icon name="check" />{item}</li>)}</ul></div>
     </div>
   );
 }
 
-function OnThisPage({ page, activeSection }: { page: DocPage; activeSection: string }) {
-  const scrollToSection = (sectionId: string) => {
-    document.getElementById(`section-${sectionId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+function PageHeader({ page }: { page: DocPage }) {
+  const isOverview = page.slug === "overview";
+  const category = page.slug.startsWith("tutorials/") ? "Tutorials" : page.slug.includes("/") ? page.slug.split("/")[0] : "Documentation";
 
   return (
-    <aside className="on-this-page">
-      <div className="toc-label">ON THIS PAGE</div>
-      <nav>
-        {page.sections.map((section, index) => (
-          <button className={activeSection === section.id ? "is-active" : ""} onClick={() => scrollToSection(section.id)} key={section.id}>
-            <span>{String(index + 1).padStart(2, "0")}</span>{section.title}
-          </button>
-        ))}
-      </nav>
-      <div className="toc-card">
-        <Icon name="spark" />
-        <strong>Found a gap?</strong>
-        <p>Keep this page beside the SDK version it documents.</p>
-        <a href={sourceUrl} target="_blank" rel="noreferrer">Open source <Icon name="external" /></a>
+    <header className={`page-header ${isOverview ? "overview-header" : ""}`}>
+      <div className="breadcrumb"><a href={hrefFor("overview")}>Docs</a><Icon name="chevron-right" /><span>{category}</span></div>
+      <div className="page-eyebrow"><span>{page.eyebrow}</span>{page.tutorial && <i>{page.tutorial.level}</i>}</div>
+      <h1>{page.title}</h1>
+      <p>{page.description}</p>
+      <div className="page-badges">
+        <span><Icon name="book" />{page.readTime} read</span>
+        <span><Icon name="database" />PocketBase 0.39.11</span>
+        <span><Icon name="grid" />Blueprint first</span>
       </div>
+      {isOverview && (
+        <div className="hero-actions">
+          <a className="primary-action" href={hrefFor("tutorials/getting-started")}>Start the Blueprint course <Icon name="arrow-right" /></a>
+          <a className="secondary-action" href={hrefFor("start/installation")}>Install the SDK</a>
+        </div>
+      )}
+      {isOverview && (
+        <div className="hero-console">
+          <div className="console-head"><span><i /> OPENPOCKETBASE / READY</span><code>UE 5.8 · PB 0.39.11</code></div>
+          <div className="console-flow">
+            <span><small>01</small>Initialize client</span><i /><span><small>02</small>Use collection</span><i /><span><small>03</small>Call Blueprint node</span>
+          </div>
+        </div>
+      )}
+      <TutorialHeader page={page} />
+    </header>
+  );
+}
+
+function OnThisPage({ page, activeSection }: { page: DocPage; activeSection: string }) {
+  const scrollToSection = (sectionId: string) => document.getElementById(`section-${sectionId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  return (
+    <aside className="on-this-page">
+      <span className="toc-label">ON THIS PAGE</span>
+      <nav>{page.sections.map((section, index) => (
+        <button className={activeSection === section.id ? "is-active" : ""} onClick={() => scrollToSection(section.id)} key={section.id}>
+          <span>{String(index + 1).padStart(2, "0")}</span>{section.title}
+        </button>
+      ))}</nav>
+      {page.tutorial ? (
+        <div className="toc-help"><Icon name="grid" /><strong>Adding screenshots?</strong><p>Every placeholder includes the suggested public asset path and an exact capture note.</p></div>
+      ) : (
+        <div className="toc-help"><Icon name="github" /><strong>Found a gap?</strong><p>Open an issue with the SDK and page version.</p><a href={sourceUrl} target="_blank" rel="noreferrer">GitHub <Icon name="external" /></a></div>
+      )}
     </aside>
   );
 }
@@ -296,10 +329,10 @@ function PageFooter({ page }: { page: DocPage }) {
   return (
     <footer className="page-footer">
       <div className="page-pager">
-        {previous ? <a href={hrefFor(previous.slug)} className="pager-previous"><Icon name="arrow-left" /><span><small>PREVIOUS</small><strong>{previous.title}</strong></span></a> : <span />}
+        {previous ? <a href={hrefFor(previous.slug)}><Icon name="arrow-left" /><span><small>PREVIOUS</small><strong>{previous.title}</strong></span></a> : <span />}
         {next ? <a href={hrefFor(next.slug)} className="pager-next"><span><small>NEXT</small><strong>{next.title}</strong></span><Icon name="arrow-right" /></a> : <span />}
       </div>
-      <div className="footer-line"><span>OPENMOBILE DOCUMENTATION</span><span>OPENPOCKETBASE SDK 0.1.0</span></div>
+      <div className="footer-line"><span><PocketBaseMark /> OpenPocketBase SDK</span><span>Independent · Open source · MIT</span></div>
     </footer>
   );
 }
@@ -314,15 +347,13 @@ function App() {
   const [toast, setToast] = useState(false);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+  useEffect(() => applyTheme(theme), [theme]);
 
   useEffect(() => {
     setSidebarOpen(false);
     setActiveSection(page.sections[0]?.id ?? "");
     window.scrollTo({ top: 0 });
-    document.title = `${page.title} | OpenMobile Docs`;
+    document.title = `${page.title} | OpenPocketBase Docs`;
   }, [page]);
 
   useEffect(() => {
@@ -349,7 +380,7 @@ function App() {
       let current = page.sections[0]?.id ?? "";
       for (const section of page.sections) {
         const element = document.getElementById(`section-${section.id}`);
-        if (element && element.getBoundingClientRect().top < 190) current = section.id;
+        if (element && element.getBoundingClientRect().top < 160) current = section.id;
       }
       setActiveSection(current);
     };
@@ -363,32 +394,26 @@ function App() {
     window.setTimeout(() => setToast(false), 1600);
   };
 
-  const toggleTheme = () => {
-    setTheme((current) => {
-      const updated = nextTheme(current);
-      saveTheme(updated);
-      return updated;
-    });
-  };
+  const toggleTheme = () => setTheme((current) => {
+    const updated = nextTheme(current);
+    saveTheme(updated);
+    return updated;
+  });
 
   return (
     <div className="app-shell">
-      <div className="ambient-glow" />
+      <div className="ambient-grid" />
       <div className="scroll-meter" style={{ transform: `scaleX(${scrollProgress})` }} />
-      <ProductRail onMenu={() => setSidebarOpen(true)} />
+      <SiteHeader activeSlug={slug} theme={theme} onMenu={() => setSidebarOpen(true)} onSearch={() => setSearchOpen(true)} onThemeToggle={toggleTheme} />
       <Sidebar activeSlug={slug} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSearch={() => setSearchOpen(true)} />
       <div className="main-shell">
-        <Topbar page={page} theme={theme} onMenu={() => setSidebarOpen(true)} onSearch={() => setSearchOpen(true)} onThemeToggle={toggleTheme} />
         <div className="content-shell">
           <main className="doc-main">
             <PageHeader page={page} />
-            <div className="doc-rule"><span>OPENPOCKETBASE / {page.slug.toUpperCase()}</span><i /></div>
             {page.sections.map((section, sectionIndex) => (
               <section className="doc-section" id={`section-${section.id}`} key={section.id}>
                 <div className="section-heading"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><h2>{section.title}</h2></div>
-                <div className="section-body">
-                  {section.blocks.map((block, blockIndex) => <RichBlock key={blockIndex} block={block} onCopied={showCopied} />)}
-                </div>
+                <div className="section-body">{section.blocks.map((block, blockIndex) => <RichBlock key={blockIndex} block={block} onCopied={showCopied} />)}</div>
               </section>
             ))}
             <PageFooter page={page} />
@@ -397,7 +422,7 @@ function App() {
         </div>
       </div>
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <div className={`copy-toast ${toast ? "is-visible" : ""}`}><Icon name="check" />Copied to clipboard</div>
+      <div className={`copy-toast ${toast ? "is-visible" : ""}`}><Icon name="check" /> Copied to clipboard</div>
     </div>
   );
 }

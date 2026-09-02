@@ -19,7 +19,7 @@ describe("site theme", () => {
   });
 
   it("provides matching browser chrome colors", () => {
-    expect(themeColor.dark).toBe("#090909");
-    expect(themeColor.light).toBe("#f5f2ed");
+    expect(themeColor.dark).toBe("#07100f");
+    expect(themeColor.light).toBe("#f7faf9");
   });
 });

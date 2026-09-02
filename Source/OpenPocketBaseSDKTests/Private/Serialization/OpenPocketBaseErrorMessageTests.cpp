@@ -72,6 +72,40 @@ bool FOpenPocketBaseSkippedTotalsParsingTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseEmptySystemDatesTest,
+    "OpenPocketBase.Serialization.Records.AcceptsEmptySystemDates",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseEmptySystemDatesTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseHttpResponse EmptyDates;
+    EmptyDates.bTransportSucceeded = true;
+    EmptyDates.HttpStatus = 200;
+    EmptyDates.Body = ErrorMessageTestUtf8(
+        TEXT("{\"page\":1,\"perPage\":1,\"totalItems\":1,\"totalPages\":1,")
+        TEXT("\"items\":[{\"id\":\"task123\",\"created\":\"\",\"updated\":\"\"}]}"));
+    TOpenPocketBaseResult<FOpenPocketBaseRecordPage> EmptyResult =
+        OpenPocketBase::Json::ParseRecordPageResponse(EmptyDates);
+    TestTrue(TEXT("Empty PocketBase system timestamps do not invalidate a record page"), EmptyResult.IsSuccess());
+    if (EmptyResult.IsSuccess() && !EmptyResult.GetValue().Items.IsEmpty())
+    {
+        TestEqual(TEXT("An empty created timestamp stays unset"), EmptyResult.GetValue().Items[0].Created.GetTicks(), 0LL);
+        TestEqual(TEXT("An empty updated timestamp stays unset"), EmptyResult.GetValue().Items[0].Updated.GetTicks(), 0LL);
+    }
+
+    FOpenPocketBaseHttpResponse MalformedDate;
+    MalformedDate.bTransportSucceeded = true;
+    MalformedDate.HttpStatus = 200;
+    MalformedDate.Body = ErrorMessageTestUtf8(
+        TEXT("{\"page\":1,\"perPage\":1,\"totalItems\":1,\"totalPages\":1,")
+        TEXT("\"items\":[{\"id\":\"task123\",\"created\":\"not-a-date\"}]}"));
+    TestFalse(
+        TEXT("Malformed nonempty system timestamps still invalidate the response"),
+        OpenPocketBase::Json::ParseRecordPageResponse(MalformedDate).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseDynamicBodyErrorMessageTest,
     "OpenPocketBase.Records.Errors.ExplainDynamicBodyFailures",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

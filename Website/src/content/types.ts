@@ -7,7 +7,13 @@ export type DocBlock =
   | { type: "steps"; items: { title: string; text: string }[] }
   | { type: "code"; language: string; code: string; label?: string }
   | { type: "callout"; tone: CalloutTone; title: string; text: string }
-  | { type: "screenshot"; text: string }
+  | {
+      type: "screenshot";
+      text: string;
+      title?: string;
+      asset?: string;
+      caption?: string;
+    }
   | { type: "table"; columns: string[]; rows: string[][] }
   | { type: "cards"; items: { title: string; text: string; link?: string; label?: string }[] };
 
@@ -23,6 +29,12 @@ export type DocPage = {
   eyebrow: string;
   description: string;
   readTime: string;
+  tutorial?: {
+    order: number;
+    level: "Beginner" | "Intermediate" | "Advanced";
+    outcome: string;
+    prerequisites: string[];
+  };
   sections: DocSection[];
 };
 
@@ -47,7 +59,10 @@ export const callout = (tone: CalloutTone, title: string, text: string): DocBloc
   title,
   text,
 });
-export const screenshot = (text: string): DocBlock => ({ type: "screenshot", text });
+export const screenshot = (
+  text: string,
+  options: { title?: string; asset?: string; caption?: string } = {}
+): DocBlock => ({ type: "screenshot", text, ...options });
 export const table = (columns: string[], rows: string[][]): DocBlock => ({ type: "table", columns, rows });
 export const cards = (...items: { title: string; text: string; link?: string; label?: string }[]): DocBlock => ({
   type: "cards",

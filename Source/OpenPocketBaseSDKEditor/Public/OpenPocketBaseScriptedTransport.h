@@ -18,10 +18,13 @@ public:
     virtual ~FOpenPocketBaseScriptedTransport() override;
 
     void Enqueue(FOpenPocketBaseTransportScript&& Script);
+    void SetIncrementalResponseStreamingAvailable(bool bAvailable);
     bool CompleteNextHeld();
     int32 GetRequestCount() const;
     int32 GetCancelCount() const;
     bool TryGetRequest(int32 Index, FOpenPocketBaseHttpRequest& OutRequest) const;
+
+    virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const override;
 
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,

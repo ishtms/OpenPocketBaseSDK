@@ -33,10 +33,12 @@ struct FDownloadTestState
     bool bShortWriteRejected = false;
     bool bRedirectRejected = false;
     bool bTimeoutRejected = false;
+    bool bBufferedSucceeded = false;
     bool bProgressOnGameThread = true;
     TArray<FOpenPocketBaseTransferProgress> MemoryProgress;
     FOpenPocketBaseFileDownloadResult MemoryResult;
     FOpenPocketBaseFileDownloadResult DiskResult;
+    FOpenPocketBaseFileDownloadResult BufferedResult;
 };
 
 class FVerifyDownloads final : public IAutomationLatentCommand
@@ -52,7 +54,7 @@ public:
 
     virtual bool Update() override
     {
-        if (State->CompletionCount < 6)
+        if (State->CompletionCount < 7)
         {
             return false;
         }
@@ -93,12 +95,21 @@ public:
         Test->TestFalse(TEXT("A rejected redirect removes its temporary file"), IFileManager::Get().FileExists(*(State->RedirectDestinationPath + TEXT(".tmp"))));
         Test->TestFalse(TEXT("A rejected redirect never publishes its final file"), IFileManager::Get().FileExists(*State->RedirectDestinationPath));
         Test->TestTrue(TEXT("A timeout remains classified and is not retried"), State->bTimeoutRejected);
-        Test->TestEqual(TEXT("Six requests reach the transport"), State->Transport->GetRequestCount(), 6);
+        Test->TestTrue(TEXT("A buffered download succeeds when streaming is unavailable"), State->bBufferedSucceeded);
+        Test->TestEqual(
+            TEXT("Buffered response bytes are returned"),
+            State->BufferedResult.Bytes,
+            DownloadBytes(TEXT("buffered-data")));
+        Test->TestEqual(TEXT("Seven requests reach the transport"), State->Transport->GetRequestCount(), 7);
         FOpenPocketBaseHttpRequest Request;
         if (State->Transport->TryGetRequest(0, Request))
         {
             Test->TestTrue(TEXT("Downloads request incremental chunks"), Request.bStreamResponse);
             Test->TestTrue(TEXT("The URL uses encoded path segments"), Request.Url.Contains(TEXT("/api/files/tasks%20id/record-1/report%20final.txt")));
+        }
+        if (State->Transport->TryGetRequest(6, Request))
+        {
+            Test->TestFalse(TEXT("Buffered transports do not request incremental chunks"), Request.bStreamResponse);
         }
 
         IFileManager::Get().Delete(*State->DestinationPath, false, true);
@@ -271,6 +282,13 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
     State->Transport->Enqueue(MoveTemp(BoundScript));
     State->Transport->Enqueue(MoveTemp(ShortScript));
 
+    FOpenPocketBaseTransportScript BufferedScript;
+    BufferedScript.Response.bTransportSucceeded = true;
+    BufferedScript.Response.HttpStatus = 200;
+    BufferedScript.Response.Body = DownloadBytes(TEXT("buffered-data"));
+    BufferedScript.Response.Headers.Add(TEXT("Content-Length"), TEXT("13"));
+    State->Transport->Enqueue(MoveTemp(BufferedScript));
+
     FOpenPocketBaseClientConfig Config;
     Config.BaseUrl = TEXT("https://pb.example.com");
     FOpenPocketBaseError Error;
@@ -379,6 +397,24 @@ bool FOpenPocketBaseFileDownloadTest::RunTest(const FString& Parameters)
         {
             State->bShortWriteRejected = !Result.IsSuccess() &&
                 Result.GetError().Kind == EOpenPocketBaseErrorKind::Transport;
+            ++State->CompletionCount;
+        });
+
+    State->Transport->SetIncrementalResponseStreamingAvailable(false);
+    FOpenPocketBaseFileDownloadOptions BufferedOptions;
+    BufferedOptions.MaxBytes = 32;
+    State->Client->Files().DynamicDownload(
+        TEXT("tasks"),
+        TEXT("record-1"),
+        TEXT("buffered.bin"),
+        BufferedOptions,
+        [State](TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>&& Result)
+        {
+            State->bBufferedSucceeded = Result.IsSuccess();
+            if (Result.IsSuccess())
+            {
+                State->BufferedResult = MoveTemp(Result.GetValue());
+            }
             ++State->CompletionCount;
         });
 
