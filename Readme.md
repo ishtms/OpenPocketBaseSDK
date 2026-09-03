@@ -7,7 +7,7 @@ PocketBase for Unreal Engine, built to feel native in both Blueprint and C++.
 [![Version](https://img.shields.io/badge/SDK-0.1.0-4F46E5)](OpenPocketBaseSDK.uplugin)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-![OpenPocketBase SDK for Unreal Engine](Fab/Media/OpenPocketBaseSDK-MediaGalleryCover-1920x1080.png)
+![OpenPocketBase SDK for Unreal Engine](thumb.png)
 
 ## Why I built this
 
