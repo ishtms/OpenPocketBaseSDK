@@ -7,6 +7,8 @@ PocketBase for Unreal Engine, built to feel native in both Blueprint and C++.
 [![Version](https://img.shields.io/badge/SDK-0.1.0-4F46E5)](OpenPocketBaseSDK.uplugin)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+![OpenPocketBase SDK for Unreal Engine](Fab/Media/OpenPocketBaseSDK-MediaGalleryCover-1920x1080.png)
+
 ## Why I built this
 
 OpenPocketBase SDK started as a personal project.
@@ -291,6 +293,20 @@ It also avoids silently falling back to insecure behavior. If secure persistence
 | License | MIT |
 
 PocketBase is still pre-1.0. This SDK deliberately pins a tested PocketBase version rather than claiming that every future server release is automatically compatible.
+
+### Platform support and limitations
+
+The core records, authentication, files, batches, and custom-route APIs are built on Unreal's HTTP layer and are intended to be portable. Some optional features need platform-specific support, however, and a platform is not presented as fully supported here until it has been compiled, packaged, and exercised on that target.
+
+| Target | Current validation | Realtime subscriptions | Secure session persistence | Assisted OAuth browser |
+| --- | --- | --- | --- | --- |
+| Windows x64 | UE 5.8 Editor, Development Game, and Shipping Game builds; packaged HTTP streaming probe | Packaged-proven | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
+| macOS ARM64 | Packaged Development build and live PocketBase integration | Packaged-proven | Apple Keychain packaged-proven | Browser bridge implemented; complete packaged flow is not yet validated, so use manual OAuth when validation is required |
+| iOS | Implementation present, but packaged-device validation is still pending | Not yet claimed; incremental HTTP streaming has not been packaged-proven | Keychain implementation present, but packaged validation is pending | Not implemented; use the manual OAuth flow |
+| Android | Core implementation is expected to be portable, but packaged-device validation is still pending | Not yet claimed; incremental HTTP streaming has not been packaged-proven | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
+| Linux | Core implementation is expected to be portable, but packaged validation is still pending | Not yet claimed; incremental HTTP streaming has not been packaged-proven | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
+
+"Not yet claimed" does not mean a target is known to be broken. It means that the current release does not advertise that capability without packaged evidence. On targets without an assisted browser bridge, the manual OAuth API still provides the authorization URL and callback flow for integration with a platform-appropriate browser or UI. If a project requires secure persistence and the target has no secure-store implementation, client creation fails explicitly instead of saving credentials as plaintext.
 
 Current packaged evidence includes:
 
