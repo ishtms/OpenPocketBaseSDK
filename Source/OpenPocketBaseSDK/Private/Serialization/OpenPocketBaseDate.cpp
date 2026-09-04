@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseDate.h"
 
 namespace OpenPocketBase::Date

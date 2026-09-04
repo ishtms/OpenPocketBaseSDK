@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
-  "Version": 1,
-  "VersionName": "0.1.0",
+  "Version": 2,
+  "VersionName": "0.1.1",
   "FriendlyName": "OpenPocketBase SDK",
   "Description": "PocketBase v0.39.11 client for Unreal Engine C++ and Blueprint projects.",
   "Category": "Online",
@@ -10,7 +10,7 @@
   "DocsURL": "https://github.com/ishtms/OpenPocketBaseSDK",
   "SupportURL": "https://github.com/ishtms/OpenPocketBaseSDK/issues",
   "EngineVersion": "5.8.0",
-  "CanContainContent": true,
+  "CanContainContent": false,
   "Installed": false,
   "Plugins": [
     {
@@ -22,17 +22,29 @@
     {
       "Name": "OpenPocketBaseSDK",
       "Type": "Runtime",
-      "LoadingPhase": "Default"
+      "LoadingPhase": "Default",
+      "PlatformAllowList": [
+        "Win64",
+        "Mac"
+      ]
     },
     {
       "Name": "OpenPocketBaseSDKOffline",
       "Type": "Runtime",
-      "LoadingPhase": "None"
+      "LoadingPhase": "None",
+      "PlatformAllowList": [
+        "Win64",
+        "Mac"
+      ]
     },
     {
       "Name": "OpenPocketBaseSDKAdmin",
       "Type": "Runtime",
       "LoadingPhase": "None",
+      "PlatformAllowList": [
+        "Win64",
+        "Mac"
+      ],
       "TargetConfigurationDenyList": [
         "Shipping"
       ]
@@ -40,12 +52,20 @@
     {
       "Name": "OpenPocketBaseSDKEditor",
       "Type": "Editor",
-      "LoadingPhase": "PostEngineInit"
+      "LoadingPhase": "PostEngineInit",
+      "PlatformAllowList": [
+        "Win64",
+        "Mac"
+      ]
     },
     {
       "Name": "OpenPocketBaseSDKTests",
       "Type": "DeveloperTool",
       "LoadingPhase": "PostDefault",
+      "PlatformAllowList": [
+        "Win64",
+        "Mac"
+      ],
       "TargetAllowList": [
         "Editor"
       ]
@@ -54,6 +74,10 @@
       "Name": "OpenPocketBaseSDKPublicHeaders",
       "Type": "DeveloperTool",
       "LoadingPhase": "None",
+      "PlatformAllowList": [
+        "Win64",
+        "Mac"
+      ],
       "TargetAllowList": [
         "Editor"
       ]

@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Schema/OpenPocketBaseSchemaCompilerExtension.h"
 
 #include "EdGraph/EdGraph.h"

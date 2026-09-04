@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Files/OpenPocketBaseMultipart.h"
 
 #include "HAL/FileManager.h"

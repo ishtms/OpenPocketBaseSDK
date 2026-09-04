@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Schema/SOpenPocketBaseSchemaPin.h"
 #include "Schema/OpenPocketBaseSchemaGraphContext.h"
 

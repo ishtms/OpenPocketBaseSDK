@@ -44,11 +44,9 @@ function Copy-RequiredItem {
 try {
     New-Item -ItemType Directory -Path $StagePlugin -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $StagePlugin "Source") -Force | Out-Null
-    New-Item -ItemType Directory -Path (Join-Path $StagePlugin "Content") -Force | Out-Null
 
     Copy-RequiredItem "$PluginName.uplugin" $StagePlugin
-    Copy-RequiredItem "Readme.md" $StagePlugin
-    Copy-RequiredItem "LICENSE" $StagePlugin
+    Copy-RequiredItem "Scripts\FabPackageReadme.md" (Join-Path $StagePlugin "Readme.md")
     Copy-RequiredItem "Config" $StagePlugin
     Copy-RequiredItem "Resources" $StagePlugin
 
@@ -73,7 +71,35 @@ try {
     } else {
         $StagedDescriptor.EngineVersion = "5.8.0"
     }
+    if ($StagedDescriptor.CanContainContent) {
+        throw "Fab package descriptor must set CanContainContent to false when no content is shipped."
+    }
+    foreach ($Module in @($StagedDescriptor.Modules)) {
+        $AllowList = $Module.PSObject.Properties["PlatformAllowList"]
+        $DenyList = $Module.PSObject.Properties["PlatformDenyList"]
+        $HasAllowList = $null -ne $AllowList -and @($AllowList.Value).Count -gt 0
+        $HasDenyList = $null -ne $DenyList -and @($DenyList.Value).Count -gt 0
+        if (-not $HasAllowList -and -not $HasDenyList) {
+            throw "Module '$($Module.Name)' has no populated PlatformAllowList or PlatformDenyList."
+        }
+    }
     $StagedDescriptor | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $StagedDescriptorPath -Encoding UTF8
+
+    $CodeExtensions = @(".c", ".cc", ".cpp", ".h", ".hpp", ".mm", ".cs")
+    $MissingCopyright = @(
+        Get-ChildItem -LiteralPath (Join-Path $StagePlugin "Source") -Recurse -File |
+            Where-Object {
+                $_.Extension -in $CodeExtensions -and
+                ((Get-Content -LiteralPath $_.FullName -TotalCount 5) -join "`n") -notmatch
+                    "Copyright\s+2026\s+Ishtmeet Singh"
+            }
+    )
+    if ($MissingCopyright.Count -gt 0) {
+        $RelativeMissing = @($MissingCopyright | ForEach-Object {
+            $_.FullName.Substring($StagePlugin.Length).TrimStart("\", "/")
+        })
+        throw "Code files are missing the required copyright header: $($RelativeMissing -join ', ')"
+    }
 
     if (-not $SkipBuildPlugin) {
         $RunUAT = Join-Path $UnrealRoot "Engine\Build\BatchFiles\RunUAT.bat"
@@ -146,8 +172,7 @@ try {
             "$PluginName/$PluginName.uplugin",
             "$PluginName/Config/FilterPlugin.ini",
             "$PluginName/Resources/Icon128.png",
-            "$PluginName/Readme.md",
-            "$PluginName/LICENSE"
+            "$PluginName/Readme.md"
         )
         foreach ($RequiredEntry in $RequiredEntries) {
             if ($RequiredEntry -notin $Entries) {
@@ -168,11 +193,28 @@ try {
             "/Tests/",
             "/Website/",
             "/Source/OpenPocketBaseSDKTests/",
-            "/Source/OpenPocketBaseSDKPublicHeaders/"
+            "/Source/OpenPocketBaseSDKPublicHeaders/",
+            "/.codex/",
+            "/.agents/",
+            "/.claude/",
+            "/.cursor/",
+            "/temp/",
+            "/tmp/"
         )
         foreach ($Fragment in $ForbiddenFragments) {
             if ($Entries | Where-Object { $_.Contains($Fragment) }) {
                 throw "Archive contains forbidden path fragment '$Fragment'."
+            }
+        }
+
+        $ForbiddenEntryPatterns = @(
+            "(^|/)(LICENSE|LICENCE|COPYING|NOTICE)(\..*)?$",
+            "(^|/)(AGENTS|CLAUDE|CODEX)\.md$",
+            "(^|/)copilot-instructions\.md$"
+        )
+        foreach ($Pattern in $ForbiddenEntryPatterns) {
+            if ($Entries | Where-Object { $_ -match $Pattern }) {
+                throw "Archive contains a forbidden file matching '$Pattern'."
             }
         }
     }

@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseClientLibrary.h"
 
 #include "Engine/Engine.h"

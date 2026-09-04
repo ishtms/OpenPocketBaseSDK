@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Schema/SOpenPocketBaseMultiSelectChoicePin.h"
 
 #include "EdGraph/EdGraphNode.h"

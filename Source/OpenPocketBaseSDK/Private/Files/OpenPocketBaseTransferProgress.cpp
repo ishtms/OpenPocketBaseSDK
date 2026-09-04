@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Files/OpenPocketBaseTransferProgress.h"
 
 #include "Async/Async.h"

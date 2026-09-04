@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Transport/OpenPocketBaseHttpTransport.h"
 
 #include "Compatibility/OpenPocketBaseUECompat.h"

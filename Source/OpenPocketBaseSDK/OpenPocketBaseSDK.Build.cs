@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 using UnrealBuildTool;
 
 public class OpenPocketBaseSDK : ModuleRules

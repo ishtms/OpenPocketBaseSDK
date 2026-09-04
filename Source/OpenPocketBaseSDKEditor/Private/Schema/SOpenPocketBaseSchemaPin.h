@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #pragma once
 
 #include "OpenPocketBaseSchemaPicker.h"

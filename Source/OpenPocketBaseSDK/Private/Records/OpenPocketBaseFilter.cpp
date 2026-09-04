@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseFilter.h"
 
 #include "OpenPocketBaseDate.h"

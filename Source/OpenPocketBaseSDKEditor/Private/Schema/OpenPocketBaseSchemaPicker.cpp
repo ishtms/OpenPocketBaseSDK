@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseSchemaPicker.h"
 
 #include "Misc/OutputDeviceNull.h"

@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OAuth/OpenPocketBaseOAuthBrowser.h"
 
 #if PLATFORM_MAC

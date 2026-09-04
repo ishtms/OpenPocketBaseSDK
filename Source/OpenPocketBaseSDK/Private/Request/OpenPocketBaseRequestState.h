@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #pragma once
 
 #include "HAL/CriticalSection.h"

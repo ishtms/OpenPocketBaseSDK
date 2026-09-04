@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "HAL/Platform.h"
 
 #if PLATFORM_MAC

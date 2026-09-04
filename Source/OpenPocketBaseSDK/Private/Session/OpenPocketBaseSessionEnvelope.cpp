@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Session/OpenPocketBaseSessionEnvelope.h"
 
 #include "Dom/JsonObject.h"

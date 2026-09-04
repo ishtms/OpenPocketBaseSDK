@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseBlueprintMetadata.h"
 
 #include "Engine/CancellableAsyncAction.h"

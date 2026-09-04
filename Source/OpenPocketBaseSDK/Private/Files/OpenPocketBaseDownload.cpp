@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Files/OpenPocketBaseDownload.h"
 
 #include "HAL/FileManager.h"

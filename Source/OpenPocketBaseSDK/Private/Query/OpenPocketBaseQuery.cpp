@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseQuery.h"
 
 bool FOpenPocketBaseSort::IsSet() const

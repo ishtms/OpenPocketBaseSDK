@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Clock/OpenPocketBaseClock.h"
 
 #include "Containers/Ticker.h"

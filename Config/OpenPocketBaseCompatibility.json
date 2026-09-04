@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sdkVersion": "0.1.0",
+  "sdkVersion": "0.1.1",
   "pocketBase": {
     "version": "v0.39.11",
     "commit": "5d217ddb50cb144d80a5d0b0bdf11b52b2c3e457",

@@ -4,7 +4,7 @@ PocketBase for Unreal Engine, built to feel native in both Blueprint and C++. Vi
 
 [![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.8-0E1128?logo=unrealengine)](OpenPocketBaseSDK.uplugin)
 [![PocketBase](https://img.shields.io/badge/PocketBase-v0.39.11-B8DBE4?logo=pocketbase&logoColor=black)](Config/OpenPocketBaseCompatibility.json)
-[![Version](https://img.shields.io/badge/SDK-0.1.0-4F46E5)](OpenPocketBaseSDK.uplugin)
+[![Version](https://img.shields.io/badge/SDK-0.1.1-4F46E5)](OpenPocketBaseSDK.uplugin)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ![OpenPocketBase SDK for Unreal Engine](thumb.png)
@@ -128,7 +128,7 @@ I am currently working on:
 - broader packaged-game validation across the platforms Unreal supports
 - a future optional offline outbox for projects that need queued mutations
 
-The offline work is not a hidden feature that merely needs enabling. There is no public offline queue, local database, or transparent cache in version 0.1.0. The module currently reserves a clean extension point while I work out an API that stays simple and does not make dangerous promises about conflict resolution.
+The offline work is not a hidden feature that merely needs enabling. There is no public offline queue, local database, or transparent cache in version 0.1.1. The module currently reserves a clean extension point while I work out an API that stays simple and does not make dangerous promises about conflict resolution.
 
 I would rather label unfinished work honestly than put it in a feature list early. Release notes will document these improvements as they become available.
 
@@ -287,7 +287,7 @@ It also avoids silently falling back to insecure behavior. If secure persistence
 
 | Component | Current target |
 | --- | --- |
-| SDK | 0.1.0 |
+| SDK | 0.1.1 |
 | PocketBase | v0.39.11 |
 | Unreal test host | Unreal Engine 5.8 |
 | License | MIT |
@@ -331,7 +331,7 @@ The exact compatibility contract lives in [Config/OpenPocketBaseCompatibility.js
 | [Tests/Packaging](Tests/Packaging) | Packaged platform probes |
 | [Website](Website) | Longer guide and API-reference website source |
 
-The offline module currently reserves a future extension boundary. Version 0.1.0 does not expose a public offline outbox, local database, or transparent cache.
+The offline module currently reserves a future extension boundary. Version 0.1.1 does not expose a public offline outbox, local database, or transparent cache.
 
 ## Testing
 

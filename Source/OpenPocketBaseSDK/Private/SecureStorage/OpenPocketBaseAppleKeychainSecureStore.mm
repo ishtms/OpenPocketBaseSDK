@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "SecureStorage/OpenPocketBaseSecureStore.h"
 
 #if PLATFORM_MAC || PLATFORM_IOS

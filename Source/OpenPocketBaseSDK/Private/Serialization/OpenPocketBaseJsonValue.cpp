@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseJsonValue.h"
 
 #include "Policies/CondensedJsonPrintPolicy.h"

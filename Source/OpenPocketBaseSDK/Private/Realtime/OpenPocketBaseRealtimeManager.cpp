@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Realtime/OpenPocketBaseRealtimeManager.h"
 
 #include "Async/Async.h"

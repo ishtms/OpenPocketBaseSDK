@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseFilterLibrary.h"
 
 FOpenPocketBaseFilter UOpenPocketBaseFilterLibrary::StringFilter(

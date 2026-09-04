@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseAdminBackupLibrary.h"
 
 #include "HAL/FileManager.h"

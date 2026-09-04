@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseJsonValueLibrary.h"
 
 #include "Dom/JsonObject.h"

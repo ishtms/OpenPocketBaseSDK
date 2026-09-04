@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseAdminClient.h"
 
 #include "Async/Async.h"

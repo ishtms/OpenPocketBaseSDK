@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Serialization/OpenPocketBaseJson.h"
 
 #include "Dom/JsonObject.h"

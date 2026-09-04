@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseSchemaDiagnostics.h"
 
 #include "HAL/FileManager.h"

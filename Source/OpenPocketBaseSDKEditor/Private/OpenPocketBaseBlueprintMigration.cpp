@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseBlueprintMigration.h"
 
 #include "EdGraph/EdGraph.h"

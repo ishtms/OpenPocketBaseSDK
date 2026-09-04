@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "Crypto/OpenPocketBaseSha256.h"
 
 #include "HAL/UnrealMemory.h"

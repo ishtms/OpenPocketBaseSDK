@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseAdminBlueprintClient.h"
 
 #include "UObject/Package.h"

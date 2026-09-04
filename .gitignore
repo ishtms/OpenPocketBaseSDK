@@ -1,0 +1,20 @@
+.vercel
+
+# Local agent and editor metadata
+.codex/
+.agents/
+.claude/
+.cursor/
+**/.codex/
+**/.agents/
+**/.claude/
+**/.cursor/
+**/AGENTS.md
+**/CLAUDE.md
+**/CODEX.md
+**/copilot-instructions.md
+
+# Local scratch and dependency installs
+temp/
+tmp/
+**/node_modules/

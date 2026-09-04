@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "OpenPocketBaseRequestHandle.h"
 
 #include "Request/OpenPocketBaseRequestState.h"

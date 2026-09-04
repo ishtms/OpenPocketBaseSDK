@@ -1,3 +1,5 @@
+// Copyright 2026 Ishtmeet Singh.
+
 #include "BlueprintCompilationManager.h"
 #include "EdGraphUtilities.h"
 #include "Editor.h"
