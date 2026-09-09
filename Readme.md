@@ -1,5 +1,8 @@
 # OpenPocketBase SDK
 
+> [!TIP]
+> You might also like my other Open Source UE5 plugins - [GlooPrint](https://github.com/ishtms/glooprint) and [PocketBase SDK for Unreal Engine 5](https://github.com/ishtms/OpenPocketBaseSDK)
+
 PocketBase for Unreal Engine, built to feel native in both Blueprint and C++. Visit the [Website](https://pocketbase.ishtms.com) for tutorial, references and documentation.
 
 [![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.8-0E1128?logo=unrealengine)](OpenPocketBaseSDK.uplugin)
