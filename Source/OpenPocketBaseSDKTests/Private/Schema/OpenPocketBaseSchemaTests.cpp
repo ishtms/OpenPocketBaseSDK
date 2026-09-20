@@ -104,4 +104,38 @@ bool FOpenPocketBaseSchemaReferencesTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseDefaultTextLimitTest,
+    "OpenPocketBase.Schema.RecordBodiesRespectDefaultTextLimits",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseDefaultTextLimitTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseTextFieldRef Field;
+    Field.SchemaId = FGuid(1, 2, 3, 4);
+    Field.CollectionId = TEXT("users");
+    Field.FieldId = TEXT("name_id");
+    Field.Name = TEXT("name");
+    Field.Type = EOpenPocketBaseFieldType::Text;
+    Field.bHasMax = true;
+    Field.Max = 0;
+
+    FOpenPocketBaseRecordBody TextBody;
+    TextBody.SetStringField(Field, TEXT("hello"));
+    TestTrue(TEXT("An exported zero maximum accepts ordinary text"), TextBody.IsValid());
+    FOpenPocketBaseRecordBody LongTextBody;
+    LongTextBody.SetStringField(Field, FString::ChrN(5001, TEXT('a')));
+    TestFalse(TEXT("The default text maximum is still enforced"), LongTextBody.IsValid());
+
+    Field.Name = TEXT("password");
+    Field.Type = EOpenPocketBaseFieldType::Password;
+    FOpenPocketBaseRecordBody PasswordBody;
+    PasswordBody.SetStringField(Field, FString::ChrN(71, TEXT('a')));
+    TestTrue(TEXT("An exported zero maximum accepts a password"), PasswordBody.IsValid());
+    FOpenPocketBaseRecordBody LongPasswordBody;
+    LongPasswordBody.SetStringField(Field, FString::ChrN(72, TEXT('a')));
+    TestFalse(TEXT("The default password maximum is still enforced"), LongPasswordBody.IsValid());
+    return true;
+}
+
 #endif

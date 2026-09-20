@@ -303,13 +303,18 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringField(
             Value.Len(),
             Current.Min));
     }
-    if (Current.bHasMax && Value.Len() > Current.Max)
+    const double MaxLength = Current.Max == 0 && Current.Type == EOpenPocketBaseFieldType::Text
+        ? 5000
+        : Current.Max == 0 && Current.Type == EOpenPocketBaseFieldType::Password
+            ? 71
+            : Current.Max;
+    if (Current.bHasMax && Value.Len() > MaxLength)
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("String field '%s' contains %d characters, but its maximum is %.0f."),
             *Current.Name,
             Value.Len(),
-            Current.Max));
+            MaxLength));
     }
     GetOrCreateBodyObject(*this)->SetStringField(MakeModifiedFieldName(Current.Name, Modifier), Value);
     return *this;
