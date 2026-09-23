@@ -3876,7 +3876,7 @@ private:
             Result.Items.Add(MoveTemp(Page.Items[Index]));
         }
 
-        Result.bReachedEnd = ReceivedItems < Options.ListOptions.PerPage ||
+        Result.bReachedEnd = ReceivedItems < Page.PerPage ||
             (Page.bHasTotalPages && Page.Page >= Page.TotalPages);
         Result.bReachedItemLimit = Options.MaxItems > 0 && Result.Items.Num() >= Options.MaxItems;
         Result.bReachedPageLimit = Options.MaxPages > 0 && Result.PagesFetched >= Options.MaxPages;

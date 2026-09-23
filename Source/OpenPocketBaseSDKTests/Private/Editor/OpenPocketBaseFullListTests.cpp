@@ -288,6 +288,41 @@ bool FOpenPocketBaseBoundedFullListTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseClampedFullListTest,
+    "OpenPocketBase.Client.Pagination.FullListUsesServerPageSize",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseClampedFullListTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FFullListTestState, ESPMode::ThreadSafe> State = MakeFullListState(this);
+    if (!State->Client.IsValid())
+    {
+        return false;
+    }
+    State->Transport->Enqueue(MakePageScript(1, {TEXT("task00000000001"), TEXT("task00000000002")}));
+    State->Transport->Enqueue(MakePageScript(2, {TEXT("task00000000003"), TEXT("task00000000004")}));
+
+    FOpenPocketBaseFullListOptions Options;
+    Options.ListOptions.PerPage = 2000;
+    Options.ListOptions.bSkipTotal = true;
+    Options.MaxItems = 3;
+    State->Handle = State->Client->DynamicCollection(TEXT("tasks")).GetFullList(
+        Options,
+        [State](TOpenPocketBaseResult<FOpenPocketBaseFullListResult>&& Result)
+        {
+            State->bSucceeded = Result.IsSuccess();
+            if (Result.IsSuccess())
+            {
+                State->FullList = Result.TakeValue();
+            }
+            State->bCompleted = true;
+        });
+
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyBoundedFullList(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FOpenPocketBaseCancelFullListTest,
     "OpenPocketBase.Client.Pagination.FullListCancelsBetweenPages",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
