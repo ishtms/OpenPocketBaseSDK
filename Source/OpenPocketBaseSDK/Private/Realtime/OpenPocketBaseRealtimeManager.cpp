@@ -750,7 +750,8 @@ void FConnectionManager::OpenConnection()
     FOpenPocketBaseHttpRequest Request = MakeRequest(TEXT("GET"));
     Request.bStreamResponse = true;
     Request.TotalTimeoutSeconds = 0;
-    Request.ActivityTimeoutSeconds = 30;
+    // PocketBase closes idle streams itself and does not send heartbeat traffic.
+    Request.ActivityTimeoutSeconds = 0;
     const TSharedRef<FConnectionManager, ESPMode::ThreadSafe> Self = AsShared();
     FOpenPocketBaseTransportHandle NewStreamHandle = Transport->Send(
         MoveTemp(Request),

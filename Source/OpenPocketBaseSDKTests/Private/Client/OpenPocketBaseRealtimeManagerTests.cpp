@@ -324,6 +324,8 @@ bool FOpenPocketBaseRealtimeHandshakeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The subscription handle is active"), Handle.IsActive());
     TestEqual(TEXT("Only the stream opens before PB_CONNECT"), Transport->Requests.Num(), 1);
     TestEqual(TEXT("The first request is GET"), Transport->Requests[0].Method, FString(TEXT("GET")));
+    TestEqual(TEXT("An idle SSE stream has no activity timeout"), Transport->Requests[0].ActivityTimeoutSeconds, 0.0);
+    TestEqual(TEXT("The server owns the SSE connection lifetime"), Transport->Requests[0].TotalTimeoutSeconds, 0.0);
 
     Transport->EmitConnect();
 
