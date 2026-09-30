@@ -138,4 +138,36 @@ bool FOpenPocketBaseDefaultTextLimitTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseNumberDeltaTest,
+    "OpenPocketBase.Schema.NumberModifiersDoNotValidateDeltasAsFinalValues",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseNumberDeltaTest::RunTest(const FString& Parameters)
+{
+    FOpenPocketBaseNumberFieldRef Field;
+    Field.SchemaId = FGuid(1, 2, 3, 4);
+    Field.CollectionId = TEXT("tasks");
+    Field.FieldId = TEXT("score_id");
+    Field.Name = TEXT("score");
+    Field.Type = EOpenPocketBaseFieldType::Number;
+    Field.bHasMin = true;
+    Field.Min = 100;
+    Field.bHasMax = true;
+    Field.Max = 1000;
+
+    FOpenPocketBaseRecordBody Replacement;
+    Replacement.SetNumberField(Field, 5);
+    TestFalse(TEXT("Replacement values still respect the minimum"), Replacement.IsValid());
+    FOpenPocketBaseRecordBody Increment;
+    Increment.SetNumberField(Field, 5, EOpenPocketBaseFieldModifier::Append);
+    TestTrue(TEXT("An increment is validated by the server against the stored value"), Increment.IsValid());
+    TestEqual(TEXT("The increment retains its delta"), Increment.Data.JsonObject->GetNumberField(TEXT("score+")), 5.0);
+    FOpenPocketBaseRecordBody Decrement;
+    Decrement.SetNumberField(Field, 5, EOpenPocketBaseFieldModifier::Remove);
+    TestTrue(TEXT("A decrement is not mistaken for a replacement"), Decrement.IsValid());
+    TestEqual(TEXT("The decrement retains its delta"), Decrement.Data.JsonObject->GetNumberField(TEXT("score-")), 5.0);
+    return true;
+}
+
 #endif

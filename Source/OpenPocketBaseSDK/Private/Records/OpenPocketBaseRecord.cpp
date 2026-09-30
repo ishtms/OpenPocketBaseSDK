@@ -348,7 +348,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
             TEXT("Number field '%s' does not support the Prepend modifier. Use Replace, Append, or Remove."),
             *Current.Name));
     }
-    if (Current.bHasMin && Value < Current.Min)
+    if (Modifier == EOpenPocketBaseFieldModifier::Replace && Current.bHasMin && Value < Current.Min)
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("Number field '%s' has value %.17g, but its minimum is %.17g."),
@@ -356,7 +356,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
             Value,
             Current.Min));
     }
-    if (Current.bHasMax && Value > Current.Max)
+    if (Modifier == EOpenPocketBaseFieldModifier::Replace && Current.bHasMax && Value > Current.Max)
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("Number field '%s' has value %.17g, but its maximum is %.17g."),
