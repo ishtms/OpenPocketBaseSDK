@@ -170,4 +170,93 @@ bool FOpenPocketBaseNumberDeltaTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseFieldValueParityTest,
+    "OpenPocketBase.Schema.RecordBodiesAcceptPocketBaseEmptyAndUnicodeValues",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseFieldValueParityTest::RunTest(const FString& Parameters)
+{
+    const auto Initialize = [](FOpenPocketBaseFieldRef& Field, const TCHAR* Name, EOpenPocketBaseFieldType Type)
+    {
+        Field.SchemaId = FGuid(1, 2, 3, 4);
+        Field.CollectionId = TEXT("tasks");
+        Field.FieldId = Name;
+        Field.Name = Name;
+        Field.Type = Type;
+    };
+    FOpenPocketBaseTextFieldRef Text;
+    Initialize(Text, TEXT("label"), EOpenPocketBaseFieldType::Text);
+    Text.bHasMin = true;
+    Text.Min = 3;
+    Text.bHasMax = true;
+    Text.Max = 10;
+    FOpenPocketBaseRecordBody EmptyText;
+    EmptyText.SetStringField(Text, TEXT(""));
+    TestTrue(TEXT("Empty text is left to the server's required-field validation"), EmptyText.IsValid());
+
+    Text.Min = 0;
+    Text.Max = 1;
+    FOpenPocketBaseRecordBody Unicode;
+    Unicode.SetStringField(Text, TEXT("\U0001F600"));
+    TestTrue(TEXT("A supplementary character counts as one character"), Unicode.IsValid());
+    FOpenPocketBaseRecordBody LongUnicode;
+    LongUnicode.SetStringField(Text, TEXT("\U0001F600\U0001F600"));
+    TestFalse(TEXT("Two supplementary characters exceed a one-character maximum"), LongUnicode.IsValid());
+
+    Text.Type = EOpenPocketBaseFieldType::Password;
+    Text.Max = 1;
+    FOpenPocketBaseRecordBody Password;
+    Password.SetStringField(Text, TEXT("\U0001F600"));
+    TestTrue(TEXT("Password limits also count Unicode characters"), Password.IsValid());
+    FOpenPocketBaseRecordBody LongPassword;
+    LongPassword.SetStringField(Text, TEXT("\U0001F600a"));
+    TestFalse(TEXT("The password character maximum is enforced"), LongPassword.IsValid());
+
+    FOpenPocketBaseNumberFieldRef Number;
+    Initialize(Number, TEXT("score"), EOpenPocketBaseFieldType::Number);
+    Number.bHasMin = true;
+    Number.Min = 100;
+    FOpenPocketBaseRecordBody Zero;
+    Zero.SetNumberField(Number, 0);
+    TestTrue(TEXT("Zero can reset an optional number with a positive minimum"), Zero.IsValid());
+
+    FOpenPocketBaseSingleSelectFieldRef Choice;
+    Initialize(Choice, TEXT("choice"), EOpenPocketBaseFieldType::Select);
+    Choice.Choices = {TEXT("red"), TEXT("green")};
+    FOpenPocketBaseRecordBody ClearChoice;
+    ClearChoice.SetSingleSelectField(Choice, TEXT(""));
+    TestTrue(TEXT("An optional single select can be cleared"), ClearChoice.IsValid());
+    FOpenPocketBaseRecordBody InvalidChoice;
+    InvalidChoice.SetSingleSelectField(Choice, TEXT("blue"));
+    TestFalse(TEXT("Unknown nonempty select values remain invalid"), InvalidChoice.IsValid());
+
+    FOpenPocketBaseSingleRelationFieldRef Relation;
+    Initialize(Relation, TEXT("parent"), EOpenPocketBaseFieldType::Relation);
+    Relation.RelatedCollectionId = TEXT("parents");
+    FOpenPocketBaseRecordBody ClearRelation;
+    ClearRelation.SetSingleRelationField(Relation, TEXT(""));
+    TestTrue(TEXT("An optional single relation can be cleared"), ClearRelation.IsValid());
+
+    FOpenPocketBaseMultipleSelectFieldRef Choices;
+    Initialize(Choices, TEXT("choices"), EOpenPocketBaseFieldType::Select);
+    Choices.bMultiple = true;
+    Choices.MinSelect = 2;
+    Choices.MaxSelect = 3;
+    FOpenPocketBaseRecordBody ClearChoices;
+    ClearChoices.SetMultipleSelectField(Choices, {});
+    TestTrue(TEXT("An optional multiple select can be cleared below Min Select"), ClearChoices.IsValid());
+
+    FOpenPocketBaseMultipleRelationFieldRef Relations;
+    Initialize(Relations, TEXT("parents"), EOpenPocketBaseFieldType::Relation);
+    Relations.RelatedCollectionId = TEXT("parents");
+    Relations.bMultiple = true;
+    Relations.MinSelect = 2;
+    Relations.MaxSelect = 3;
+    FOpenPocketBaseRecordBody ClearRelations;
+    ClearRelations.SetMultipleRelationField(Relations, {});
+    TestTrue(TEXT("An optional multiple relation can be cleared below Min Select"), ClearRelations.IsValid());
+    return true;
+}
+
 #endif

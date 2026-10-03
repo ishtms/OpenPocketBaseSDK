@@ -8,6 +8,25 @@
 
 namespace
 {
+int32 CountTextCharacters(const FString& Value)
+{
+    int32 Count = Value.Len();
+    if constexpr (sizeof(TCHAR) == 2)
+    {
+        for (int32 Index = 0; Index + 1 < Value.Len(); ++Index)
+        {
+            const uint32 First = static_cast<uint32>(Value[Index]);
+            const uint32 Second = static_cast<uint32>(Value[Index + 1]);
+            if (First >= 0xd800 && First <= 0xdbff && Second >= 0xdc00 && Second <= 0xdfff)
+            {
+                --Count;
+                ++Index;
+            }
+        }
+    }
+    return Count;
+}
+
 TSharedPtr<FJsonValue> CopyJsonValue(const TSharedPtr<FJsonValue>& Value);
 
 TSharedRef<FJsonObject> CopyJsonObject(const TSharedPtr<FJsonObject>& Source)
@@ -295,12 +314,13 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringField(
             TEXT("String field '%s' only supports the Replace modifier. Choose Replace before setting it."),
             *Current.Name));
     }
-    if (Current.bHasMin && Value.Len() < Current.Min)
+    const int32 ValueLength = CountTextCharacters(Value);
+    if (!Value.IsEmpty() && Current.bHasMin && ValueLength < Current.Min)
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("String field '%s' contains %d characters, but its minimum is %.0f."),
             *Current.Name,
-            Value.Len(),
+            ValueLength,
             Current.Min));
     }
     const double MaxLength = Current.Max == 0 && Current.Type == EOpenPocketBaseFieldType::Text
@@ -308,12 +328,12 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetStringField(
         : Current.Max == 0 && Current.Type == EOpenPocketBaseFieldType::Password
             ? 71
             : Current.Max;
-    if (Current.bHasMax && Value.Len() > MaxLength)
+    if (Current.bHasMax && ValueLength > MaxLength)
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("String field '%s' contains %d characters, but its maximum is %.0f."),
             *Current.Name,
-            Value.Len(),
+            ValueLength,
             MaxLength));
     }
     GetOrCreateBodyObject(*this)->SetStringField(MakeModifiedFieldName(Current.Name, Modifier), Value);
@@ -348,7 +368,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
             TEXT("Number field '%s' does not support the Prepend modifier. Use Replace, Append, or Remove."),
             *Current.Name));
     }
-    if (Modifier == EOpenPocketBaseFieldModifier::Replace && Current.bHasMin && Value < Current.Min)
+    if (Modifier == EOpenPocketBaseFieldModifier::Replace && Value != 0 && Current.bHasMin && Value < Current.Min)
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("Number field '%s' has value %.17g, but its minimum is %.17g."),
@@ -356,7 +376,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetNumberField(
             Value,
             Current.Min));
     }
-    if (Modifier == EOpenPocketBaseFieldModifier::Replace && Current.bHasMax && Value > Current.Max)
+    if (Modifier == EOpenPocketBaseFieldModifier::Replace && Value != 0 && Current.bHasMax && Value > Current.Max)
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("Number field '%s' has value %.17g, but its maximum is %.17g."),
@@ -553,7 +573,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetSingleSelectField(
             TEXT("Field '%s' is not a single-select field. Choose a single-select field from the schema."),
             *Current.Name));
     }
-    if (!Current.Choices.IsEmpty() && !Current.Choices.Contains(Value))
+    if (!Value.IsEmpty() && !Current.Choices.IsEmpty() && !Current.Choices.Contains(Value))
     {
         return InvalidateBody(*this, FString::Printf(
             TEXT("Value '%s' is not allowed by select field '%s'. Choose one of the field's schema choices."),
@@ -586,7 +606,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetMultipleSelectField(
             return !Current.Choices.IsEmpty() && !Current.Choices.Contains(Choice);
         });
     if (bInvalidChoice ||
-        (Modifier == EOpenPocketBaseFieldModifier::Replace &&
+        (Modifier == EOpenPocketBaseFieldModifier::Replace && !Value.IsEmpty() &&
          (Value.Num() < Current.MinSelect ||
           (Current.MaxSelect > 0 && Value.Num() > Current.MaxSelect))))
     {
@@ -635,12 +655,6 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetSingleRelationField(
             TEXT("Field '%s' is not a single-relation field. Choose a single-relation field from the schema."),
             *Current.Name));
     }
-    if (RecordId.IsEmpty())
-    {
-        return InvalidateBody(*this, FString::Printf(
-            TEXT("Relation field '%s' requires a non-empty Record ID returned by PocketBase."),
-            *Current.Name));
-    }
     GetOrCreateBodyObject(*this)->SetStringField(Current.Name, RecordId);
     return *this;
 }
@@ -667,7 +681,7 @@ FOpenPocketBaseRecordBody& FOpenPocketBaseRecordBody::SetMultipleRelationField(
             TEXT("Relation field '%s' contains an empty Record ID. Use IDs returned by PocketBase."),
             *Current.Name));
     }
-    if (Modifier == EOpenPocketBaseFieldModifier::Replace &&
+    if (Modifier == EOpenPocketBaseFieldModifier::Replace && !RecordIds.IsEmpty() &&
         (RecordIds.Num() < Current.MinSelect ||
          (Current.MaxSelect > 0 && RecordIds.Num() > Current.MaxSelect)))
     {
