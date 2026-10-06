@@ -188,6 +188,18 @@ struct FInvalidDownloadPathState
     bool bOwnedTempRejected = false;
 };
 
+class FFailingDownloadCloseWriter final : public FArchive
+{
+public:
+    virtual void Serialize(void*, int64) override {}
+
+    virtual bool Close() override
+    {
+        SetError();
+        return false;
+    }
+};
+
 class FVerifyInvalidDownloadPaths final : public IAutomationLatentCommand
 {
 public:
@@ -520,6 +532,31 @@ bool FOpenPocketBaseFileDownloadWriteFailureTest::RunTest(const FString& Paramet
     TestFalse(TEXT("A destination write failure cannot finalize"), Sink->Finalize(Response, Result, Error));
     TestEqual(TEXT("A destination write failure is a transport error"), Error.Kind, EOpenPocketBaseErrorKind::Transport);
     TestFalse(TEXT("A destination write failure leaves no temporary file"), IFileManager::Get().FileExists(*TempPath));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseFileDownloadCloseFailureTest,
+    "OpenPocketBase.Client.Files.RejectsDownloadCloseFailure",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseFileDownloadCloseFailureTest::RunTest(const FString& Parameters)
+{
+    const FString TempPath = FPaths::CreateTempFilename(
+        *FPaths::ProjectIntermediateDir(), TEXT("OpenPocketBaseCloseFailure-"), TEXT(".tmp"));
+    const TSharedPtr<FOpenPocketBaseDownloadSink, ESPMode::ThreadSafe> Sink =
+        FOpenPocketBaseDownloadSink::CreateForTesting(1024, TempPath, MakeUnique<FFailingDownloadCloseWriter>());
+    const TArray<uint8> Bytes = DownloadBytes(TEXT("buffered"));
+    Sink->Receive(MakeArrayView(Bytes));
+    FOpenPocketBaseHttpResponse Response;
+    Response.bTransportSucceeded = true;
+    Response.HttpStatus = 200;
+    FOpenPocketBaseFileDownloadResult Result;
+    FOpenPocketBaseError Error;
+    TestFalse(TEXT("A final flush failure cannot report success"), Sink->Finalize(Response, Result, Error));
+    TestEqual(TEXT("The final write error is reported"), Error.Kind, EOpenPocketBaseErrorKind::Transport);
+    TestTrue(TEXT("The error explains the failed close"), Error.Message.Contains(TEXT("closed successfully")));
+    TestFalse(TEXT("A failed close cannot report a saved destination"), Result.bSavedToFile);
     return true;
 }
 

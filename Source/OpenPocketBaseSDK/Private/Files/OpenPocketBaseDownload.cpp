@@ -319,6 +319,16 @@ bool FOpenPocketBaseDownloadSink::Finalize(
             return false;
         }
         bClosed = true;
+        if (Writer.IsValid())
+        {
+            const bool bClosedSuccessfully = Writer->Close();
+            if ((!bClosedSuccessfully || Writer->IsError()) && !Failure.IsSet())
+            {
+                Failure = MakeDownloadError(
+                    EOpenPocketBaseErrorKind::Transport,
+                    TEXT("The temporary download file could not be closed successfully. Check available disk space and retry the download."));
+            }
+        }
         Writer.Reset();
         if (!Failure.IsSet() && bHasDeclaredContentLength &&
             DeclaredContentLength != TransferredBytes)
