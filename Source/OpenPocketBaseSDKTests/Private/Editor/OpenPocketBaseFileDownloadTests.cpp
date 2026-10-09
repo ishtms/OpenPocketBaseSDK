@@ -3,6 +3,7 @@
 #include "HAL/FileManager.h"
 #include "Files/OpenPocketBaseDownload.h"
 #include "Misc/AutomationTest.h"
+#include "Files/OpenPocketBaseAtomicFile.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "OpenPocketBaseClient.h"
@@ -557,6 +558,34 @@ bool FOpenPocketBaseFileDownloadCloseFailureTest::RunTest(const FString& Paramet
     TestEqual(TEXT("The final write error is reported"), Error.Kind, EOpenPocketBaseErrorKind::Transport);
     TestTrue(TEXT("The error explains the failed close"), Error.Message.Contains(TEXT("closed successfully")));
     TestFalse(TEXT("A failed close cannot report a saved destination"), Result.bSavedToFile);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseAtomicDownloadReplacementTest,
+    "OpenPocketBase.Client.Files.ReplacementPreservesExistingFileOnFailure",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseAtomicDownloadReplacementTest::RunTest(const FString& Parameters)
+{
+    const FString Destination = FPaths::CreateTempFilename(
+        *FPaths::ProjectIntermediateDir(), TEXT("OpenPocketBaseReplace-"), TEXT(".bin"));
+    const FString Temporary = Destination + TEXT(".new");
+    TestTrue(TEXT("The existing destination is created"), FFileHelper::SaveStringToFile(TEXT("original"), *Destination));
+    TestFalse(TEXT("A failed rename is reported"), OpenPocketBase::Files::MoveCompletedDownload(Destination, Temporary, true));
+    FString Contents;
+    FFileHelper::LoadFileToString(Contents, *Destination);
+    TestEqual(TEXT("A failed rename preserves the original"), Contents, FString(TEXT("original")));
+    TestTrue(TEXT("The replacement is created"), FFileHelper::SaveStringToFile(TEXT("replacement"), *Temporary));
+    TestFalse(TEXT("Replacement requires explicit permission"), OpenPocketBase::Files::MoveCompletedDownload(Destination, Temporary, false));
+    FFileHelper::LoadFileToString(Contents, *Destination);
+    TestEqual(TEXT("An unapproved replacement preserves the original"), Contents, FString(TEXT("original")));
+    TestTrue(TEXT("An approved replacement succeeds"), OpenPocketBase::Files::MoveCompletedDownload(Destination, Temporary, true));
+    FFileHelper::LoadFileToString(Contents, *Destination);
+    TestEqual(TEXT("The destination contains the complete replacement"), Contents, FString(TEXT("replacement")));
+    TestFalse(TEXT("The rename consumes the temporary file"), IFileManager::Get().FileExists(*Temporary));
+    IFileManager::Get().Delete(*Destination);
+    IFileManager::Get().Delete(*Temporary);
     return true;
 }
 

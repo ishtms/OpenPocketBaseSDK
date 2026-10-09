@@ -1,6 +1,7 @@
 // Copyright 2026 Ishtmeet Singh.
 
 #include "Files/OpenPocketBaseDownload.h"
+#include "Files/OpenPocketBaseAtomicFile.h"
 
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
@@ -362,13 +363,7 @@ bool FOpenPocketBaseDownloadSink::Finalize(
     }
 
     if (Target == EOpenPocketBaseFileDownloadTarget::File &&
-        !IFileManager::Get().Move(
-            *DestinationPath,
-            *TempPath,
-            bReplaceExisting,
-            false,
-            false,
-            true))
+        !OpenPocketBase::Files::MoveCompletedDownload(DestinationPath, TempPath, bReplaceExisting))
     {
         IFileManager::Get().Delete(*TempPath, false, true, true);
         OutError = MakeDownloadError(
