@@ -2091,6 +2091,7 @@ struct FOpenPocketBaseClient::FImpl
     FString AuthCollection;
     TOptional<int64> AuthExpiryUnixSeconds;
     int64 AuthGeneration = 0;
+    uint64 AuthAttemptGeneration = 0;
     bool bHasAuthRecord = false;
     bool bAuthRefreshAllowed = true;
     EOpenPocketBaseSessionPersistenceState PersistenceState =
@@ -2771,16 +2772,30 @@ struct FOpenPocketBaseClient::FImpl
         return true;
     }
 
+    uint64 BeginAuthAttempt()
+    {
+        FScopeLock Lock(&AuthMutex);
+        return ++AuthAttemptGeneration;
+    }
+
     bool StoreAuth(
         FString Token,
         const FOpenPocketBaseRecord& Record,
         FString Collection,
         const EOpenPocketBaseSessionChangeReason RequestedReason,
-        FOpenPocketBaseError& OutError)
+        FOpenPocketBaseError& OutError,
+        const TOptional<uint64> ExpectedAttempt = {})
     {
         FOpenPocketBaseSessionSnapshot Snapshot;
         {
             FScopeLock Lock(&AuthMutex);
+            if (ExpectedAttempt.IsSet() && ExpectedAttempt.GetValue() != AuthAttemptGeneration)
+            {
+                OutError = MakeLocalError(
+                    EOpenPocketBaseErrorKind::Authentication,
+                    TEXT("This login was superseded by logout or another authentication attempt."));
+                return false;
+            }
             if (!TryPersistSessionLocked(Collection, Token, Record, OutError))
             {
                 return false;
@@ -2794,6 +2809,7 @@ struct FOpenPocketBaseClient::FImpl
             AuthCollection = MoveTemp(Collection);
             bHasAuthRecord = true;
             ++AuthGeneration;
+            ++AuthAttemptGeneration;
 
             Snapshot.bAuthenticated = true;
             Snapshot.AuthCollection = AuthCollection;
@@ -2940,6 +2956,7 @@ struct FOpenPocketBaseClient::FImpl
             AuthCollection.Reset();
             bHasAuthRecord = false;
             ++AuthGeneration;
+            ++AuthAttemptGeneration;
 
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
@@ -3022,6 +3039,7 @@ struct FOpenPocketBaseClient::FImpl
             AuthCollection.Reset();
             bHasAuthRecord = false;
             ++AuthGeneration;
+            ++AuthAttemptGeneration;
 
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
@@ -3157,6 +3175,7 @@ struct FOpenPocketBaseClient::FImpl
             AuthCollection = MoveTemp(Collection);
             bHasAuthRecord = true;
             ++AuthGeneration;
+            ++AuthAttemptGeneration;
             PersistenceState = EOpenPocketBaseSessionPersistenceState::Persisted;
 
             Snapshot.bAuthenticated = true;
@@ -6870,12 +6889,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithPassw
         TEXT("/api/collections/%s/auth-with-password"), *EncodeSegment(Collection));
     FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
         TEXT("POST"), Path, OpenPocketBase::Json::SerializeObject(Body), Options, false);
+    const uint64 AuthAttempt = PinnedClient->Impl->BeginAuthAttempt();
     const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options,
         false,
-        [Completion, WeakClient, AuthCollection = Collection](
+        [Completion, WeakClient, AuthCollection = Collection, AuthAttempt](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
@@ -6896,7 +6916,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithPassw
                             Result.GetValue().Authentication.Record,
                             AuthCollection,
                             EOpenPocketBaseSessionChangeReason::LoggedIn,
-                            StoreError))
+                            StoreError,
+                            AuthAttempt))
                         {
                             Result = TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
                                 MoveTemp(StoreError));
@@ -6984,12 +7005,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOtp(
         TEXT("/api/collections/%s/auth-with-otp"), *EncodeSegment(Collection));
     FOpenPocketBaseHttpRequest Request = PinnedClient->Impl->MakeRequest(
         TEXT("POST"), Path, OpenPocketBase::Json::SerializeObject(Body), Options, false);
+    const uint64 AuthAttempt = PinnedClient->Impl->BeginAuthAttempt();
     const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Options,
         false,
-        [Completion, WeakClient, AuthCollection = Collection](
+        [Completion, WeakClient, AuthCollection = Collection, AuthAttempt](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
@@ -7010,7 +7032,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::AuthWithOtp(
                                 Result.GetValue().Authentication.Record,
                                 AuthCollection,
                                 EOpenPocketBaseSessionChangeReason::LoggedIn,
-                                StoreError))
+                                StoreError,
+                                AuthAttempt))
                         {
                             Result = TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
                                 MoveTemp(StoreError));
@@ -7250,12 +7273,13 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::CompleteOAuth
         OpenPocketBase::Json::SerializeObject(Body),
         Callback.RequestOptions,
         false);
+    const uint64 AuthAttempt = PinnedClient->Impl->BeginAuthAttempt();
     const TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> WeakClient = PinnedClient;
     return PinnedClient->Impl->Send(
         MoveTemp(Request),
         Callback.RequestOptions,
         false,
-        [Completion, WeakClient, AuthCollection = Collection](
+        [Completion, WeakClient, AuthCollection = Collection, AuthAttempt](
             FOpenPocketBaseHttpResponse&& Response,
             const TSharedRef<FOpenPocketBaseRequestState, ESPMode::ThreadSafe>& State)
         {
@@ -7280,7 +7304,8 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseAuthCollectionService::CompleteOAuth
                                 Result.GetValue().Authentication.Record,
                                 AuthCollection,
                                 EOpenPocketBaseSessionChangeReason::LoggedIn,
-                                StoreError))
+                                StoreError,
+                                AuthAttempt))
                         {
                             Result = TOpenPocketBaseResult<FOpenPocketBaseAuthAttempt>::Failure(
                                 MoveTemp(StoreError));
