@@ -238,6 +238,32 @@ private:
     FAutomationTestBase* Test;
 };
 
+class FVerifyStaleRestore final : public IAutomationLatentCommand
+{
+public:
+    FVerifyStaleRestore(TSharedRef<FPersistenceTestState, ESPMode::ThreadSafe> InState, FAutomationTestBase* InTest)
+        : State(MoveTemp(InState)), Test(InTest) {}
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        FOpenPocketBaseSessionSnapshot Session;
+        Test->TestTrue(TEXT("The newer login remains authenticated"), State->Client->GetCurrentSession(Session));
+        Test->TestEqual(TEXT("The newer user is preserved"), Session.AuthRecord.Id, FString(TEXT("user00000000002")));
+        Test->TestEqual(TEXT("Stale verification is cancelled"), State->ErrorKind, EOpenPocketBaseErrorKind::Cancelled);
+        Test->TestEqual(TEXT("Stale verification cannot delete the newer saved session"), State->SecureStore->DeleteCount, 0);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FPersistenceTestState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
 class FVerifyExpiredRestore final : public IAutomationLatentCommand
 {
 public:
@@ -780,6 +806,54 @@ bool FOpenPocketBaseExpiredRestoreTest::RunTest(const FString& Parameters)
         });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyExpiredRestore(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseStaleRestoreTest,
+    "OpenPocketBase.Client.Session.StaleRestoreFailurePreservesNewLogin",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseStaleRestoreTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FPersistenceTestState, ESPMode::ThreadSafe> State = MakeShared<FPersistenceTestState, ESPMode::ThreadSafe>();
+    State->SecureStore = MakeShared<FMemorySecureStore, ESPMode::ThreadSafe>();
+    State->SecureStore->Stored = PersistenceToUtf8(
+        TEXT("{\"schema\":1,\"origin\":\"https://pb.example.com\",\"profile\":\"restore-race\",")
+        TEXT("\"authCollection\":\"users\",\"token\":\"header.payload.signature\",\"record\":{")
+        TEXT("\"id\":\"user00000000001\",\"collectionId\":\"users_id\",\"collectionName\":\"users\"}}"));
+    State->Transport = MakeShared<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseTransportScript Rejected;
+    Rejected.Response.bTransportSucceeded = true;
+    Rejected.Response.HttpStatus = 401;
+    Rejected.bHoldCompletion = true;
+    State->Transport->Enqueue(MoveTemp(Rejected));
+    FOpenPocketBaseTransportScript Login;
+    Login.Response.bTransportSucceeded = true;
+    Login.Response.HttpStatus = 200;
+    Login.Response.Body = PersistenceToUtf8(
+        TEXT("{\"token\":\"header.payload.signature\",\"record\":{")
+        TEXT("\"id\":\"user00000000002\",\"collectionId\":\"users_id\",\"collectionName\":\"users\"}}"));
+    State->Transport->Enqueue(MoveTemp(Login));
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.com");
+    Config.ProfileName = TEXT("restore-race");
+    Config.SessionPersistence = EOpenPocketBaseSessionPersistence::RequireSecureStorage;
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), State->SecureStore.ToSharedRef(), Error);
+    if (!TestTrue(TEXT("The restore client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+    State->Client->RestoreSession(true, [State](TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>&& Result)
+    {
+        State->ErrorKind = Result.IsSuccess() ? EOpenPocketBaseErrorKind::None : Result.GetError().Kind;
+        State->bCompleted = true;
+    });
+    State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
+        TEXT("new@example.test"), TEXT("password"), [](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&&) {});
+    TestTrue(TEXT("The rejected verification completes after the new login"), State->Transport->CompleteNextHeld());
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyStaleRestore(State, this));
     return true;
 }
 

@@ -3021,11 +3021,15 @@ struct FOpenPocketBaseClient::FImpl
         return true;
     }
 
-    void ClearAuth()
+    bool ClearAuth(const TOptional<int64> ExpectedGeneration = {})
     {
         FOpenPocketBaseSessionSnapshot Snapshot;
         {
             FScopeLock Lock(&AuthMutex);
+            if (ExpectedGeneration.IsSet() && AuthGeneration != ExpectedGeneration.GetValue())
+            {
+                return false;
+            }
             if (Config.SessionPersistence == EOpenPocketBaseSessionPersistence::RequireSecureStorage)
             {
                 FOpenPocketBaseError DeleteError;
@@ -3048,6 +3052,7 @@ struct FOpenPocketBaseClient::FImpl
         }
         SessionEvents->Enqueue(MoveTemp(Snapshot));
         Realtime->NotifyAuthChanged();
+        return true;
     }
 
     bool TryStoreRefreshedAuth(
@@ -4871,6 +4876,7 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RestoreSession(
 
     return RefreshAuth(
         [WeakClient = TWeakPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe>(AsShared()),
+         RestoredGeneration = RestoreResult.Session.AuthGeneration,
          OnComplete = MoveTemp(OnComplete)](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&& Result) mutable
         {
             const TSharedPtr<FOpenPocketBaseClient, ESPMode::ThreadSafe> Client = WeakClient.Pin();
@@ -4889,7 +4895,15 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseClient::RestoreSession(
                 const FOpenPocketBaseError Error = Result.GetError();
                 if (Error.HttpStatus == 401 || Error.HttpStatus == 403)
                 {
-                    Client->Logout();
+                    if (!Client->Impl->ClearAuth(RestoredGeneration))
+                    {
+                        if (OnComplete)
+                        {
+                            OnComplete(TOpenPocketBaseResult<FOpenPocketBaseSessionRestoreResult>::Failure(
+                                MakeCancelledError()));
+                        }
+                        return;
+                    }
                     FOpenPocketBaseSessionRestoreResult Expired;
                     Expired.Status = EOpenPocketBaseSessionRestoreStatus::Expired;
                     Client->GetCurrentSession(Expired.Session);
