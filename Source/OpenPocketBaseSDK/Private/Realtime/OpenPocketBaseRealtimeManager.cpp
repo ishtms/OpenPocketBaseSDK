@@ -949,7 +949,7 @@ void FConnectionManager::HandleSseEvent(const uint64 Generation, const FSseEvent
             return;
         }
     }
-    QueueEvent(Event.Event, MoveTemp(RealtimeEvent));
+    QueueEvent(Generation, Event.Event, MoveTemp(RealtimeEvent));
 }
 
 void FConnectionManager::PostSubscriptions(const uint64 Generation)
@@ -1479,7 +1479,14 @@ void FConnectionManager::QueueResyncRequired()
     }
 }
 
+bool FConnectionManager::IsListenerCurrent(const uint64 ListenerId, const uint64 Generation) const
+{
+    FScopeLock Lock(&Mutex);
+    return !bShutdown && Generation == ConnectionGeneration && Listeners.Contains(ListenerId);
+}
+
 void FConnectionManager::QueueEvent(
+    const uint64 Generation,
     const FString& WireTopic,
     FOpenPocketBaseRealtimeEvent Event)
 {
@@ -1491,6 +1498,10 @@ void FConnectionManager::QueueEvent(
     TArray<FTarget> Targets;
     {
         FScopeLock Lock(&Mutex);
+        if (Generation != ConnectionGeneration || bShutdown)
+        {
+            return;
+        }
         for (const TPair<uint64, FListener>& Pair : Listeners)
         {
             if (Pair.Value.WireTopic == WireTopic && Pair.Value.Callbacks.OnEvent)
@@ -1502,10 +1513,10 @@ void FConnectionManager::QueueEvent(
     const TWeakPtr<FConnectionManager, ESPMode::ThreadSafe> WeakManager = AsShared();
     for (const FTarget& Target : Targets)
     {
-        EnqueueCallback([WeakManager, ListenerId = Target.ListenerId, Callback = Target.Callback, Event]()
+        EnqueueCallback([WeakManager, Generation, ListenerId = Target.ListenerId, Callback = Target.Callback, Event]()
         {
             const TSharedPtr<FConnectionManager, ESPMode::ThreadSafe> Manager = WeakManager.Pin();
-            if (Manager.IsValid() && Manager->IsListenerActive(ListenerId))
+            if (Manager.IsValid() && Manager->IsListenerCurrent(ListenerId, Generation))
             {
                 Callback(Event);
             }

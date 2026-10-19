@@ -85,7 +85,8 @@ private:
         EOpenPocketBaseRealtimeConnectionState State);
     void QueueError(const FOpenPocketBaseError& Error);
     void QueueResyncRequired();
-    void QueueEvent(const FString& WireTopic, FOpenPocketBaseRealtimeEvent Event);
+    bool IsListenerCurrent(uint64 ListenerId, uint64 Generation) const;
+    void QueueEvent(uint64 Generation, const FString& WireTopic, FOpenPocketBaseRealtimeEvent Event);
     void EnqueueCallback(TFunction<void()> Callback, bool bRealtimeEvent = false);
     void ScheduleDrain();
     void DrainCallbacks();

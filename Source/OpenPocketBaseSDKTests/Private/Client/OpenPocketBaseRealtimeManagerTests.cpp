@@ -249,6 +249,29 @@ struct FRealtimeDeliveryState
     int32 ResyncCount = 0;
 };
 
+class FVerifyStaleRealtimeDelivery final : public IAutomationLatentCommand
+{
+public:
+    FVerifyStaleRealtimeDelivery(TSharedRef<FRealtimeDeliveryState, ESPMode::ThreadSafe> InState, FAutomationTestBase* InTest)
+        : State(MoveTemp(InState)), Test(InTest) {}
+
+    virtual bool Update() override
+    {
+        if (State->ResyncCount == 0)
+        {
+            return false;
+        }
+        Test->TestTrue(TEXT("Queued events from the old session are discarded"), State->Actions.IsEmpty());
+        State->Handle.Unsubscribe();
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FRealtimeDeliveryState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
 class FVerifyRealtimeDelivery final : public IAutomationLatentCommand
 {
 public:
@@ -831,6 +854,41 @@ bool FOpenPocketBaseRealtimeBoundedDeliveryTest::RunTest(const FString& Paramete
         TEXT("event: messages/*\ndata: {\"action\":\"overflow\"}\n\n"));
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyRealtimeDelivery(State, this, 1024));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseStaleRealtimeDeliveryTest,
+    "OpenPocketBase.Realtime.Manager.DropsQueuedEventsAfterSessionChange",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseStaleRealtimeDeliveryTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FRealtimeDeliveryState, ESPMode::ThreadSafe> State = MakeShared<FRealtimeDeliveryState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FControlledRealtimeTransport, ESPMode::ThreadSafe>();
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    Config.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestTrue(TEXT("The realtime client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+    FOpenPocketBaseRealtimeCallbacks Callbacks;
+    Callbacks.OnEvent = [State](const FOpenPocketBaseRealtimeEvent& Event) { State->Actions.Add(Event.ActionName); };
+    Callbacks.OnResyncRequired = [State]() { ++State->ResyncCount; };
+    FOpenPocketBaseSubscriptionResult Subscription = State->Client->DynamicSubscribe(TEXT("messages/*"), MoveTemp(Callbacks));
+    if (!TestTrue(TEXT("The listener is created"), Subscription.IsSuccess()))
+    {
+        return false;
+    }
+    State->Handle = Subscription.TakeValue();
+    State->Transport->EmitConnect(0, TEXT("old-session"));
+    State->Transport->CompletePost(0);
+    State->Transport->EmitStream(0, TEXT("event: messages/*\ndata: {\"action\":\"old-user-event\"}\n\n"));
+    State->Client->Logout();
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyStaleRealtimeDelivery(State, this));
     return true;
 }
 
