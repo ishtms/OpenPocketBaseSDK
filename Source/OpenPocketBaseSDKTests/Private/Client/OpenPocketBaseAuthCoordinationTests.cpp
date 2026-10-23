@@ -189,6 +189,30 @@ private:
     FAutomationTestBase* Test;
 };
 
+class FVerifyCancelledAuthReplay final : public IAutomationLatentCommand
+{
+public:
+    FVerifyCancelledAuthReplay(TSharedRef<FAuthReplayState, ESPMode::ThreadSafe> InState, FAutomationTestBase* InTest, int32 InExpectedRequests)
+        : State(MoveTemp(InState)), Test(InTest), ExpectedRequests(InExpectedRequests) {}
+
+    virtual bool Update() override
+    {
+        if (!State->bCompleted)
+        {
+            return false;
+        }
+        Test->TestEqual(TEXT("The old session's pending write is cancelled"), State->ErrorKind, EOpenPocketBaseErrorKind::Cancelled);
+        Test->TestEqual(TEXT("The write never reaches the transport under another session"), State->Transport->GetRequestCount(), ExpectedRequests);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FAuthReplayState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+    int32 ExpectedRequests;
+};
+
 class FVerifyClockRetry final : public IAutomationLatentCommand
 {
 public:
@@ -506,6 +530,83 @@ bool FOpenPocketBaseInjectedClockRetryTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The test clock releases the retry"), State->Clock->RunNext());
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyClockRetry(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseRefreshSessionBoundaryTest,
+    "OpenPocketBase.Client.Session.RefreshCannotResumeWritesAfterSessionChange",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseRefreshSessionBoundaryTest::RunTest(const FString& Parameters)
+{
+    for (const bool bSwitchUser : {false, true})
+    {
+        const TSharedRef<FAuthReplayState, ESPMode::ThreadSafe> State = MakeShared<FAuthReplayState, ESPMode::ThreadSafe>();
+        State->Transport = MakeShared<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe>();
+        FOpenPocketBaseTransportScript Login;
+        Login.Response.bTransportSucceeded = true;
+        Login.Response.HttpStatus = 200;
+        Login.Response.Body = CoordinationToUtf8(TEXT("{\"token\":\"header.eyJleHAiOjEwMTB9.signature\",\"record\":{\"id\":\"old-user\",\"collectionId\":\"users_id\",\"collectionName\":\"users\"}}"));
+        State->Transport->Enqueue(MoveTemp(Login));
+        FOpenPocketBaseTransportScript Refresh;
+        Refresh.Response.bTransportSucceeded = true;
+        Refresh.Response.HttpStatus = 200;
+        Refresh.Response.Body = CoordinationToUtf8(TEXT("{\"token\":\"header.eyJleHAiOjUwMDB9.signature\",\"record\":{\"id\":\"old-user\",\"collectionId\":\"users_id\",\"collectionName\":\"users\"}}"));
+        Refresh.bHoldCompletion = true;
+        State->Transport->Enqueue(MoveTemp(Refresh));
+        if (bSwitchUser)
+        {
+            FOpenPocketBaseTransportScript NewLogin;
+            NewLogin.Response.bTransportSucceeded = true;
+            NewLogin.Response.HttpStatus = 200;
+            NewLogin.Response.Body = CoordinationToUtf8(TEXT("{\"token\":\"header.eyJleHAiOjUwMDB9.signature\",\"record\":{\"id\":\"new-user\",\"collectionId\":\"users_id\",\"collectionName\":\"users\"}}"));
+            State->Transport->Enqueue(MoveTemp(NewLogin));
+        }
+        FOpenPocketBaseClientConfig Config;
+        Config.BaseUrl = TEXT("https://pb.example.test");
+        Config.SessionPersistence = EOpenPocketBaseSessionPersistence::MemoryOnly;
+        FOpenPocketBaseError Error;
+        State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(),
+            CreateOpenPocketBaseSecureStore(), MakeShared<FFixedOpenPocketBaseClock, ESPMode::ThreadSafe>(), Error);
+        if (!TestTrue(TEXT("The refresh client is created"), State->Client.IsValid()))
+        {
+            return false;
+        }
+        const TWeakPtr<FAuthReplayState, ESPMode::ThreadSafe> WeakState = State;
+        State->Client->OnSessionChanged().AddLambda([WeakState, bSwitchUser](const FOpenPocketBaseSessionSnapshot& Session)
+        {
+            const TSharedPtr<FAuthReplayState, ESPMode::ThreadSafe> Pinned = WeakState.Pin();
+            if (!Pinned.IsValid() || Session.Reason != EOpenPocketBaseSessionChangeReason::Refreshed)
+            {
+                return;
+            }
+            if (bSwitchUser)
+            {
+                Pinned->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
+                    TEXT("new@example.test"), TEXT("password"), [](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&&) {});
+            }
+            else
+            {
+                Pinned->Client->Logout();
+            }
+        });
+        State->Client->DynamicCollection(TEXT("users")).AuthWithPassword(
+            TEXT("old@example.test"), TEXT("password"),
+            [State](TOpenPocketBaseResult<FOpenPocketBaseAuthResult>&&)
+            {
+                FOpenPocketBaseRecordBody Body;
+                Body.SetDynamicStringField(TEXT("title"), TEXT("old user's write"));
+                State->Client->DynamicCollection(TEXT("tasks")).Create(MoveTemp(Body),
+                    [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+                    {
+                        State->ErrorKind = Result.IsSuccess() ? EOpenPocketBaseErrorKind::None : Result.GetError().Kind;
+                        State->bCompleted = true;
+                    });
+                State->Transport->CompleteNextHeld();
+            });
+        ADD_LATENT_AUTOMATION_COMMAND(FVerifyCancelledAuthReplay(State, this, bSwitchUser ? 3 : 2));
+    }
     return true;
 }
 

@@ -1922,7 +1922,7 @@ struct FOpenPocketBaseClient::FImpl
             , State(MoveTemp(InState))
             , Handler(MoveTemp(InHandler))
         {
-            Impl->GetCurrentAuthIdentity(InitialAuthGeneration, InitialAuthToken);
+            Impl->GetCurrentAuthIdentity(InitialAuthGeneration, InitialAuthToken, InitialSessionGeneration);
             SentAuthGeneration = InitialAuthGeneration;
             SentAuthToken = InitialAuthToken;
         }
@@ -1991,7 +1991,11 @@ struct FOpenPocketBaseClient::FImpl
                 {
                     return;
                 }
-                Impl->ApplyCurrentAuthorization(Request, SentAuthGeneration, SentAuthToken);
+                if (!Impl->ApplyCurrentAuthorization(Request, SentAuthGeneration, SentAuthToken, InitialSessionGeneration))
+                {
+                    State->Cancel();
+                    return;
+                }
                 StartRequest(true);
                 return;
             }
@@ -2002,7 +2006,11 @@ struct FOpenPocketBaseClient::FImpl
             }
             if (Result.IsSuccess())
             {
-                Impl->ApplyCurrentAuthorization(Request, SentAuthGeneration, SentAuthToken);
+                if (!Impl->ApplyCurrentAuthorization(Request, SentAuthGeneration, SentAuthToken, InitialSessionGeneration))
+                {
+                    State->Cancel();
+                    return;
+                }
                 StartRequest(true);
                 return;
             }
@@ -2066,6 +2074,7 @@ struct FOpenPocketBaseClient::FImpl
         FString InitialAuthToken;
         FString SentAuthToken;
         int64 InitialAuthGeneration = 0;
+        uint64 InitialSessionGeneration = 0;
         int64 SentAuthGeneration = 0;
         bool bProactiveRefresh = false;
         bool bDidAuthReplay = false;
@@ -2092,6 +2101,7 @@ struct FOpenPocketBaseClient::FImpl
     TOptional<int64> AuthExpiryUnixSeconds;
     int64 AuthGeneration = 0;
     uint64 AuthAttemptGeneration = 0;
+    uint64 SessionGeneration = 0;
     bool bHasAuthRecord = false;
     bool bAuthRefreshAllowed = true;
     EOpenPocketBaseSessionPersistenceState PersistenceState =
@@ -2482,11 +2492,12 @@ struct FOpenPocketBaseClient::FImpl
         OAuthTransactions.Remove(TransactionId);
     }
 
-    void GetCurrentAuthIdentity(int64& OutGeneration, FString& OutToken) const
+    void GetCurrentAuthIdentity(int64& OutGeneration, FString& OutToken, uint64& OutSessionGeneration) const
     {
         FScopeLock Lock(&AuthMutex);
         OutGeneration = AuthGeneration;
         OutToken = AuthToken;
+        OutSessionGeneration = SessionGeneration;
     }
 
     bool IsAuthIdentityCurrent(
@@ -2511,12 +2522,17 @@ struct FOpenPocketBaseClient::FImpl
                 static_cast<double>(AuthExpiryUnixSeconds.GetValue());
     }
 
-    void ApplyCurrentAuthorization(
+    bool ApplyCurrentAuthorization(
         FOpenPocketBaseHttpRequest& Request,
         int64& OutGeneration,
-        FString& OutToken) const
+        FString& OutToken,
+        const uint64 ExpectedSessionGeneration) const
     {
         FScopeLock Lock(&AuthMutex);
+        if (!bHasAuthRecord || SessionGeneration != ExpectedSessionGeneration)
+        {
+            return false;
+        }
         OutGeneration = AuthGeneration;
         OutToken = AuthToken;
         if (bHasAuthRecord && !AuthToken.IsEmpty())
@@ -2527,6 +2543,7 @@ struct FOpenPocketBaseClient::FImpl
         {
             Request.Headers.Remove(TEXT("Authorization"));
         }
+        return true;
     }
 
     void StartAttempts(
@@ -2810,6 +2827,7 @@ struct FOpenPocketBaseClient::FImpl
             bHasAuthRecord = true;
             ++AuthGeneration;
             ++AuthAttemptGeneration;
+            ++SessionGeneration;
 
             Snapshot.bAuthenticated = true;
             Snapshot.AuthCollection = AuthCollection;
@@ -2957,6 +2975,7 @@ struct FOpenPocketBaseClient::FImpl
             bHasAuthRecord = false;
             ++AuthGeneration;
             ++AuthAttemptGeneration;
+            ++SessionGeneration;
 
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
@@ -3044,6 +3063,7 @@ struct FOpenPocketBaseClient::FImpl
             bHasAuthRecord = false;
             ++AuthGeneration;
             ++AuthAttemptGeneration;
+            ++SessionGeneration;
 
             Snapshot.AuthGeneration = AuthGeneration;
             Snapshot.PersistenceState = PersistenceState;
@@ -3181,6 +3201,7 @@ struct FOpenPocketBaseClient::FImpl
             bHasAuthRecord = true;
             ++AuthGeneration;
             ++AuthAttemptGeneration;
+            ++SessionGeneration;
             PersistenceState = EOpenPocketBaseSessionPersistenceState::Persisted;
 
             Snapshot.bAuthenticated = true;
