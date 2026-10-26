@@ -256,6 +256,12 @@ FOpenPocketBaseTransportHandle FOpenPocketBaseScriptedTransport::Send(
         for (const TArray<uint8>& Chunk : Script.Chunks)
         {
             OnChunk(MakeArrayView(Chunk));
+            if (Request.ShouldContinueResponse && !Request.ShouldContinueResponse())
+            {
+                Script.Response.bTransportSucceeded = false;
+                Script.bHoldCompletion = false;
+                break;
+            }
         }
     }
 

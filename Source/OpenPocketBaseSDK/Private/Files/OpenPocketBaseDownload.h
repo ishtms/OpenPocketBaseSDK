@@ -25,6 +25,7 @@ public:
 
     void Receive(TArrayView<const uint8> Chunk);
     int64 GetTransferredBytes() const;
+    bool GetFailure(FOpenPocketBaseError& OutError) const;
     bool Finalize(
         const FOpenPocketBaseHttpResponse& Response,
         FOpenPocketBaseFileDownloadResult& OutResult,

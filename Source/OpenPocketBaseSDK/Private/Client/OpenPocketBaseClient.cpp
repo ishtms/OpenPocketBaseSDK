@@ -5438,6 +5438,11 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
     FOpenPocketBaseHttpChunkCallback OnChunk;
     if (bUseStreaming)
     {
+        Request.ShouldContinueResponse = [Sink]()
+        {
+            FOpenPocketBaseError Error;
+            return !Sink->GetFailure(Error);
+        };
         OnChunk = [Sink, Progress](const TArrayView<const uint8> Chunk)
         {
             Sink->Receive(Chunk);
@@ -5462,6 +5467,12 @@ FOpenPocketBaseRequestHandle FOpenPocketBaseFileService::DynamicDownload(
             TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult> Result =
                 [&Response, &Sink, bUseStreaming]()
             {
+                FOpenPocketBaseError ReceiveError;
+                if (Sink->GetFailure(ReceiveError))
+                {
+                    Sink->Abort();
+                    return TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>::Failure(MoveTemp(ReceiveError));
+                }
                 TOpenPocketBaseResult<bool> Status = OpenPocketBase::Json::ParseEmptyResponse(Response);
                 if (!Status.IsSuccess())
                 {

@@ -23,6 +23,8 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpRequest
     double TotalTimeoutSeconds = 30.0;
     double ActivityTimeoutSeconds = 15.0;
     bool bStreamResponse = false;
+    // Stream receivers can stop a transfer after a chunk without cancelling the caller's request.
+    TFunction<bool()> ShouldContinueResponse;
 };
 
 enum class EOpenPocketBaseHttpTimeoutSource : uint8

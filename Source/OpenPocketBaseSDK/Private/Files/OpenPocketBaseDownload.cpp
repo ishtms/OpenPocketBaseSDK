@@ -296,6 +296,13 @@ int64 FOpenPocketBaseDownloadSink::GetTransferredBytes() const
     return TransferredBytes;
 }
 
+bool FOpenPocketBaseDownloadSink::GetFailure(FOpenPocketBaseError& OutError) const
+{
+    FScopeLock Lock(&Mutex);
+    OutError = Failure;
+    return Failure.IsSet();
+}
+
 bool FOpenPocketBaseDownloadSink::Finalize(
     const FOpenPocketBaseHttpResponse& Response,
     FOpenPocketBaseFileDownloadResult& OutResult,

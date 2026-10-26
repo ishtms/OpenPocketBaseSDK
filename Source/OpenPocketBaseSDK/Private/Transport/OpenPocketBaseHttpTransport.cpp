@@ -17,9 +17,11 @@ class FHttpCallbackState final
 public:
     FHttpCallbackState(
         FOpenPocketBaseHttpChunkCallback InOnChunk,
-        FOpenPocketBaseHttpCompleteCallback InOnComplete)
+        FOpenPocketBaseHttpCompleteCallback InOnComplete,
+        TFunction<bool()> InShouldContinueResponse)
         : OnChunk(MoveTemp(InOnChunk))
         , OnComplete(MoveTemp(InOnComplete))
+        , ShouldContinueResponse(MoveTemp(InShouldContinueResponse))
     {
     }
 
@@ -32,6 +34,10 @@ public:
         if (OnChunk && Length > 0)
         {
             OnChunk(MakeArrayView(static_cast<const uint8*>(Data), Length));
+        }
+        if (ShouldContinueResponse && !ShouldContinueResponse())
+        {
+            Length = 0;
         }
     }
 
@@ -94,6 +100,7 @@ private:
     std::atomic<int32> HttpStatus = 0;
     FOpenPocketBaseHttpChunkCallback OnChunk;
     FOpenPocketBaseHttpCompleteCallback OnComplete;
+    TFunction<bool()> ShouldContinueResponse;
 };
 
 class FOpenPocketBaseHttpTransport final : public IOpenPocketBaseTransport
@@ -121,7 +128,8 @@ public:
         const TSharedRef<FHttpCallbackState, ESPMode::ThreadSafe> Callbacks =
             MakeShared<FHttpCallbackState, ESPMode::ThreadSafe>(
                 MoveTemp(OnChunk),
-                MoveTemp(OnComplete));
+                MoveTemp(OnComplete),
+                MoveTemp(Request.ShouldContinueResponse));
 
         const FHttpRequestRef HttpRequest = FHttpModule::Get().CreateRequest();
         HttpRequest->SetURL(Request.Url);

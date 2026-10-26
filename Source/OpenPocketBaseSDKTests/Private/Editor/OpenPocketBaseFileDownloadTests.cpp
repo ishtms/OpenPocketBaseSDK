@@ -42,6 +42,30 @@ struct FDownloadTestState
     FOpenPocketBaseFileDownloadResult BufferedResult;
 };
 
+class FVerifyStoppedDownload final : public IAutomationLatentCommand
+{
+public:
+    FVerifyStoppedDownload(TSharedRef<FDownloadTestState, ESPMode::ThreadSafe> InState, FAutomationTestBase* InTest)
+        : State(MoveTemp(InState)), Test(InTest) {}
+
+    virtual bool Update() override
+    {
+        if (State->CompletionCount == 0)
+        {
+            return false;
+        }
+        Test->TestEqual(TEXT("The oversized download completes once"), State->CompletionCount, 1);
+        Test->TestTrue(TEXT("The size-limit error survives transport termination"), State->bBoundRejected);
+        Test->TestEqual(TEXT("Receiver failure is not reported as caller cancellation"), State->Transport->GetCancelCount(), 0);
+        State->Client->Shutdown();
+        return true;
+    }
+
+private:
+    TSharedRef<FDownloadTestState, ESPMode::ThreadSafe> State;
+    FAutomationTestBase* Test;
+};
+
 class FVerifyDownloads final : public IAutomationLatentCommand
 {
 public:
@@ -651,6 +675,43 @@ bool FOpenPocketBaseInvalidDownloadPathTest::RunTest(const FString& Parameters)
         });
 
     ADD_LATENT_AUTOMATION_COMMAND(FVerifyInvalidDownloadPaths(State, this));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseStopsOversizedDownloadTest,
+    "OpenPocketBase.Client.Files.StopsOversizedTransfersBeforeCompletion",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseStopsOversizedDownloadTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FDownloadTestState, ESPMode::ThreadSafe> State = MakeShared<FDownloadTestState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FOpenPocketBaseScriptedTransport, ESPMode::ThreadSafe>();
+    State->Transport->SetIncrementalResponseStreamingAvailable(true);
+    FOpenPocketBaseTransportScript Script;
+    Script.Response.bTransportSucceeded = true;
+    Script.Response.HttpStatus = 200;
+    Script.Chunks = {DownloadBytes(TEXT("ab")), DownloadBytes(TEXT("cd")), DownloadBytes(TEXT("never read"))};
+    Script.bHoldCompletion = true;
+    State->Transport->Enqueue(MoveTemp(Script));
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestTrue(TEXT("The download client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+    FOpenPocketBaseFileDownloadOptions Options;
+    Options.MaxBytes = 3;
+    State->Client->Files().DynamicDownload(TEXT("tasks"), TEXT("record"), TEXT("file.txt"), Options,
+        [State](TOpenPocketBaseResult<FOpenPocketBaseFileDownloadResult>&& Result)
+        {
+            ++State->CompletionCount;
+            State->bBoundRejected = !Result.IsSuccess() && Result.GetError().Message.Contains(TEXT("Max Bytes"));
+        });
+    TestFalse(TEXT("The receiver stops the transfer instead of waiting for the held response"), State->Transport->CompleteNextHeld());
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyStoppedDownload(State, this));
     return true;
 }
 
