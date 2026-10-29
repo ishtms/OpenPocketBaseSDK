@@ -23,6 +23,7 @@ struct OPENPOCKETBASESDK_API FOpenPocketBaseHttpRequest
     double TotalTimeoutSeconds = 30.0;
     double ActivityTimeoutSeconds = 15.0;
     bool bStreamResponse = false;
+    int64 MaxResponseBytes = 8 * 1024 * 1024;
     // Stream receivers can stop a transfer after a chunk without cancelling the caller's request.
     TFunction<bool()> ShouldContinueResponse;
 };

@@ -1735,8 +1735,8 @@ private:
             Response.ErrorMessage = TEXT("The HTTP response redirected to another origin. Cross-origin redirects are blocked to protect authentication data.");
         }
 
-        const bool bExceededResponseLimit = Response.Body.Num() > Options.MaxResponseBytes;
-        if (bExceededResponseLimit)
+        const bool bExceededResponseLimit = Response.bResponseSizeLimitExceeded || Response.Body.Num() > Options.MaxResponseBytes;
+        if (bExceededResponseLimit && !Response.bResponseSizeLimitExceeded)
         {
             const int64 ActualResponseBytes = Response.Body.Num();
             const int32 ResponseHttpStatus = Response.HttpStatus;
@@ -2582,6 +2582,7 @@ struct FOpenPocketBaseClient::FImpl
         Request.RequestId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
         Request.TotalTimeoutSeconds = Options.TotalTimeoutSeconds;
         Request.ActivityTimeoutSeconds = Options.ActivityTimeoutSeconds;
+        Request.MaxResponseBytes = Options.MaxResponseBytes;
         Request.Headers = Config.DefaultHeaders;
         Request.Headers.Add(TEXT("X-Request-Id"), Request.RequestId);
         Request.Headers.Add(TEXT("Accept"), TEXT("application/json"));

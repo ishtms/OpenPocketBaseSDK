@@ -1,6 +1,7 @@
 // Copyright 2026 Ishtmeet Singh.
 
 #include "Transport/OpenPocketBaseHttpTransport.h"
+#include "Transport/OpenPocketBaseResponseBuffer.h"
 
 #include "Compatibility/OpenPocketBaseUECompat.h"
 #include "HAL/PlatformTime.h"
@@ -18,10 +19,15 @@ public:
     FHttpCallbackState(
         FOpenPocketBaseHttpChunkCallback InOnChunk,
         FOpenPocketBaseHttpCompleteCallback InOnComplete,
-        TFunction<bool()> InShouldContinueResponse)
+        TFunction<bool()> InShouldContinueResponse,
+        const bool bInStreamResponse,
+        const int64 InMaxResponseBytes)
         : OnChunk(MoveTemp(InOnChunk))
         , OnComplete(MoveTemp(InOnComplete))
         , ShouldContinueResponse(MoveTemp(InShouldContinueResponse))
+        , bStreamResponse(bInStreamResponse)
+        , MaxResponseBytes(InMaxResponseBytes)
+        , ResponseBuffer(InMaxResponseBytes)
     {
     }
 
@@ -31,7 +37,13 @@ public:
         {
             ObserveResponseActivity();
         }
-        if (OnChunk && Length > 0)
+        if (!bStreamResponse && Length > 0 &&
+            !ResponseBuffer.Append(MakeArrayView(static_cast<const uint8*>(Data), Length)))
+        {
+            Length = 0;
+            return;
+        }
+        if (bStreamResponse && OnChunk && Length > 0)
         {
             OnChunk(MakeArrayView(static_cast<const uint8*>(Data), Length));
         }
@@ -86,6 +98,19 @@ public:
 
         if (OnComplete)
         {
+            if (ResponseBuffer.HasExceededLimit())
+            {
+                Response.bTransportSucceeded = false;
+                Response.bTimedOut = false;
+                Response.bResponseSizeLimitExceeded = true;
+                Response.ResponseBytes = ResponseBuffer.GetReceivedBytes();
+                Response.ResponseLimitBytes = MaxResponseBytes;
+                Response.Body.Empty();
+            }
+            else if (!bStreamResponse)
+            {
+                Response.Body = ResponseBuffer.TakeBytes();
+            }
             FOpenPocketBaseHttpCompleteCallback Callback = MoveTemp(OnComplete);
             Callback(MoveTemp(Response));
         }
@@ -101,6 +126,9 @@ private:
     FOpenPocketBaseHttpChunkCallback OnChunk;
     FOpenPocketBaseHttpCompleteCallback OnComplete;
     TFunction<bool()> ShouldContinueResponse;
+    bool bStreamResponse;
+    int64 MaxResponseBytes;
+    FOpenPocketBaseResponseBuffer ResponseBuffer;
 };
 
 class FOpenPocketBaseHttpTransport final : public IOpenPocketBaseTransport
@@ -129,7 +157,9 @@ public:
             MakeShared<FHttpCallbackState, ESPMode::ThreadSafe>(
                 MoveTemp(OnChunk),
                 MoveTemp(OnComplete),
-                MoveTemp(Request.ShouldContinueResponse));
+                MoveTemp(Request.ShouldContinueResponse),
+                Request.bStreamResponse,
+                Request.MaxResponseBytes);
 
         const FHttpRequestRef HttpRequest = FHttpModule::Get().CreateRequest();
         HttpRequest->SetURL(Request.Url);
@@ -163,14 +193,18 @@ public:
             HttpRequest->SetContent(MoveTemp(Request.Body));
         }
 
-        if (Request.bStreamResponse)
-        {
-            HttpRequest->SetResponseBodyReceiveStreamDelegateV2(
+        if (!HttpRequest->SetResponseBodyReceiveStreamDelegateV2(
                 FHttpRequestStreamDelegateV2::CreateLambda(
                     [Callbacks](void* Data, int64& Length)
                     {
                         Callbacks->Receive(Data, Length);
-                    }));
+                    })))
+        {
+            FOpenPocketBaseHttpResponse Result;
+            Result.RequestId = Request.RequestId;
+            Result.ErrorMessage = TEXT("Unreal HTTP could not attach the bounded response receiver.");
+            Callbacks->Complete(MoveTemp(Result));
+            return {};
         }
 
         HttpRequest->OnStatusCodeReceived().BindLambda(

@@ -34,6 +34,7 @@ class FRetryPolicyTransport final : public IOpenPocketBaseTransport
 public:
     TArray<FOpenPocketBaseHttpResponse> Responses;
     int32 SendCount = 0;
+    int64 LastResponseLimit = 0;
 
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
@@ -41,6 +42,7 @@ public:
         FOpenPocketBaseHttpCompleteCallback OnComplete) override
     {
         const int32 ResponseIndex = SendCount++;
+        LastResponseLimit = Request.MaxResponseBytes;
         OnComplete(MoveTemp(Responses[ResponseIndex]));
         return {};
     }
@@ -201,6 +203,7 @@ public:
         }
 
         Test->TestFalse(TEXT("The oversized request fails"), State->bSucceeded);
+        Test->TestEqual(TEXT("The limit reaches the HTTP transport"), State->Transport->LastResponseLimit, 1024LL);
         Test->TestEqual(TEXT("The oversized response is not retried"), State->Transport->SendCount, 1);
         Test->TestEqual(
             TEXT("The response-size failure is classified as serialization"),
@@ -616,6 +619,52 @@ bool FOpenPocketBaseMutationRequestKeyPolicyTest::RunTest(const FString& Paramet
     First.Cancel();
     Second.Cancel();
     Client->Shutdown();
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FOpenPocketBaseTransportResponseLimitTest,
+    "OpenPocketBase.Client.Policy.TransportResponseLimitsDoNotRetry",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOpenPocketBaseTransportResponseLimitTest::RunTest(const FString& Parameters)
+{
+    const TSharedRef<FRetryPolicyState, ESPMode::ThreadSafe> State = MakeShared<FRetryPolicyState, ESPMode::ThreadSafe>();
+    State->Transport = MakeShared<FRetryPolicyTransport, ESPMode::ThreadSafe>();
+    for (int32 Index = 0; Index < 6; ++Index)
+    {
+        FOpenPocketBaseHttpResponse Response;
+        Response.HttpStatus = 200;
+        Response.bResponseSizeLimitExceeded = true;
+        Response.ResponseBytes = 2048;
+        Response.ResponseLimitBytes = 1024;
+        State->Transport->Responses.Add(MoveTemp(Response));
+    }
+    FOpenPocketBaseClientConfig Config;
+    Config.BaseUrl = TEXT("https://pb.example.test");
+    FOpenPocketBaseError Error;
+    State->Client = CreateOpenPocketBaseTestClient(Config, State->Transport.ToSharedRef(), Error);
+    if (!TestTrue(TEXT("The bounded response client is created"), State->Client.IsValid()))
+    {
+        return false;
+    }
+    FOpenPocketBaseRequestOptions Options;
+    Options.MaxResponseBytes = 1024;
+    Options.bRetryEligibleReads = true;
+    State->Client->DynamicCollection(TEXT("tasks")).GetOne(TEXT("record"),
+        [State](TOpenPocketBaseResult<FOpenPocketBaseRecord>&& Result)
+        {
+            State->bSucceeded = Result.IsSuccess();
+            if (!Result.IsSuccess())
+            {
+                State->ErrorKind = Result.GetError().Kind;
+                State->ErrorMessage = Result.GetError().Message;
+                State->bMayRetry = Result.GetError().bMayRetry;
+                State->HttpStatus = Result.GetError().HttpStatus;
+            }
+            State->bCompleted = true;
+        }, Options);
+    ADD_LATENT_AUTOMATION_COMMAND(FVerifyResponseLimitPolicy(State, this));
     return true;
 }
 
