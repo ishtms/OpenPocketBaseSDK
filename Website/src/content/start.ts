@@ -39,7 +39,7 @@ export const startPages: DocPage[] = [
             [
               ["HTTP records and auth", "Implemented", "Available through the core runtime module."],
               ["Secure persistence", "Platform-gated", "Apple Keychain is implemented on Mac and iOS. Packaged proof currently covers Mac ARM64."],
-              ["Streaming and realtime", "Platform-gated", "Incremental streaming is packaged-proven on Mac ARM64 and Windows x64. Full realtime manager proof currently covers Mac ARM64."],
+              ["Streaming and realtime", "Packaging pending", "The libcurl replacement streams responses on Win64 and Mac. Native Windows tests pass; UE 5.8 build and packaged checks are still pending after the transport change."],
               ["Privileged API", "Development only", "The complete admin module is excluded from Shipping by default."],
               ["Offline outbox", "Not included", "The offline module is a reserved extension boundary and exposes no public outbox API in this release."]
             ]

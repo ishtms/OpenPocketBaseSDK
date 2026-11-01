@@ -6,4 +6,7 @@
 
 class FOpenPocketBaseSDKModule final : public IModuleInterface
 {
+public:
+    virtual void ShutdownModule() override;
+    virtual bool SupportsDynamicReloading() override { return false; }
 };

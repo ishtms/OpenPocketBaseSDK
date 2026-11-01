@@ -6,3 +6,4 @@
 #include "Transport/OpenPocketBaseTransport.h"
 
 TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> CreateOpenPocketBaseHttpTransport();
+void ShutdownOpenPocketBaseHttpTransports();

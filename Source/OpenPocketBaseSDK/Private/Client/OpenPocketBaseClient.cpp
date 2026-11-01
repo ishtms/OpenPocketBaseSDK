@@ -1732,7 +1732,7 @@ private:
         {
             Response = FOpenPocketBaseHttpResponse();
             Response.RequestId = Request.RequestId;
-            Response.ErrorMessage = TEXT("The HTTP response redirected to another origin. Cross-origin redirects are blocked to protect authentication data.");
+            Response.ErrorMessage = TEXT("The HTTP response came from another origin and was rejected. Custom transports must disable redirects before sending credentials.");
         }
 
         const bool bExceededResponseLimit = Response.bResponseSizeLimitExceeded || Response.Body.Num() > Options.MaxResponseBytes;

@@ -17,11 +17,18 @@
   },
   "packagedValidation": {
     "macArm64": {
+      "transport": "unreal-http-before-replacement",
       "engine": "5.8",
       "configuration": "Development",
       "ordinaryHttps": "verified",
       "verifiedOn": "2026-08-22"
     }
+  },
+  "transport": {
+    "implementation": "libcurl",
+    "redirects": "disabled",
+    "platforms": ["Win64", "Mac"],
+    "packagedValidation": "pending"
   },
   "implementedRoutes": [
     "GET /api/health",

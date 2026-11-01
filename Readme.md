@@ -299,23 +299,27 @@ PocketBase is still pre-1.0. This SDK deliberately pins a tested PocketBase vers
 
 ### Platform support and limitations
 
-The core records, authentication, files, batches, and custom-route APIs are built on Unreal's HTTP layer and are intended to be portable. Some optional features need platform-specific support, however, and a platform is not presented as fully supported here until it has been compiled, packaged, and exercised on that target.
+The SDK uses Unreal's bundled libcurl directly on Win64 and Mac. Redirects are disabled before sending a request, including requests with credentials or uploaded files. Configure the final PocketBase URL; redirect responses are returned as errors. The transport keeps Unreal's allowed-domain policy, default headers, proxy settings, trusted certificates, and certificate pinning.
+
+The transport has changed since the previous packaged checks. Native Windows transport tests cover redirects, uploads, streaming, cancellation, timeouts, and concurrent requests. UE 5.8 compilation and packaged validation of the new transport are still pending on both supported targets. Windows builds using XCurl need to use libcurl instead.
 
 | Target | Current validation | Realtime subscriptions | Secure session persistence | Assisted OAuth browser |
 | --- | --- | --- | --- | --- |
-| Windows x64 | UE 5.8 Editor, Development Game, and Shipping Game builds; packaged HTTP streaming probe | Packaged-proven | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
-| macOS ARM64 | Packaged Development build and live PocketBase integration | Packaged-proven | Apple Keychain packaged-proven | Browser bridge implemented; complete packaged flow is not yet validated, so use manual OAuth when validation is required |
-| iOS | Implementation present, but packaged-device validation is still pending | Not yet claimed; incremental HTTP streaming has not been packaged-proven | Keychain implementation present, but packaged validation is pending | Not implemented; use the manual OAuth flow |
-| Android | Core implementation is expected to be portable, but packaged-device validation is still pending | Not yet claimed; incremental HTTP streaming has not been packaged-proven | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
-| Linux | Core implementation is expected to be portable, but packaged validation is still pending | Not yet claimed; incremental HTTP streaming has not been packaged-proven | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
+| Windows x64 | Native transport tests pass; UE 5.8 build and packaging pending after the transport change | Implemented; packaged validation pending | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
+| macOS ARM64 | UE 5.8 build and packaging pending after the transport change | Implemented; packaged validation pending | Apple Keychain previously validated in a packaged build | Browser bridge implemented; complete packaged flow is not yet validated, so use manual OAuth when validation is required |
+| iOS | Outside the plugin's current platform allowlist; transport port and device validation needed | Not yet claimed | Keychain implementation present, but packaged validation is pending | Not implemented; use the manual OAuth flow |
+| Android | Outside the plugin's current platform allowlist; transport port and device validation needed | Not yet claimed | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
+| Linux | Outside the plugin's current platform allowlist; transport build and packaged validation needed | Not yet claimed | Not implemented; use Memory Only | Not implemented; use the manual OAuth flow |
 
 "Not yet claimed" does not mean a target is known to be broken. It means that the current release does not advertise that capability without packaged evidence. On targets without an assisted browser bridge, the manual OAuth API still provides the authorization URL and callback flow for integration with a platform-appropriate browser or UI. If a project requires secure persistence and the target has no secure-store implementation, client creation fails explicitly instead of saving credentials as plaintext.
 
-Current packaged evidence includes:
+Packaged checks before the transport replacement covered:
 
 - incremental HTTP streaming on Mac ARM64 and Windows x64
 - full realtime-manager validation on Mac ARM64
 - Apple Keychain secure persistence on packaged Mac ARM64
+
+Those checks used Unreal's HTTP transport and do not establish packaged support for the replacement.
 
 iOS Keychain support is implemented but still needs packaged validation. Windows, Android, and Linux secure session stores are not currently implemented and do not fall back to plaintext.
 

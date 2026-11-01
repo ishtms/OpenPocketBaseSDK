@@ -1,134 +1,143 @@
 // Copyright 2026 Ishtmeet Singh.
 
 #include "Transport/OpenPocketBaseHttpTransport.h"
+
+#include "Transport/OpenPocketBaseCurlLoop.h"
 #include "Transport/OpenPocketBaseResponseBuffer.h"
-
-#include "Compatibility/OpenPocketBaseUECompat.h"
-#include "HAL/PlatformTime.h"
+#include "HttpManager.h"
 #include "HttpModule.h"
-#include "Interfaces/IHttpRequest.h"
-#include "Interfaces/IHttpResponse.h"
+#include "PlatformHttp.h"
+#include "SslModule.h"
+#include "Interfaces/ISslCertificateManager.h"
+#include "Containers/StringConv.h"
+#include "HAL/UnrealMemory.h"
+#include "Math/UnrealMathUtility.h"
 
+THIRD_PARTY_INCLUDES_START
+#include <openssl/ssl.h>
+THIRD_PARTY_INCLUDES_END
 #include <atomic>
+#include <memory>
+#include <mutex>
 
 namespace
 {
-class FHttpCallbackState final
+std::string ToUtf8(const FString& Value)
 {
-public:
-    FHttpCallbackState(
-        FOpenPocketBaseHttpChunkCallback InOnChunk,
-        FOpenPocketBaseHttpCompleteCallback InOnComplete,
-        TFunction<bool()> InShouldContinueResponse,
-        const bool bInStreamResponse,
-        const int64 InMaxResponseBytes)
-        : OnChunk(MoveTemp(InOnChunk))
-        , OnComplete(MoveTemp(InOnComplete))
-        , ShouldContinueResponse(MoveTemp(InShouldContinueResponse))
-        , bStreamResponse(bInStreamResponse)
-        , MaxResponseBytes(InMaxResponseBytes)
-        , ResponseBuffer(InMaxResponseBytes)
-    {
-    }
+    const FTCHARToUTF8 Utf8(*Value, Value.Len());
+    return std::string(Utf8.Get(), Utf8.Length());
+}
 
-    void Receive(void* Data, int64& Length)
+FString FromUtf8(const std::string& Value)
+{
+    const FUTF8ToTCHAR Converted(Value.data(), static_cast<int32>(Value.size()));
+    return FString(Converted.Length(), Converted.Get());
+}
+
+struct FTlsPolicy
+{
+    FString Domain;
+    const ISslCertificateManager* Certificates;
+};
+
+void FreeTlsPolicy(void*, void* Value, CRYPTO_EX_DATA*, int, long, void*)
+{
+    delete static_cast<FTlsPolicy*>(Value);
+}
+
+int TlsPolicyIndex()
+{
+    static const int Index = SSL_CTX_get_ex_new_index(0, nullptr, nullptr, nullptr, &FreeTlsPolicy);
+    return Index;
+}
+
+int VerifyCertificate(int bVerified, X509_STORE_CTX* Store)
+{
+    if (!bVerified) return 0;
+    SSL* Connection = static_cast<SSL*>(X509_STORE_CTX_get_ex_data(Store, SSL_get_ex_data_X509_STORE_CTX_idx()));
+    SSL_CTX* Context = Connection ? SSL_get_SSL_CTX(Connection) : nullptr;
+    const int Index = TlsPolicyIndex();
+    const FTlsPolicy* Policy = Context && Index >= 0
+        ? static_cast<FTlsPolicy*>(SSL_CTX_get_ex_data(Context, Index)) : nullptr;
+    return Policy && Policy->Certificates->VerifySslCertificates(Store, Policy->Domain) ? 1 : 0;
+}
+
+bool ConfigureTls(void* RawContext, const FString& Domain, const ISslCertificateManager& Certificates)
+{
+    SSL_CTX* Context = static_cast<SSL_CTX*>(RawContext);
+    const int Index = TlsPolicyIndex();
+    if (Index < 0) return false;
+    Certificates.AddCertificatesToSslContext(Context);
+    if (!SSL_CTX_get_ex_data(Context, Index))
     {
-        if (Length > 0)
+        FTlsPolicy* Policy = new FTlsPolicy{Domain, &Certificates};
+        if (SSL_CTX_set_ex_data(Context, Index, Policy) != 1)
         {
-            ObserveResponseActivity();
-        }
-        if (!bStreamResponse && Length > 0 &&
-            !ResponseBuffer.Append(MakeArrayView(static_cast<const uint8*>(Data), Length)))
-        {
-            Length = 0;
-            return;
-        }
-        if (bStreamResponse && OnChunk && Length > 0)
-        {
-            OnChunk(MakeArrayView(static_cast<const uint8*>(Data), Length));
-        }
-        if (ShouldContinueResponse && !ShouldContinueResponse())
-        {
-            Length = 0;
+            delete Policy;
+            return false;
         }
     }
+    SSL_CTX_set_verify(Context, SSL_VERIFY_PEER, &VerifyCertificate);
+    return true;
+}
 
-    void ObserveProgress(const uint64 BytesSent, const uint64 BytesReceived)
+std::mutex LoopMutex;
+std::shared_ptr<OpenPocketBase::Http::FCurlLoop> SharedLoop;
+bool bTransportShutdown = false;
+
+std::shared_ptr<OpenPocketBase::Http::FCurlLoop> GetLoop()
+{
+    std::lock_guard<std::mutex> Lock(LoopMutex);
+    if (bTransportShutdown) return {};
+    if (!SharedLoop)
     {
-        const uint64 PreviousSent = LastBytesSent.exchange(BytesSent, std::memory_order_acq_rel);
-        const uint64 PreviousReceived = LastBytesReceived.exchange(BytesReceived, std::memory_order_acq_rel);
-        if (BytesSent > PreviousSent || BytesReceived > PreviousReceived)
+        SharedLoop = std::make_shared<OpenPocketBase::Http::FCurlLoop>(
+            FHttpModule::Get().GetHttpMaxConnectionsPerServer());
+    }
+    return SharedLoop;
+}
+
+struct FRequestData
+{
+    FRequestData(FOpenPocketBaseHttpRequest InRequest, FOpenPocketBaseHttpChunkCallback InChunk,
+        FOpenPocketBaseHttpCompleteCallback InComplete)
+        : Request(MoveTemp(InRequest)), OnChunk(MoveTemp(InChunk)), OnComplete(MoveTemp(InComplete)),
+          Buffer(Request.MaxResponseBytes) {}
+
+    bool Receive(const uint8* Data, const std::size_t Length)
+    {
+        if (Length > MAX_int32) return false;
+        const TArrayView<const uint8> Chunk(Data, static_cast<int32>(Length));
+        if (Request.bStreamResponse)
         {
-            if (BytesReceived > PreviousReceived)
-            {
-                bResponseStarted.store(true, std::memory_order_release);
-            }
-            LastActivitySeconds.store(FPlatformTime::Seconds(), std::memory_order_release);
+            if (OnChunk) OnChunk(Chunk);
         }
-    }
-
-    void ObserveResponseActivity(const int32 StatusCode = 0)
-    {
-        bResponseStarted.store(true, std::memory_order_release);
-        if (StatusCode > 0)
-        {
-            HttpStatus.store(StatusCode, std::memory_order_release);
-        }
-        LastActivitySeconds.store(FPlatformTime::Seconds(), std::memory_order_release);
-    }
-
-    bool DidActivityTimeout(const double TimeoutSeconds) const
-    {
-        return TimeoutSeconds > 0.0 && bResponseStarted.load(std::memory_order_acquire) &&
-            FPlatformTime::Seconds() - LastActivitySeconds.load(std::memory_order_acquire) + 0.05 >= TimeoutSeconds;
-    }
-
-    int32 GetHttpStatus() const
-    {
-        return HttpStatus.load(std::memory_order_acquire);
+        else if (!Buffer.Append(Chunk)) return false;
+        return !Request.ShouldContinueResponse || Request.ShouldContinueResponse();
     }
 
     void Complete(FOpenPocketBaseHttpResponse&& Response)
     {
-        bool bExpected = false;
-        if (!bCompleted.compare_exchange_strong(bExpected, true, std::memory_order_acq_rel))
+        if (bCompleted.exchange(true)) return;
+        if (Buffer.HasExceededLimit())
         {
-            return;
+            Response.bTransportSucceeded = false;
+            Response.bTimedOut = false;
+            Response.bResponseSizeLimitExceeded = true;
+            Response.ResponseBytes = Buffer.GetReceivedBytes();
+            Response.ResponseLimitBytes = Request.MaxResponseBytes;
         }
-
-        if (OnComplete)
-        {
-            if (ResponseBuffer.HasExceededLimit())
-            {
-                Response.bTransportSucceeded = false;
-                Response.bTimedOut = false;
-                Response.bResponseSizeLimitExceeded = true;
-                Response.ResponseBytes = ResponseBuffer.GetReceivedBytes();
-                Response.ResponseLimitBytes = MaxResponseBytes;
-                Response.Body.Empty();
-            }
-            else if (!bStreamResponse)
-            {
-                Response.Body = ResponseBuffer.TakeBytes();
-            }
-            FOpenPocketBaseHttpCompleteCallback Callback = MoveTemp(OnComplete);
-            Callback(MoveTemp(Response));
-        }
+        else if (!Request.bStreamResponse) Response.Body = Buffer.TakeBytes();
+        auto Callback = MoveTemp(OnComplete);
+        if (Callback) Callback(MoveTemp(Response));
     }
 
-private:
-    std::atomic<bool> bCompleted = false;
-    std::atomic<bool> bResponseStarted = false;
-    std::atomic<uint64> LastBytesSent = 0;
-    std::atomic<uint64> LastBytesReceived = 0;
-    std::atomic<double> LastActivitySeconds = FPlatformTime::Seconds();
-    std::atomic<int32> HttpStatus = 0;
+    FOpenPocketBaseHttpRequest Request;
     FOpenPocketBaseHttpChunkCallback OnChunk;
     FOpenPocketBaseHttpCompleteCallback OnComplete;
-    TFunction<bool()> ShouldContinueResponse;
-    bool bStreamResponse;
-    int64 MaxResponseBytes;
-    FOpenPocketBaseResponseBuffer ResponseBuffer;
+    FOpenPocketBaseResponseBuffer Buffer;
+    int64 UploadPosition = 0;
+    std::atomic<bool> bCompleted = false;
 };
 
 class FOpenPocketBaseHttpTransport final : public IOpenPocketBaseTransport
@@ -136,176 +145,140 @@ class FOpenPocketBaseHttpTransport final : public IOpenPocketBaseTransport
 public:
     virtual bool IsIncrementalResponseStreamingAvailable(FString& OutReason) const override
     {
-#if PLATFORM_WINDOWS && PLATFORM_CPU_X86_FAMILY
-        OutReason = TEXT("Incremental Unreal HTTP streaming is packaged-proven on Windows x64.");
+        OutReason = TEXT("Incremental response delivery is available through the SDK's libcurl transport.");
         return true;
-#elif PLATFORM_MAC && PLATFORM_CPU_ARM_FAMILY
-        OutReason = TEXT("Incremental Unreal HTTP streaming is packaged-proven on Mac ARM64.");
-        return true;
-#else
-        OutReason = TEXT("Incremental Unreal HTTP streaming has not been packaged-proven on this target.");
-        return false;
-#endif
     }
 
-    virtual FOpenPocketBaseTransportHandle Send(
-        FOpenPocketBaseHttpRequest&& Request,
-        FOpenPocketBaseHttpChunkCallback OnChunk,
-        FOpenPocketBaseHttpCompleteCallback OnComplete) override
+    virtual FOpenPocketBaseTransportHandle Send(FOpenPocketBaseHttpRequest&& Request,
+        FOpenPocketBaseHttpChunkCallback OnChunk, FOpenPocketBaseHttpCompleteCallback OnComplete) override
     {
-        const TSharedRef<FHttpCallbackState, ESPMode::ThreadSafe> Callbacks =
-            MakeShared<FHttpCallbackState, ESPMode::ThreadSafe>(
-                MoveTemp(OnChunk),
-                MoveTemp(OnComplete),
-                MoveTemp(Request.ShouldContinueResponse),
-                Request.bStreamResponse,
-                Request.MaxResponseBytes);
-
-        const FHttpRequestRef HttpRequest = FHttpModule::Get().CreateRequest();
-        HttpRequest->SetURL(Request.Url);
-        HttpRequest->SetVerb(Request.Method);
-        HttpRequest->SetTimeout(static_cast<float>(Request.TotalTimeoutSeconds));
-        HttpRequest->SetActivityTimeout(static_cast<float>(Request.ActivityTimeoutSeconds));
-        HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
-
-        for (const TPair<FString, FString>& Header : Request.Headers)
+        auto Data = std::make_shared<FRequestData>(MoveTemp(Request), MoveTemp(OnChunk), MoveTemp(OnComplete));
+        const auto Fail = [Data](const TCHAR* Message)
         {
-            HttpRequest->SetHeader(Header.Key, Header.Value);
+            FOpenPocketBaseHttpResponse Response;
+            Response.RequestId = Data->Request.RequestId;
+            Response.EffectiveUrl = Data->Request.Url;
+            Response.ErrorMessage = Message;
+            Data->Complete(MoveTemp(Response));
+        };
+        FHttpModule& Http = FHttpModule::Get();
+        if (!Http.IsHttpEnabled() || !Http.GetHttpManager().IsDomainAllowed(Data->Request.Url))
+        {
+            Fail(TEXT("The request is disabled by the project's HTTP settings or allowed-domain policy."));
+            return {};
         }
-
-        if (Request.BodyStream.IsValid())
+        if (!FMath::IsFinite(Data->Request.TotalTimeoutSeconds) || Data->Request.TotalTimeoutSeconds < 0 ||
+            !FMath::IsFinite(Data->Request.ActivityTimeoutSeconds) || Data->Request.ActivityTimeoutSeconds < 0 ||
+            (!Data->Request.bStreamResponse && (Data->Request.MaxResponseBytes < 1 || Data->Request.MaxResponseBytes > MAX_int32)))
         {
-            const bool bValidStream = Request.Body.IsEmpty() && Request.BodyLength >= 0 &&
-                Request.BodyStream->Tell() == 0 && Request.BodyStream->TotalSize() == Request.BodyLength;
-            if (!bValidStream || !HttpRequest->SetContentFromStream(Request.BodyStream.ToSharedRef()))
-            {
-                FOpenPocketBaseHttpResponse Result;
-                Result.RequestId = Request.RequestId;
-                Result.EffectiveUrl = Request.Url;
-                Result.ErrorMessage = TEXT("Unreal HTTP could not attach the request body stream. Confirm the stream is open and readable before sending the request.");
-                Callbacks->Complete(MoveTemp(Result));
-                return {};
-            }
-            HttpRequest->SetHeader(TEXT("Content-Length"), LexToString(Request.BodyLength));
+            Fail(TEXT("The HTTP request contains an invalid timeout or response limit."));
+            return {};
         }
-        else if (!Request.Body.IsEmpty())
+        if (Data->Request.BodyStream.IsValid() &&
+            (!Data->Request.Body.IsEmpty() || Data->Request.BodyLength < 0 ||
+             Data->Request.BodyStream->Tell() != 0 || Data->Request.BodyStream->TotalSize() != Data->Request.BodyLength))
         {
-            HttpRequest->SetContent(MoveTemp(Request.Body));
-        }
-
-        if (!HttpRequest->SetResponseBodyReceiveStreamDelegateV2(
-                FHttpRequestStreamDelegateV2::CreateLambda(
-                    [Callbacks](void* Data, int64& Length)
-                    {
-                        Callbacks->Receive(Data, Length);
-                    })))
-        {
-            FOpenPocketBaseHttpResponse Result;
-            Result.RequestId = Request.RequestId;
-            Result.ErrorMessage = TEXT("Unreal HTTP could not attach the bounded response receiver.");
-            Callbacks->Complete(MoveTemp(Result));
+            Fail(TEXT("The request body stream must be readable from its start and match the declared body length."));
             return {};
         }
 
-        HttpRequest->OnStatusCodeReceived().BindLambda(
-            [Callbacks](FHttpRequestPtr, const int32 StatusCode)
-            {
-                Callbacks->ObserveResponseActivity(StatusCode);
-            });
-        HttpRequest->OnHeaderReceived().BindLambda(
-            [Callbacks](FHttpRequestPtr, const FString&, const FString&)
-            {
-                Callbacks->ObserveResponseActivity();
-            });
-        HttpRequest->OnRequestProgress64().BindLambda(
-            [Callbacks](FHttpRequestPtr, const uint64 BytesSent, const uint64 BytesReceived)
-            {
-                Callbacks->ObserveProgress(BytesSent, BytesReceived);
-            });
-
-        const FString RequestId = Request.RequestId;
-        const FString RequestUrl = Request.Url;
-        const double TotalTimeoutSeconds = Request.TotalTimeoutSeconds;
-        const double ActivityTimeoutSeconds = Request.ActivityTimeoutSeconds;
-        HttpRequest->OnProcessRequestComplete().BindLambda(
-            [Callbacks, RequestId, TotalTimeoutSeconds, ActivityTimeoutSeconds](
-                FHttpRequestPtr CompletedRequest,
-                FHttpResponsePtr Response,
-                const bool bSucceeded)
-            {
-                FOpenPocketBaseHttpResponse Result;
-                Result.RequestId = RequestId;
-                Result.EffectiveUrl = UE::OpenPocketBase::Compatibility::GetEffectiveUrl(
-                    CompletedRequest,
-                    Response);
-                Result.bTransportSucceeded = bSucceeded && Response.IsValid();
-                const EHttpFailureReason FailureReason = CompletedRequest.IsValid()
-                    ? CompletedRequest->GetFailureReason()
-                    : Response.IsValid()
-                        ? Response->GetFailureReason()
-                        : EHttpFailureReason::Other;
-                if (FailureReason == EHttpFailureReason::TimedOut)
-                {
-                    Result.bTimedOut = true;
-                    Result.TimeoutSource = EOpenPocketBaseHttpTimeoutSource::Total;
-                    Result.TimeoutSeconds = TotalTimeoutSeconds;
-                }
-                else if (FailureReason == EHttpFailureReason::ConnectionError &&
-                    Callbacks->DidActivityTimeout(ActivityTimeoutSeconds))
-                {
-                    Result.bTimedOut = true;
-                    Result.TimeoutSource = EOpenPocketBaseHttpTimeoutSource::Activity;
-                    Result.TimeoutSeconds = ActivityTimeoutSeconds;
-                }
-
-                if (Response.IsValid())
-                {
-                    Result.HttpStatus = Response->GetResponseCode();
-                    if (!Result.bTransportSucceeded)
-                    {
-                        Result.ErrorMessage = LexToString(FailureReason);
-                    }
-
-                    for (const FString& HeaderLine : Response->GetAllHeaders())
-                    {
-                        FString Name;
-                        FString Value;
-                        if (HeaderLine.Split(TEXT(":"), &Name, &Value))
-                        {
-                            Result.Headers.Add(Name.TrimStartAndEnd(), Value.TrimStartAndEnd());
-                        }
-                    }
-
-                    Result.Body = Response->TakeContent();
-                }
-                else
-                {
-                    Result.HttpStatus = Callbacks->GetHttpStatus();
-                    Result.ErrorMessage = Result.bTimedOut
-                        ? LexToString(FailureReason)
-                        : TEXT("Unreal HTTP did not return a response. Check the server URL, confirm PocketBase is running, and verify network access.");
-                }
-
-                Callbacks->Complete(MoveTemp(Result));
-            });
-
-        if (!HttpRequest->ProcessRequest())
+        for (const TPair<FString, FString>& Header : Http.GetDefaultHeaders())
         {
-            FOpenPocketBaseHttpResponse Result;
-            Result.RequestId = RequestId;
-            Result.EffectiveUrl = RequestUrl;
-            Result.ErrorMessage = TEXT("Unreal HTTP could not start the request. Check the URL, request headers, body stream, and platform HTTP support.");
-            Callbacks->Complete(MoveTemp(Result));
-        }
-
-        return FOpenPocketBaseTransportHandle(
-            [WeakRequest = TWeakPtr<IHttpRequest, ESPMode::ThreadSafe>(HttpRequest)]()
+            bool bPresent = false;
+            for (const TPair<FString, FString>& Existing : Data->Request.Headers)
             {
-                if (const FHttpRequestPtr RequestToCancel = WeakRequest.Pin())
+                bPresent |= Existing.Key.Equals(Header.Key, ESearchCase::IgnoreCase);
+            }
+            if (!bPresent) Data->Request.Headers.Add(Header.Key, Header.Value);
+        }
+        bool bHasUserAgent = false;
+        for (const TPair<FString, FString>& Header : Data->Request.Headers)
+        {
+            bHasUserAgent |= Header.Key.Equals(TEXT("User-Agent"), ESearchCase::IgnoreCase);
+        }
+        if (!bHasUserAgent) Data->Request.Headers.Add(TEXT("User-Agent"), FPlatformHttp::GetDefaultUserAgent());
+
+        const auto Loop = GetLoop();
+        if (!Loop)
+        {
+            Fail(TEXT("The PocketBase HTTP transport has shut down."));
+            return {};
+        }
+        OpenPocketBase::Http::FCurlRequest Native;
+        Native.Url = ToUtf8(Data->Request.Url);
+        Native.Method = ToUtf8(Data->Request.Method.ToUpper());
+        Native.Proxy = ToUtf8(Http.GetProxyAddress());
+        Native.NoProxy = ToUtf8(Http.GetHttpNoProxy());
+        Native.TotalTimeoutSeconds = Data->Request.TotalTimeoutSeconds;
+        Native.ActivityTimeoutSeconds = Data->Request.ActivityTimeoutSeconds;
+        Native.ConnectTimeoutSeconds = Http.GetHttpConnectionTimeout();
+        Native.BodyLength = Data->Request.BodyStream.IsValid()
+            ? Data->Request.BodyLength : Data->Request.Body.Num();
+        for (const TPair<FString, FString>& Header : Data->Request.Headers)
+        {
+            Native.Headers.push_back(ToUtf8(Header.Key + TEXT(": ") + Header.Value));
+        }
+        Native.ReadBody = [Data](std::uint8_t* Output, const std::size_t Capacity) -> std::size_t
+        {
+            const int64 Total = Data->Request.BodyStream.IsValid()
+                ? Data->Request.BodyLength : Data->Request.Body.Num();
+            const int64 Length = FMath::Min<int64>(Total - Data->UploadPosition, static_cast<int64>(Capacity));
+            if (Length <= 0) return 0;
+            if (Data->Request.BodyStream.IsValid())
+            {
+                Data->Request.BodyStream->Serialize(Output, Length);
+                if (Data->Request.BodyStream->IsError()) return Capacity + 1;
+            }
+            else FMemory::Memcpy(Output, Data->Request.Body.GetData() + Data->UploadPosition, Length);
+            Data->UploadPosition += Length;
+            return static_cast<std::size_t>(Length);
+        };
+        Native.SeekBody = [Data](const std::uint64_t Position)
+        {
+            const int64 Total = Data->Request.BodyStream.IsValid()
+                ? Data->Request.BodyLength : Data->Request.Body.Num();
+            if (Position > static_cast<std::uint64_t>(Total)) return false;
+            if (Data->Request.BodyStream.IsValid())
+            {
+                Data->Request.BodyStream->Seek(static_cast<int64>(Position));
+                if (Data->Request.BodyStream->IsError()) return false;
+            }
+            Data->UploadPosition = static_cast<int64>(Position);
+            return true;
+        };
+        Native.Receive = [Data](const std::uint8_t* Bytes, std::size_t Length) { return Data->Receive(Bytes, Length); };
+        const FString Domain = FPlatformHttp::GetUrlDomain(Data->Request.Url);
+        const ISslCertificateManager* Certificates = &FSslModule::Get().GetCertificateManager();
+        Native.ConfigureSslContext = [Domain, Certificates](void* Context) { return ConfigureTls(Context, Domain, *Certificates); };
+        Native.Complete = [Data](OpenPocketBase::Http::FCurlResult&& Result)
+        {
+            FOpenPocketBaseHttpResponse Response;
+            Response.RequestId = Data->Request.RequestId;
+            Response.EffectiveUrl = FromUtf8(Result.EffectiveUrl);
+            Response.bTransportSucceeded = Result.bSucceeded;
+            Response.bTimedOut = Result.bTimedOut;
+            Response.HttpStatus = static_cast<int32>(Result.Status);
+            Response.ErrorMessage = FromUtf8(Result.Error);
+            if (Result.bTimedOut)
+            {
+                Response.TimeoutSource = Result.bActivityTimedOut
+                    ? EOpenPocketBaseHttpTimeoutSource::Activity : EOpenPocketBaseHttpTimeoutSource::Total;
+                Response.TimeoutSeconds = Result.bActivityTimedOut
+                    ? Data->Request.ActivityTimeoutSeconds : Data->Request.TotalTimeoutSeconds;
+            }
+            for (const std::string& Header : Result.Headers)
+            {
+                FString Name;
+                FString Value;
+                if (FromUtf8(Header).Split(TEXT(":"), &Name, &Value))
                 {
-                    RequestToCancel->CancelRequest();
+                    Response.Headers.Add(Name.TrimStartAndEnd(), Value.TrimStartAndEnd());
                 }
-            });
+            }
+            Data->Complete(MoveTemp(Response));
+        };
+        auto Cancel = Loop->Send(std::move(Native));
+        return FOpenPocketBaseTransportHandle([Cancel = std::move(Cancel)]() { Cancel(); });
     }
 };
 }
@@ -313,4 +286,21 @@ public:
 TSharedRef<IOpenPocketBaseTransport, ESPMode::ThreadSafe> CreateOpenPocketBaseHttpTransport()
 {
     return MakeShared<FOpenPocketBaseHttpTransport, ESPMode::ThreadSafe>();
+}
+
+void ShutdownOpenPocketBaseHttpTransports()
+{
+    std::shared_ptr<OpenPocketBase::Http::FCurlLoop> Loop;
+    {
+        std::lock_guard<std::mutex> Lock(LoopMutex);
+        bTransportShutdown = true;
+        Loop = std::move(SharedLoop);
+    }
+    if (Loop)
+    {
+        Loop->Shutdown();
+        // OpenSSL keeps ex-data callbacks globally, even for contexts with no SDK data.
+        const int Index = TlsPolicyIndex();
+        if (Index >= 0) CRYPTO_free_ex_index(CRYPTO_EX_INDEX_SSL_CTX, Index);
+    }
 }

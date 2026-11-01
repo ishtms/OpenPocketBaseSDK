@@ -21,6 +21,12 @@ public class OpenPocketBaseSDK : ModuleRules
             });
 
         PrivateDependencyModuleNames.Add("Projects");
+        if (Target.Platform == UnrealTargetPlatform.Win64 && Target.WindowsPlatform.bUseXCurl)
+        {
+            throw new BuildException("OpenPocketBaseSDK requires libcurl. Disable bUseXCurl for this target.");
+        }
+        PrivateDependencyModuleNames.Add("SSL");
+        AddEngineThirdPartyPrivateStaticDependencies(Target, "libcurl", "OpenSSL");
 
         if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.IOS)
         {

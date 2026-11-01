@@ -99,6 +99,7 @@ public:
         return false;
     }
 
+    // Implementations must not follow redirects: rejecting a response cannot undo a forwarded request.
     virtual FOpenPocketBaseTransportHandle Send(
         FOpenPocketBaseHttpRequest&& Request,
         FOpenPocketBaseHttpChunkCallback OnChunk,
