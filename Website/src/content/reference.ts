@@ -67,7 +67,7 @@ export const referencePages: DocPage[] = [
     slug: "reference/blueprint-nodes",
     title: "Blueprint node index",
     eyebrow: "Reference",
-    description: "A category-by-category map of every public gameplay and trusted-tool Blueprint node in version 0.1.0.",
+    description: "A category-by-category map of every public gameplay and trusted-tool Blueprint node in version 0.1.2.",
     readTime: "14 min",
     sections: [
       {

@@ -122,7 +122,7 @@ function Sidebar({ activeSlug, open, onClose, onSearch }: {
         </nav>
 
         <div className="sidebar-footer">
-          <span><i /> SDK 0.1.0</span>
+          <span><i /> SDK 0.1.2</span>
           <span>PocketBase 0.39.11</span>
         </div>
       </aside>

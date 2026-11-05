@@ -32,7 +32,7 @@ export const startPages: DocPage[] = [
         title: "Know the contract before you ship",
         blocks: [
           paragraph(
-            "Version 0.1.0 targets PocketBase v0.39.11 exactly. PocketBase is still pre-1.0, so a newer server is not treated as compatible until its routes and behavior have been checked against the repository's pinned integration suite. Unknown response fields are retained, but that does not replace a compatibility pass."
+            "Version 0.1.2 targets PocketBase v0.39.11 exactly. PocketBase is still pre-1.0, so a newer server is not treated as compatible until its routes and behavior have been checked against the repository's pinned integration suite. Unknown response fields are retained, but that does not replace a compatibility pass."
           ),
           table(
             ["Area", "Status", "What that means"],

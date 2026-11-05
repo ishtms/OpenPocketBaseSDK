@@ -512,7 +512,7 @@ FOpenPocketBaseAdminClientResult Result =
           table(
             ["Component", "Target"],
             [
-              ["OpenPocketBase SDK", "0.1.0"],
+              ["OpenPocketBase SDK", "0.1.2"],
               ["PocketBase server", "v0.39.11 at pinned commit 5d217ddb50cb144d80a5d0b0bdf11b52b2c3e457"],
               ["Reference JS vocabulary", "Official JavaScript SDK v0.28.0"],
               ["Packaged proof host", "Unreal Engine 5.8 Mac ARM64 Development"]
